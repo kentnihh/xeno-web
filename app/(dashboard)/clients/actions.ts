@@ -1,23 +1,37 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { requireAuth, requireAdmin } from "@/lib/auth";
+
+const createClientSchema = z.object({
+  name: z.string().trim().min(1, "Nama klien wajib diisi"),
+  company: z.string().trim().optional().transform((v) => v || null),
+  phone: z.string().trim().min(1, "Nomor telepon wajib diisi"),
+  email: z
+    .string()
+    .trim()
+    .email("Format email tidak valid")
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => v || null),
+  address: z.string().trim().optional().transform((v) => v || null),
+});
 
 export async function createClientAction(formData: FormData): Promise<void> {
-  const supabase = await createClient();
-  const name = formData.get("name") as string;
-  const company = (formData.get("company") as string) || null;
-  const phone = formData.get("phone") as string;
-  const email = (formData.get("email") as string) || null;
-  const address = (formData.get("address") as string) || null;
+  await requireAuth();
 
-  const { error } = await supabase.from("clients").insert({
-    name,
-    company,
-    phone,
-    email,
-    address,
+  const validated = createClientSchema.parse({
+    name: formData.get("name"),
+    company: formData.get("company"),
+    phone: formData.get("phone"),
+    email: formData.get("email"),
+    address: formData.get("address"),
   });
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("clients").insert(validated);
 
   if (error) {
     throw new Error(error.message);
@@ -27,8 +41,11 @@ export async function createClientAction(formData: FormData): Promise<void> {
 }
 
 export async function deleteClientAction(clientId: string): Promise<void> {
+  await requireAdmin();
+
+  const validId = z.string().min(1, "ID klien wajib diisi").parse(clientId);
   const supabase = await createClient();
-  const { error } = await supabase.from("clients").delete().eq("id", clientId);
+  const { error } = await supabase.from("clients").delete().eq("id", validId);
 
   if (error) {
     throw new Error(error.message);

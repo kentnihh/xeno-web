@@ -11,7 +11,7 @@ import type { Event, EventStatus } from "@/types/database";
 export interface EditEventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  event: Event | any;
+  event: Event;
 }
 
 export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) {
@@ -157,18 +157,24 @@ export function EditEventButton({
   className = "",
   variant = "default",
 }: {
-  event: any;
+  event: Event;
   className?: string;
   variant?: "default" | "icon";
 }) {
   const [isOpen, setIsOpen] = useState(false);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOpen(true);
+  };
 
   return (
     <>
       {variant === "icon" ? (
         <button
           type="button"
-          onClick={() => setIsOpen(true)}
+          onClick={handleClick}
           className={`p-1.5 rounded-xl text-muted-foreground hover:text-[#007aff] hover:bg-muted/80 transition-all cursor-pointer ${className}`}
           title="Edit Acara"
           aria-label="Edit Acara"
@@ -178,7 +184,7 @@ export function EditEventButton({
       ) : (
         <button
           type="button"
-          onClick={() => setIsOpen(true)}
+          onClick={handleClick}
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card hover:bg-muted text-foreground text-xs font-semibold border border-border transition-all cursor-pointer shadow-xs active:scale-[0.98] ${className}`}
           title="Edit Acara"
         >

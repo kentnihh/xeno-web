@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
 import { eventDocumentSchema } from "@/lib/validations/event";
 import { getStoragePathFromUrl } from "@/lib/utils";
 import type { EventDocument } from "@/types/database";
@@ -27,6 +28,7 @@ export async function createEventDocumentMetadata(payload: {
       };
     }
 
+    await requireAuth();
     const supabase = await createClient();
     const {
       data: { user },
@@ -68,6 +70,7 @@ export async function deleteEventDocument(
   fileUrl: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     const supabase = await createClient();
     const storagePath = getStoragePathFromUrl(fileUrl);
 
@@ -113,6 +116,7 @@ export async function getDocumentSignedUrl(
       return { success: true, url: fileUrl };
     }
 
+    await requireAuth();
     const supabase = await createClient();
     const storagePath = getStoragePathFromUrl(fileUrl);
 
@@ -164,6 +168,7 @@ export async function uploadEventDocument(
       return { success: false, error: "ID acara wajib diisi" };
     }
 
+    await requireAuth();
     const supabase = await createClient();
     const {
       data: { user },

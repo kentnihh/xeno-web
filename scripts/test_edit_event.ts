@@ -104,15 +104,46 @@ assert(!invalidStatusResult.success, "Unknown status must fail validation");
 console.log("Edit event verification passed successfully.");
 
 // 12. Live Supabase database update verification
+// ponytail: reads credentials from .env.local / .env; never hardcode secrets
 async function testLiveUpdate() {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+
+  // Load env files manually (outside Next.js runtime)
+  for (const envFile of [".env.local", ".env"]) {
+    const filePath = path.resolve(process.cwd(), envFile);
+    if (fs.existsSync(filePath)) {
+      for (const line of fs.readFileSync(filePath, "utf-8").split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const [key, ...values] = trimmed.split("=");
+        if (key && !process.env[key.trim()]) {
+          process.env[key.trim()] = values.join("=").trim();
+        }
+      }
+    }
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const testEmail = process.env.TEST_USER_EMAIL;
+  const testPassword = process.env.TEST_USER_PASSWORD;
+
+  if (!url || !key) {
+    console.log("Supabase live test skipped: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY not set in env.");
+    return;
+  }
+  if (!testEmail || !testPassword) {
+    console.log("Supabase live test skipped: TEST_USER_EMAIL / TEST_USER_PASSWORD not set in env.");
+    return;
+  }
+
   const { createClient } = await import("@supabase/supabase-js");
-  const url = "https://yblhtchviuslhfwiwyuo.supabase.co";
-  const key = "sb_publishable_JIVAnr1UtPOngL8UV5ITdw_uCsNaSpV";
   const client = createClient(url, key);
 
   const { error: authError } = await client.auth.signInWithPassword({
-    email: "admin@xenoent.com",
-    password: "Password123!",
+    email: testEmail,
+    password: testPassword,
   });
   if (authError) {
     console.log("Supabase live auth skipped:", authError.message);

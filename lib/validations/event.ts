@@ -86,4 +86,37 @@ export const eventDocumentSchema = z.object({
 
 export type EventDocumentInput = z.infer<typeof eventDocumentSchema>;
 
+/**
+ * Zod validation schema for Assigning Crew to Event.
+ */
+export const assignCrewSchema = z.object({
+  event_id: z.string().min(1, "ID acara wajib diisi"),
+  profile_id: z.string().min(1, "Anggota staf kru wajib dipilih"),
+  role_in_event: z.string().trim().min(1, "Peran di acara wajib diisi").default("Kru Lapangan"),
+  notes: z.string().trim().nullable().optional(),
+});
+
+export type AssignCrewInput = z.infer<typeof assignCrewSchema>;
+
+/**
+ * Zod validation schema for Updating Assigned Crew Role.
+ */
+export const updateCrewRoleSchema = z.object({
+  crew_id: z.string().min(1, "ID penugasan kru wajib diisi"),
+  event_id: z.string().min(1, "ID acara wajib diisi"),
+  role_in_event: z.string().trim().min(1, "Peran di acara wajib diisi"),
+});
+
+export type UpdateCrewRoleInput = z.infer<typeof updateCrewRoleSchema>;
+
+/**
+ * Zod validation schema for Removing Crew from Event.
+ */
+export const removeCrewSchema = z.object({
+  crew_id: z.string().min(1, "ID penugasan kru wajib diisi"),
+  event_id: z.string().min(1, "ID acara wajib diisi"),
+});
+
+export type RemoveCrewInput = z.infer<typeof removeCrewSchema>;
+
 

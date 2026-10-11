@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createEventSchema, updateEventSchema } from "@/lib/validations/event";
+import { requireAuth, requireAdmin } from "@/lib/auth";
+import {
+  createEventSchema,
+  updateEventSchema,
+  assignCrewSchema,
+  updateCrewRoleSchema,
+  removeCrewSchema,
+} from "@/lib/validations/event";
 import type { EventStatus, TaskPriority, TaskStatus, VendorStatus, EventTask, EventVendor } from "@/types/database";
 
 /**
@@ -11,6 +18,7 @@ import type { EventStatus, TaskPriority, TaskStatus, VendorStatus, EventTask, Ev
  * @param formData - FormData with title, venue, start_date, end_date, budget, description, client_id
  */
 export async function createEvent(formData: FormData): Promise<void> {
+  await requireAuth();
   const supabase = await createClient();
 
   const rawExpenses = formData.get("expenses");
@@ -66,7 +74,7 @@ export async function createEvent(formData: FormData): Promise<void> {
   }
 
   if (Array.isArray(validated.expenses) && validated.expenses.length > 0) {
-    const expenseRows = validated.expenses.map((exp: any) => ({
+    const expenseRows = validated.expenses.map((exp: { amount: number; category?: string; expense_date?: string; status?: string; notes?: string }) => ({
       event_id: data.id,
       amount: exp.amount,
       category: exp.category || "Others",
@@ -78,7 +86,7 @@ export async function createEvent(formData: FormData): Promise<void> {
   }
 
   if (Array.isArray(validated.documents) && validated.documents.length > 0) {
-    const docRows = validated.documents.map((doc: any) => ({
+    const docRows = validated.documents.map((doc: { file_name: string; file_url: string; file_type?: string; file_size?: number }) => ({
       event_id: data.id,
       file_name: doc.file_name,
       file_url: doc.file_url,
@@ -100,6 +108,7 @@ export async function createEvent(formData: FormData): Promise<void> {
  * @param status - New event lifecycle status
  */
 export async function updateEventStatus(eventId: string, status: EventStatus): Promise<void> {
+  await requireAuth();
   const supabase = await createClient();
   const { error } = await supabase
     .from("events")
@@ -123,6 +132,7 @@ export async function updateEventStatus(eventId: string, status: EventStatus): P
  */
 export async function updateEvent(formData: FormData): Promise<{ success: boolean; error?: string }> {
   try {
+    await requireAuth();
     const supabase = await createClient();
 
     const rawId = formData.get("id");
@@ -169,11 +179,11 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
     revalidatePath("/");
 
     return { success: true };
-  } catch (err: any) {
-    if (err && typeof err === "object" && "issues" in err && Array.isArray((err as any).issues)) {
-      return { success: false, error: (err as any).issues[0]?.message || "Validasi data gagal" };
+  } catch (err: unknown) {
+    if (err && typeof err === "object" && "issues" in err && Array.isArray((err as { issues: unknown[] }).issues)) {
+      return { success: false, error: (err as { issues: { message?: string }[] }).issues[0]?.message || "Validasi data gagal" };
     }
-    return { success: false, error: err?.message || "Gagal memperbarui data acara" };
+    return { success: false, error: err instanceof Error ? err.message : "Gagal memperbarui data acara" };
   }
 }
 
@@ -181,6 +191,7 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
  * Inserts a new operational task associated with an event.
  */
 export async function createEventTask(formData: FormData): Promise<{ success: boolean; error?: string; task?: EventTask }> {
+  await requireAuth();
   const supabase = await createClient();
   const eventId = formData.get("event_id") as string;
   const title = (formData.get("title") as string)?.trim();
@@ -232,6 +243,7 @@ export async function addEventTask(formData: FormData): Promise<void> {
  * Updates an existing operational task.
  */
 export async function updateEventTask(formData: FormData): Promise<{ success: boolean; error?: string; task?: EventTask }> {
+  await requireAuth();
   const supabase = await createClient();
   const taskId = formData.get("task_id") as string;
   const eventId = formData.get("event_id") as string;
@@ -275,6 +287,7 @@ export async function updateEventTask(formData: FormData): Promise<{ success: bo
  * Toggles a crew task between 'done' and 'todo'.
  */
 export async function toggleTaskStatus(taskId: string, currentStatus: string, eventId: string): Promise<{ success: boolean; error?: string }> {
+  await requireAuth();
   const supabase = await createClient();
   const nextStatus = currentStatus === "done" ? "todo" : "done";
   const { error } = await supabase
@@ -295,6 +308,7 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string, ev
  * Deletes an event and cascades tasks/vendors. Admin only.
  */
 export async function deleteEvent(eventId: string): Promise<void> {
+  await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase.from("events").delete().eq("id", eventId);
   if (error) {
@@ -309,6 +323,7 @@ export async function deleteEvent(eventId: string): Promise<void> {
  * Deletes a task from an event.
  */
 export async function deleteEventTask(taskId: string, eventId: string): Promise<{ success: boolean; error?: string }> {
+  await requireAuth();
   const supabase = await createClient();
   const { error } = await supabase.from("event_tasks").delete().eq("id", taskId).eq("event_id", eventId);
   if (error) {
@@ -318,25 +333,42 @@ export async function deleteEventTask(taskId: string, eventId: string): Promise<
   return { success: true };
 }
 /**
- * Assigns or updates a staff member's assignment to an event.
+ * Assigns or updates a staff member's assignment to an event (INSERT / UPSERT).
  */
-export async function assignEventCrew(formData: FormData): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
-  const eventId = formData.get("event_id") as string;
-  const profileId = formData.get("profile_id") as string;
-  const roleInEvent = (formData.get("role_in_event") as string) || "Kru Lapangan";
-  const notes = (formData.get("notes") as string) || null;
+export async function assignCrewToEvent(
+  input: FormData | { eventId: string; profileId: string; roleInEvent?: string; notes?: string | null }
+): Promise<{ success: boolean; error?: string }> {
+  await requireAuth();
 
-  if (!eventId || !profileId) {
-    return { success: false, error: "Event ID dan anggota staf kru wajib diisi." };
+  let rawData: { event_id: unknown; profile_id: unknown; role_in_event?: unknown; notes?: unknown };
+  if (input instanceof FormData) {
+    rawData = {
+      event_id: input.get("event_id"),
+      profile_id: input.get("profile_id"),
+      role_in_event: input.get("role_in_event") || "Kru Lapangan",
+      notes: input.get("notes") || null,
+    };
+  } else {
+    rawData = {
+      event_id: input.eventId,
+      profile_id: input.profileId,
+      role_in_event: input.roleInEvent || "Kru Lapangan",
+      notes: input.notes || null,
+    };
   }
 
+  const parsed = assignCrewSchema.safeParse(rawData);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Data penugasan kru tidak valid." };
+  }
+
+  const supabase = await createClient();
   const { error } = await supabase.from("event_crew").upsert(
     {
-      event_id: eventId,
-      profile_id: profileId,
-      role_in_event: roleInEvent.trim(),
-      notes: notes ? notes.trim() : null,
+      event_id: parsed.data.event_id,
+      profile_id: parsed.data.profile_id,
+      role_in_event: parsed.data.role_in_event,
+      notes: parsed.data.notes ?? null,
     },
     { onConflict: "event_id,profile_id" }
   );
@@ -345,29 +377,80 @@ export async function assignEventCrew(formData: FormData): Promise<{ success: bo
     return { success: false, error: error.message };
   }
 
-  revalidatePath(`/events/${eventId}`);
+  revalidatePath(`/events/${parsed.data.event_id}`);
+  revalidatePath("/events");
   return { success: true };
 }
 
 /**
- * Removes an assigned crew member from an event.
+ * Removes an assigned crew member from an event (DELETE).
  */
-export async function removeEventCrew(crewId: string, eventId: string): Promise<{ success: boolean; error?: string }> {
+export async function removeCrewFromEvent(
+  crewId: string,
+  eventId: string
+): Promise<{ success: boolean; error?: string }> {
+  await requireAuth();
+
+  const parsed = removeCrewSchema.safeParse({ crew_id: crewId, event_id: eventId });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "ID penugasan tidak valid." };
+  }
+
   const supabase = await createClient();
-  const { error } = await supabase.from("event_crew").delete().eq("id", crewId);
+  const { error } = await supabase.from("event_crew").delete().eq("id", parsed.data.crew_id);
 
   if (error) {
     return { success: false, error: error.message };
   }
 
-  revalidatePath(`/events/${eventId}`);
+  revalidatePath(`/events/${parsed.data.event_id}`);
+  revalidatePath("/events");
   return { success: true };
 }
+
+/**
+ * Updates an assigned crew member's role in an event (UPDATE).
+ */
+export async function updateCrewRole(
+  crewId: string,
+  eventId: string,
+  roleInEvent: string
+): Promise<{ success: boolean; error?: string }> {
+  await requireAuth();
+
+  const parsed = updateCrewRoleSchema.safeParse({
+    crew_id: crewId,
+    event_id: eventId,
+    role_in_event: roleInEvent,
+  });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Data peran tidak valid." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("event_crew")
+    .update({ role_in_event: parsed.data.role_in_event })
+    .eq("id", parsed.data.crew_id);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/events/${parsed.data.event_id}`);
+  revalidatePath("/events");
+  return { success: true };
+}
+
+/** Backward compatibility aliases */
+export const assignEventCrew = assignCrewToEvent;
+export const removeEventCrew = removeCrewFromEvent;
 
 /**
  * Assigns an existing vendor to an event.
  */
 export async function assignEventVendor(formData: FormData): Promise<{ success: boolean; error?: string; eventVendor?: EventVendor }> {
+  await requireAuth();
   const supabase = await createClient();
   const eventId = formData.get("event_id") as string;
   const vendorId = formData.get("vendor_id") as string;
@@ -410,6 +493,7 @@ export async function assignEventVendor(formData: FormData): Promise<{ success: 
  * Creates a new vendor in the vendors database and immediately links it to the event.
  */
 export async function createAndAssignVendor(formData: FormData): Promise<{ success: boolean; error?: string; eventVendor?: EventVendor }> {
+  await requireAuth();
   const supabase = await createClient();
   const eventId = formData.get("event_id") as string;
 
@@ -480,6 +564,7 @@ export async function createAndAssignVendor(formData: FormData): Promise<{ succe
  * Updates an event vendor's service details, cost, status, or notes.
  */
 export async function updateEventVendor(formData: FormData): Promise<{ success: boolean; error?: string; eventVendor?: EventVendor }> {
+  await requireAuth();
   const supabase = await createClient();
   const eventVendorId = formData.get("id") as string;
   const eventId = formData.get("event_id") as string;
@@ -519,6 +604,7 @@ export async function updateEventVendor(formData: FormData): Promise<{ success: 
  * Removes a vendor assignment from an event.
  */
 export async function removeEventVendor(eventVendorId: string, eventId: string): Promise<{ success: boolean; error?: string }> {
+  await requireAuth();
   const supabase = await createClient();
   const { error } = await supabase.from("event_vendors").delete().eq("id", eventVendorId).eq("event_id", eventId);
 

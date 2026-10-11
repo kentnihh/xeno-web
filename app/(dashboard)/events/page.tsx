@@ -106,13 +106,7 @@ export default async function EventsPage() {
                   {event.budget != null ? formatIDR(event.budget) : "-"}
                 </div>
               </div>
-              <div
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                className="flex items-center"
-              >
+              <div className="flex items-center">
                 <EditEventButton event={event} variant="icon" />
               </div>
               <ChevronRight className="w-5 h-5 text-muted-foreground/60 group-hover:text-[#007aff] group-hover:translate-x-1 transition-all" />

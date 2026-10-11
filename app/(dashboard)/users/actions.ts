@@ -3,21 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAdmin } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 type ActionResult = { success?: boolean; error?: string };
-
-async function assertAdmin(): Promise<void> {
-  const allowed = await isAdmin();
-  if (!allowed) {
-    throw new Error("Akses ditolak: Hanya Administrator yang berwenang.");
-  }
-}
 
 /** Create user in Supabase Auth, profiles, and user_roles */
 export async function createUser(formData: FormData): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await requireAdmin();
 
     const fullName = (formData.get("fullName") as string)?.trim();
     const email = (formData.get("email") as string)?.trim().toLowerCase();
@@ -91,7 +84,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
 /** Update user profile and assigned role */
 export async function updateUser(formData: FormData): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await requireAdmin();
 
     const id = formData.get("id") as string;
     const fullName = (formData.get("fullName") as string)?.trim();
@@ -122,7 +115,7 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
 /** Delete user from Supabase Auth and profiles */
 export async function deleteUser(userId: string): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await requireAdmin();
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -146,7 +139,7 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
 /** Create new RBAC role with permissions */
 export async function createRole(formData: FormData): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await requireAdmin();
 
     const id = (formData.get("id") as string)?.trim().toLowerCase();
     const name = (formData.get("name") as string)?.trim();
@@ -174,7 +167,7 @@ export async function createRole(formData: FormData): Promise<ActionResult> {
 /** Update RBAC role details and associated permissions */
 export async function updateRole(formData: FormData): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await requireAdmin();
 
     const id = (formData.get("id") as string)?.trim().toLowerCase();
     const name = (formData.get("name") as string)?.trim();
@@ -206,7 +199,7 @@ export async function updateRole(formData: FormData): Promise<ActionResult> {
 /** Delete custom RBAC role */
 export async function deleteRole(roleId: string): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await requireAdmin();
 
     const protectedRoles = ["admin", "staff", "manager"];
     if (protectedRoles.includes(roleId.toLowerCase())) {
@@ -227,7 +220,7 @@ export async function deleteRole(roleId: string): Promise<ActionResult> {
 /** Create granular permission definition */
 export async function createPermission(formData: FormData): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await requireAdmin();
 
     const id = (formData.get("id") as string)?.trim().toLowerCase();
     const name = (formData.get("name") as string)?.trim();
@@ -255,7 +248,7 @@ export async function createPermission(formData: FormData): Promise<ActionResult
 /** Delete permission definition */
 export async function deletePermission(permissionId: string): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await requireAdmin();
 
     const supabase = await createClient();
     const { error } = await supabase.from("permissions").delete().eq("id", permissionId);

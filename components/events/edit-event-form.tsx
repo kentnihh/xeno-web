@@ -6,8 +6,9 @@ import Link from "next/link";
 import { MapPin, DollarSign, FileText, Activity, Loader2 } from "lucide-react";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { updateEvent } from "@/app/(dashboard)/events/actions";
+import type { Event } from "@/types/database";
 
-export function EditEventForm({ event }: { event: any }) {
+export function EditEventForm({ event }: { event: Event }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

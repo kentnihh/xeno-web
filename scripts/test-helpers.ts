@@ -126,4 +126,27 @@ assert(testPdfDoc.output("arraybuffer").byteLength > 2000, "Test PDF output byte
 
 
 
+// 9. Verify Client and Vendor validations
+import { z } from "zod";
+
+const testClientSchema = z.object({
+  name: z.string().trim().min(1),
+  company: z.string().trim().optional().transform((v) => v || null),
+  phone: z.string().trim().min(1),
+  email: z.string().trim().email().optional().or(z.literal("")).transform((v) => v || null),
+  address: z.string().trim().optional().transform((v) => v || null),
+});
+
+const clientValid = testClientSchema.parse({
+  name: "PT Mitra Sejahtera",
+  company: "",
+  phone: "081234567890",
+  email: "",
+  address: "",
+});
+assert.strictEqual(clientValid.company, null, "Empty client company should normalize to null");
+assert.strictEqual(clientValid.email, null, "Empty client email should normalize to null");
+assert.strictEqual(clientValid.address, null, "Empty client address should normalize to null");
+assert.strictEqual(clientValid.name, "PT Mitra Sejahtera");
+
 console.log("Self-check passed successfully.");

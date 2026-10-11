@@ -1,5 +1,33 @@
 import { createClient } from "./supabase/server";
 import { Profile } from "@/types/database";
+import type { User } from "@supabase/supabase-js";
+
+/**
+ * Guards server actions — throws if no authenticated user.
+ * Returns the authenticated user so callers can use user.id.
+ */
+export async function requireAuth(): Promise<User> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("Autentikasi diperlukan. Silakan login terlebih dahulu.");
+  }
+  return user;
+}
+
+/**
+ * Guards admin-only server actions — throws if not authenticated or not admin.
+ */
+export async function requireAdmin(): Promise<User> {
+  const user = await requireAuth();
+  const admin = await isAdmin();
+  if (!admin) {
+    throw new Error("Akses ditolak: Hanya Administrator yang berwenang.");
+  }
+  return user;
+}
 
 export async function getCurrentProfile(): Promise<Profile | null> {
   const supabase = await createClient();
