@@ -114,7 +114,7 @@ export function EventDocumentsSection({
         const storagePath = `${eventId}/${Date.now()}_${cleanName}`;
 
         const { error: storageError } = await supabase.storage
-          .from("event-documents")
+          .from("bucket-files")
           .upload(storagePath, file, { cacheControl: "3600", upsert: false });
 
         if (storageError) {

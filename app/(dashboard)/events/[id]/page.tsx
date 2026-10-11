@@ -6,12 +6,14 @@ import { isAdmin } from "@/lib/auth";
 import { ArrowLeft, Calendar, MapPin, Coins, Trash2 } from "lucide-react";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
 import { ExportPdfButton } from "@/components/events/export-pdf-button";
+import { EditEventButton } from "@/components/events/edit-event-modal";
 import type { EventStatus, EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument } from "@/types/database";
 
 const FALLBACK_EVENT = {
   title: "Sinar Jaya Annual Gala 2026",
   venue: "Grand Ballroom Hotel Indonesia",
   start_date: "2026-10-20T11:00:00.000Z",
+  end_date: "2026-10-20T19:00:00.000Z",
   budget: 250000000,
   status: "confirmed" as EventStatus,
 };
@@ -19,73 +21,6 @@ const FALLBACK_EVENT = {
 const FALLBACK_CREW_PROFILES: Profile[] = [
   { id: "usr-1", full_name: "Jonathan Admin", email: "admin@xenoent.com", role: "admin", phone: "+62 812-1111-2222", avatar_url: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
   { id: "usr-2", full_name: "Rian Kru Operasional", email: "staf@xenoent.com", role: "staff", phone: "+62 813-3333-4444", avatar_url: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
-];
-
-const FALLBACK_DOCUMENTS = (eventId: string): EventDocument[] => [
-  {
-    id: "doc-1",
-    event_id: eventId,
-    file_name: "Rundown-Acara-Gala-2026.pdf",
-    file_url: `${eventId}/sample-rundown.pdf`,
-    file_type: "application/pdf",
-    file_size: 2450000,
-    uploaded_by: "usr-1",
-    created_at: "2026-10-10T08:30:00.000Z",
-  },
-  {
-    id: "doc-2",
-    event_id: eventId,
-    file_name: "Floorplan-Grand-Ballroom.png",
-    file_url: `${eventId}/sample-floorplan.png`,
-    file_type: "image/png",
-    file_size: 4890000,
-    uploaded_by: "usr-2",
-    created_at: "2026-10-12T14:15:00.000Z",
-  },
-  {
-    id: "doc-3",
-    event_id: eventId,
-    file_name: "Kontrak-Vendor-Audio-Rigging.pdf",
-    file_url: `${eventId}/sample-kontrak.pdf`,
-    file_type: "application/pdf",
-    file_size: 1150000,
-    uploaded_by: "usr-1",
-    created_at: "2026-10-13T11:00:00.000Z",
-  },
-];
-
-
-const FALLBACK_EXPENSES = (eventId: string): EventExpense[] => [
-  {
-    id: "exp-1",
-    event_id: eventId,
-    amount: 85000000,
-    category: "Vendor",
-    expense_date: "2026-10-10",
-    status: "Paid",
-    notes: "DP 50% Sound System & Rigging Stage",
-    created_at: "2026-10-10T10:00:00.000Z",
-  },
-  {
-    id: "exp-2",
-    event_id: eventId,
-    amount: 32000000,
-    category: "F&B",
-    expense_date: "2026-10-12",
-    status: "Unpaid",
-    notes: "Catering VIP Ballroom 200 Pax",
-    created_at: "2026-10-12T10:00:00.000Z",
-  },
-  {
-    id: "exp-3",
-    event_id: eventId,
-    amount: 14500000,
-    category: "Logistics",
-    expense_date: "2026-10-14",
-    status: "Paid",
-    notes: "Sewa Genset 100kVA & Truk Transportasi",
-    created_at: "2026-10-14T10:00:00.000Z",
-  },
 ];
 
 export default async function EventDetailPage({
@@ -133,8 +68,8 @@ export default async function EventDetailPage({
   const allVendors: Vendor[] = rawAllVendors || [];
   const allProfiles = rawProfiles && rawProfiles.length > 0 ? rawProfiles : FALLBACK_CREW_PROFILES;
   const crew: EventCrew[] = rawCrew || [];
-  const expenses: EventExpense[] = rawExpenses != null ? (rawExpenses as EventExpense[]) : FALLBACK_EXPENSES(id);
-  const documents: EventDocument[] = rawDocuments != null ? (rawDocuments as EventDocument[]) : FALLBACK_DOCUMENTS(id);
+  const expenses: EventExpense[] = (rawExpenses as EventExpense[]) || [];
+  const documents: EventDocument[] = (rawDocuments as EventDocument[]) || [];
 
 
   return (
@@ -156,6 +91,8 @@ export default async function EventDetailPage({
         </div>
 
         <div className="flex items-center gap-2">
+          <EditEventButton event={event} />
+
           <ExportPdfButton
             event={event}
             crew={crew}

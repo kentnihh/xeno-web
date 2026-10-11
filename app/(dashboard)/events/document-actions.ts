@@ -6,6 +6,8 @@ import { eventDocumentSchema } from "@/lib/validations/event";
 import { getStoragePathFromUrl } from "@/lib/utils";
 import type { EventDocument } from "@/types/database";
 
+const STORAGE_BUCKET = "bucket-files";
+
 /**
  * Persists document metadata into database after successful storage upload.
  */
@@ -72,7 +74,7 @@ export async function deleteEventDocument(
     // Remove file object from storage if path exists
     if (storagePath) {
       const { error: storageError } = await supabase.storage
-        .from("event-documents")
+        .from(STORAGE_BUCKET)
         .remove([storagePath]);
 
       if (storageError) {
@@ -119,12 +121,12 @@ export async function getDocumentSignedUrl(
     }
 
     const { data, error } = await supabase.storage
-      .from("event-documents")
+      .from(STORAGE_BUCKET)
       .createSignedUrl(storagePath, expiresIn);
 
     if (error || !data?.signedUrl) {
       const { data: publicData } = supabase.storage
-        .from("event-documents")
+        .from(STORAGE_BUCKET)
         .getPublicUrl(storagePath);
 
       if (publicData?.publicUrl) {
@@ -175,7 +177,7 @@ export async function uploadEventDocument(
     const buffer = Buffer.from(arrayBuffer);
 
     const { error: uploadError } = await supabase.storage
-      .from("event-documents")
+      .from(STORAGE_BUCKET)
       .upload(storagePath, buffer, {
         contentType: file.type || "application/octet-stream",
         upsert: false,

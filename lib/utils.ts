@@ -60,10 +60,12 @@ export function formatFileSize(bytes: number | null | undefined): string {
 export function getStoragePathFromUrl(fileUrl: string): string {
   if (!fileUrl) return "";
   if (!fileUrl.startsWith("http")) return fileUrl;
-  const marker = "/event-documents/";
-  const idx = fileUrl.indexOf(marker);
-  if (idx !== -1) {
-    return decodeURIComponent(fileUrl.substring(idx + marker.length).split("?")[0]);
+  for (const bucket of ["bucket-files", "event-documents"]) {
+    const marker = `/${bucket}/`;
+    const idx = fileUrl.indexOf(marker);
+    if (idx !== -1) {
+      return decodeURIComponent(fileUrl.substring(idx + marker.length).split("?")[0]);
+    }
   }
   return fileUrl;
 }

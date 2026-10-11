@@ -25,6 +25,7 @@ export const eventBudgetInputSchema = z.preprocess((val) => {
 
 /**
  * Complete Event Creation Validation Schema
+ * Expenses and documents are purely optional with no minimum length required.
  */
 export const createEventSchema = z.object({
   title: z.string().trim().min(1, "Nama acara wajib diisi"),
@@ -34,9 +35,29 @@ export const createEventSchema = z.object({
   budget: eventBudgetInputSchema,
   description: z.string().nullable().optional(),
   client_id: z.string().nullable().optional(),
+  expenses: z.array(z.any()).nullable().optional().default([]),
+  documents: z.array(z.any()).nullable().optional().default([]),
 });
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
+
+/**
+ * Event Update Validation Schema
+ * Matches event fields with optional/nullable budget and lifecycle status.
+ */
+export const updateEventSchema = z.object({
+  id: z.string().min(1, "ID acara wajib diisi"),
+  title: z.string().trim().min(1, "Nama acara wajib diisi"),
+  venue: z.string().trim().min(1, "Lokasi venue wajib diisi"),
+  start_date: z.string().min(1, "Tanggal & waktu mulai wajib diisi"),
+  end_date: z.string().min(1, "Tanggal & waktu selesai wajib diisi"),
+  status: z.enum(["draft", "planning", "confirmed", "ongoing", "completed", "cancelled"]).default("planning"),
+  budget: eventBudgetInputSchema,
+  description: z.string().nullable().optional(),
+  client_id: z.string().nullable().optional(),
+});
+
+export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 
 /**
  * Zod validation schema for Event Expense.

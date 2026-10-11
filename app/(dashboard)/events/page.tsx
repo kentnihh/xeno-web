@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatIDR, formatDate } from "@/lib/utils";
 import { CalendarDays, Plus, MapPin, Building2, ChevronRight } from "lucide-react";
+import { EditEventButton } from "@/components/events/edit-event-modal";
 
 const FALLBACK_EVENTS = [
   {
@@ -96,7 +97,7 @@ export default async function EventsPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between md:justify-end gap-6 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-border">
+            <div className="flex items-center justify-between md:justify-end gap-4 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-border">
               <div className="text-left md:text-right">
                 <div className="text-xs font-medium text-muted-foreground">
                   Estimasi Budget
@@ -104,6 +105,15 @@ export default async function EventsPage() {
                 <div className="text-sm font-bold text-emerald-600 dark:text-[#30d158]">
                   {event.budget != null ? formatIDR(event.budget) : "-"}
                 </div>
+              </div>
+              <div
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="flex items-center"
+              >
+                <EditEventButton event={event} variant="icon" />
               </div>
               <ChevronRight className="w-5 h-5 text-muted-foreground/60 group-hover:text-[#007aff] group-hover:translate-x-1 transition-all" />
             </div>

@@ -176,24 +176,24 @@ create policy "Authenticated users can delete expenses"
 -- 7. EVENT DOCUMENTS & SUPABASE STORAGE BUCKET
 -- ==============================================================================
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('event-documents', 'event-documents', false, 52428800, null)
+values ('bucket-files', 'bucket-files', false, 52428800, null)
 on conflict (id) do nothing;
 
-drop policy if exists "Authenticated users can read event-documents" on storage.objects;
-create policy "Authenticated users can read event-documents"
-  on storage.objects for select to authenticated using (bucket_id = 'event-documents');
+drop policy if exists "Authenticated users can read bucket-files" on storage.objects;
+create policy "Authenticated users can read bucket-files"
+  on storage.objects for select to authenticated using (bucket_id = 'bucket-files');
 
-drop policy if exists "Authenticated users can upload event-documents" on storage.objects;
-create policy "Authenticated users can upload event-documents"
-  on storage.objects for insert to authenticated with check (bucket_id = 'event-documents');
+drop policy if exists "Authenticated users can upload bucket-files" on storage.objects;
+create policy "Authenticated users can upload bucket-files"
+  on storage.objects for insert to authenticated with check (bucket_id = 'bucket-files');
 
-drop policy if exists "Authenticated users can update event-documents" on storage.objects;
-create policy "Authenticated users can update event-documents"
-  on storage.objects for update to authenticated using (bucket_id = 'event-documents');
+drop policy if exists "Authenticated users can update bucket-files" on storage.objects;
+create policy "Authenticated users can update bucket-files"
+  on storage.objects for update to authenticated using (bucket_id = 'bucket-files');
 
-drop policy if exists "Authenticated users can delete event-documents" on storage.objects;
-create policy "Authenticated users can delete event-documents"
-  on storage.objects for delete to authenticated using (bucket_id = 'event-documents');
+drop policy if exists "Authenticated users can delete bucket-files" on storage.objects;
+create policy "Authenticated users can delete bucket-files"
+  on storage.objects for delete to authenticated using (bucket_id = 'bucket-files');
 
 create table if not exists public.event_documents (
   id uuid primary key default gen_random_uuid(),

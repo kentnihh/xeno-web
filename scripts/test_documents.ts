@@ -18,10 +18,13 @@ function runDocumentsSelfCheck() {
   const relativePath = "evt-123/1700000000_rundown.pdf";
   assert.equal(getStoragePathFromUrl(relativePath), relativePath, "Relative path should remain unchanged");
 
-  const fullUrl = "https://yblhtchviuslhfwiwyuo.supabase.co/storage/v1/object/public/event-documents/evt-123/1700000000_rundown.pdf";
-  assert.equal(getStoragePathFromUrl(fullUrl), relativePath, "Full storage URL should extract relative path");
+  const bucketFilesUrl = "https://yblhtchviuslhfwiwyuo.supabase.co/storage/v1/object/public/bucket-files/evt-123/1700000000_rundown.pdf";
+  assert.equal(getStoragePathFromUrl(bucketFilesUrl), relativePath, "bucket-files URL should extract relative path");
 
-  const signedUrl = "https://yblhtchviuslhfwiwyuo.supabase.co/storage/v1/object/sign/event-documents/evt-123/1700000000_rundown.pdf?token=abc123xyz";
+  const fullUrl = "https://yblhtchviuslhfwiwyuo.supabase.co/storage/v1/object/public/event-documents/evt-123/1700000000_rundown.pdf";
+  assert.equal(getStoragePathFromUrl(fullUrl), relativePath, "Legacy event-documents URL should extract relative path");
+
+  const signedUrl = "https://yblhtchviuslhfwiwyuo.supabase.co/storage/v1/object/sign/bucket-files/evt-123/1700000000_rundown.pdf?token=abc123xyz";
   assert.equal(getStoragePathFromUrl(signedUrl), relativePath, "Signed URL should strip query params");
   console.log("✓ getStoragePathFromUrl helper verified");
 

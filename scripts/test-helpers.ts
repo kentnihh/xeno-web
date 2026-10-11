@@ -80,6 +80,32 @@ const validPayloadWithoutBudget = {
 };
 assert(createEventSchema.safeParse(validPayloadWithoutBudget).success, "Event without budget must be valid");
 
+// createEventSchema with optional empty expenses and documents
+const parsedDefault = createEventSchema.safeParse({
+  ...validPayloadWithoutBudget,
+  expenses: [],
+  documents: [],
+});
+assert(parsedDefault.success, "Event with empty expenses and documents arrays must be valid");
+if (parsedDefault.success) {
+  assert.deepEqual(parsedDefault.data.expenses, [], "Expenses must default to empty array");
+  assert.deepEqual(parsedDefault.data.documents, [], "Documents must default to empty array");
+}
+
+const parsedNull = createEventSchema.safeParse({
+  ...validPayloadWithoutBudget,
+  expenses: null,
+  documents: null,
+});
+assert(parsedNull.success, "Event with null expenses and documents must be valid");
+
+const parsedOmitted = createEventSchema.safeParse(validPayloadWithoutBudget);
+assert(parsedOmitted.success, "Event with omitted expenses and documents must be valid");
+if (parsedOmitted.success) {
+  assert.deepEqual(parsedOmitted.data.expenses, [], "Omitted expenses must default to empty array");
+  assert.deepEqual(parsedOmitted.data.documents, [], "Omitted documents must default to empty array");
+}
+
 
 // 8. Verify PDF Export generator
 import { buildEventSummaryPdf } from "../lib/pdf/event-summary-pdf";

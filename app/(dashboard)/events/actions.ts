@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createEventSchema } from "@/lib/validations/event";
+import { createEventSchema, updateEventSchema } from "@/lib/validations/event";
 import type { EventStatus, TaskPriority, TaskStatus, VendorStatus, EventTask, EventVendor } from "@/types/database";
 
 /**
@@ -13,6 +13,27 @@ import type { EventStatus, TaskPriority, TaskStatus, VendorStatus, EventTask, Ev
 export async function createEvent(formData: FormData): Promise<void> {
   const supabase = await createClient();
 
+  const rawExpenses = formData.get("expenses");
+  const rawDocuments = formData.get("documents");
+  let parsedExpenses: unknown[] = [];
+  let parsedDocuments: unknown[] = [];
+
+  if (typeof rawExpenses === "string" && rawExpenses.trim()) {
+    try {
+      parsedExpenses = JSON.parse(rawExpenses);
+    } catch {
+      parsedExpenses = [];
+    }
+  }
+
+  if (typeof rawDocuments === "string" && rawDocuments.trim()) {
+    try {
+      parsedDocuments = JSON.parse(rawDocuments);
+    } catch {
+      parsedDocuments = [];
+    }
+  }
+
   const validated = createEventSchema.parse({
     title: formData.get("title"),
     venue: formData.get("venue"),
@@ -21,6 +42,8 @@ export async function createEvent(formData: FormData): Promise<void> {
     budget: formData.get("budget"),
     description: formData.get("description") || null,
     client_id: formData.get("client_id") || null,
+    expenses: parsedExpenses,
+    documents: parsedDocuments,
   });
 
   const { data, error } = await supabase
@@ -40,6 +63,29 @@ export async function createEvent(formData: FormData): Promise<void> {
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (Array.isArray(validated.expenses) && validated.expenses.length > 0) {
+    const expenseRows = validated.expenses.map((exp: any) => ({
+      event_id: data.id,
+      amount: exp.amount,
+      category: exp.category || "Others",
+      expense_date: exp.expense_date || new Date().toISOString().split("T")[0],
+      status: exp.status || "Unpaid",
+      notes: exp.notes || null,
+    }));
+    await supabase.from("event_expenses").insert(expenseRows);
+  }
+
+  if (Array.isArray(validated.documents) && validated.documents.length > 0) {
+    const docRows = validated.documents.map((doc: any) => ({
+      event_id: data.id,
+      file_name: doc.file_name,
+      file_url: doc.file_url,
+      file_type: doc.file_type || "application/octet-stream",
+      file_size: doc.file_size || 0,
+    }));
+    await supabase.from("event_documents").insert(docRows);
   }
 
   // Invalidate event listings and redirect to new event view
@@ -67,6 +113,68 @@ export async function updateEventStatus(eventId: string, status: EventStatus): P
   revalidatePath(`/events/${eventId}`);
   revalidatePath("/events");
   revalidatePath("/");
+}
+
+/**
+ * Updates an existing event record with validated fields.
+ * Invalidator triggers instant refresh across detail and index routes.
+ * ponytail: nested relations update handled separately via respective sub-actions.
+ * @param formData - FormData containing id, title, venue, start_date, end_date, budget, status, description, client_id
+ */
+export async function updateEvent(formData: FormData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+
+    const rawId = formData.get("id");
+    const rawStatus = formData.get("status");
+
+    const validated = updateEventSchema.parse({
+      id: rawId,
+      title: formData.get("title"),
+      venue: formData.get("venue"),
+      start_date: formData.get("start_date"),
+      end_date: formData.get("end_date"),
+      status: rawStatus ? rawStatus : undefined,
+      budget: formData.get("budget"),
+      description: formData.get("description") || null,
+      client_id: formData.get("client_id") || null,
+    });
+
+    const updatePayload: Record<string, unknown> = {
+      title: validated.title,
+      venue: validated.venue,
+      start_date: new Date(validated.start_date).toISOString(),
+      end_date: new Date(validated.end_date).toISOString(),
+      budget: validated.budget,
+      description: validated.description,
+      status: validated.status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (validated.client_id !== undefined) {
+      updatePayload.client_id = validated.client_id;
+    }
+
+    const { error } = await supabase
+      .from("events")
+      .update(updatePayload)
+      .eq("id", validated.id);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath(`/events/${validated.id}`);
+    revalidatePath("/events");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (err: any) {
+    if (err && typeof err === "object" && "issues" in err && Array.isArray((err as any).issues)) {
+      return { success: false, error: (err as any).issues[0]?.message || "Validasi data gagal" };
+    }
+    return { success: false, error: err?.message || "Gagal memperbarui data acara" };
+  }
 }
 
 /**
