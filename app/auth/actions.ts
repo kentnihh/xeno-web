@@ -29,7 +29,7 @@ export async function login(formData: FormData): Promise<AuthActionResult | void
   }
 
   revalidatePath("/", "layout");
-  redirect("/events");
+  redirect("/dashboard");
 }
 
 /**
@@ -59,7 +59,7 @@ export async function signup(formData: FormData): Promise<AuthActionResult | voi
   }
 
   revalidatePath("/", "layout");
-  redirect("/events");
+  redirect("/dashboard");
 }
 
 /**

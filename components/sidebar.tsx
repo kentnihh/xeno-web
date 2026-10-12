@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  LayoutDashboard,
   CalendarDays,
   Users,
   Briefcase,
@@ -16,6 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const navigation = [
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Acara & Event", href: "/events", icon: CalendarDays },
   { name: "Database Klien", href: "/clients", icon: Users },
   { name: "Database Vendor", href: "/vendors", icon: Briefcase },

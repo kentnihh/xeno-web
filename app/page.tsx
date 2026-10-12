@@ -11,5 +11,5 @@ export default async function RootPage() {
     redirect("/login");
   }
 
-  redirect("/events");
+  redirect("/dashboard");
 }
