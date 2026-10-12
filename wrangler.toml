@@ -3,9 +3,6 @@ pages_build_output_dir = ".vercel/output/static"
 compatibility_date = "2026-03-01"
 compatibility_flags = ["nodejs_compat"]
 
-[build]
-command = "npx @cloudflare/next-on-pages@1"
-
 # Cloudflare Pages local preview configuration
 # For production deployments, configure environment variables in Cloudflare Dashboard:
 # Pages > Settings > Environment variables
@@ -14,4 +11,5 @@ command = "npx @cloudflare/next-on-pages@1"
 # NEXT_PUBLIC_SUPABASE_URL = "https://your-project.supabase.co"
 # NEXT_PUBLIC_SUPABASE_ANON_KEY = "your-anon-key"
 # SUPABASE_SERVICE_ROLE_KEY = "your-service-role-key"
+
 
