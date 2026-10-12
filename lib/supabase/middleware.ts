@@ -1,14 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-/**
- * Middleware session handler:
- * 1. Refreshes expired Supabase Auth tokens on incoming requests.
- * 2. Manages cookie forwarding between request and response.
- * 3. Enforces route protection (redirects unauthenticated users to /login, authenticated users away from /login).
- * @param request - NextRequest incoming request object
- * @returns NextResponse with updated cookies or redirect
- */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -37,18 +29,13 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // ponytail: in demo mode when env is placeholder, pass through without redirect loop
-  const isPlaceholder =
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("placeholder-project");
-  if (isPlaceholder) {
-    return supabaseResponse;
-  }
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  const pathname = request.nextUrl.pathname;
+  const isAuthRoute =
+    pathname.startsWith("/login") || pathname.startsWith("/auth");
 
   // Redirect unauthenticated user away from protected routes to login
   if (!user && !isAuthRoute) {
@@ -57,12 +44,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated user away from login page to home dashboard
-  if (user && isAuthRoute) {
+  // Redirect authenticated user away from login page to events
+  if (user && pathname.startsWith("/login")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/events";
     return NextResponse.redirect(url);
   }
 
   return supabaseResponse;
 }
+

@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
-import { User, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { User, Plus, LogOut } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { createClient } from "@/lib/supabase/client";
 
 interface NavbarProps {
   userEmail?: string;
@@ -8,6 +12,14 @@ interface NavbarProps {
 }
 
 export function Navbar({ userEmail = "staf@xenoent.com", userRole = "Staff" }: NavbarProps) {
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
   return (
     <header className="h-16 border-b border-border bg-background/80 backdrop-blur-2xl px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 transition-colors duration-150">
       {/* Left: Live status */}
@@ -21,7 +33,7 @@ export function Navbar({ userEmail = "staf@xenoent.com", userRole = "Staff" }: N
         </span>
       </div>
 
-      {/* Right: Actions + Theme + Profile */}
+      {/* Right: Actions + Theme + Profile + Logout */}
       <div className="flex items-center gap-3">
         {/* Prominent Apple CTA: + Buat Acara */}
         <Link
@@ -49,7 +61,19 @@ export function Navbar({ userEmail = "staf@xenoent.com", userRole = "Staff" }: N
             </span>
           </div>
         </div>
+
+        {/* Sign Out Button in Navbar */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          title="Keluar Sistem"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 active:scale-[0.98] transition-all cursor-pointer border border-rose-500/20"
+        >
+          <LogOut className="w-3.5 h-3.5 stroke-[2.2]" />
+          <span className="hidden sm:inline">Keluar</span>
+        </button>
       </div>
     </header>
   );
 }
+

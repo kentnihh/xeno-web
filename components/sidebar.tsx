@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
   CalendarDays,
   Users,
   Briefcase,
@@ -13,11 +12,10 @@ import {
   ShieldCheck,
   ChevronRight,
 } from "lucide-react";
-import { logout } from "@/app/auth/actions";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Acara & Event", href: "/events", icon: CalendarDays },
   { name: "Database Klien", href: "/clients", icon: Users },
   { name: "Database Vendor", href: "/vendors", icon: Briefcase },
@@ -27,6 +25,13 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
 
   return (
     <aside className="w-64 bg-sidebar text-sidebar-foreground backdrop-blur-2xl border-r border-sidebar-border flex flex-col justify-between shrink-0 h-screen sticky top-0 z-40 transition-colors duration-150">
@@ -105,19 +110,19 @@ export function Sidebar() {
 
       {/* Footer / Sign Out (Explicit & High Contrast) */}
       <div className="p-3 border-t border-sidebar-border">
-        <form action={logout}>
-          <button
-            type="submit"
-            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-600 hover:text-white dark:bg-rose-500/15 dark:hover:bg-rose-600 dark:hover:text-white border border-rose-500/20 dark:border-rose-500/30 transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.98]"
-          >
-            <div className="flex items-center gap-2.5">
-              <LogOut className="w-4 h-4 stroke-[2.5]" />
-              <span>Keluar Sistem</span>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 opacity-70" />
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-600 hover:text-white dark:bg-rose-500/15 dark:hover:bg-rose-600 dark:hover:text-white border border-rose-500/20 dark:border-rose-500/30 transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-2.5">
+            <LogOut className="w-4 h-4 stroke-[2.5]" />
+            <span>Keluar Sistem</span>
+          </div>
+          <ChevronRight className="w-3.5 h-3.5 opacity-70" />
+        </button>
       </div>
     </aside>
   );
 }
+

@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/sidebar";
 import { Navbar } from "@/components/navbar";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,10 @@ export default async function DashboardLayout({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
 
   let userRole = "Staff";
   if (user) {
@@ -36,3 +41,4 @@ export default async function DashboardLayout({
     </div>
   );
 }
+
