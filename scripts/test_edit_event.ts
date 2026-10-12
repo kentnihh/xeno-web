@@ -48,7 +48,8 @@ if (nullBudgetResult.success) {
 }
 
 // 4. Budget optional/nullable: omitted field parses to null
-const { budget: _omit, ...omittedBudgetPayload } = basePayload;
+const omittedBudgetPayload = { ...basePayload };
+delete (omittedBudgetPayload as Record<string, unknown>).budget;
 const omittedBudgetResult = updateEventSchema.safeParse(omittedBudgetPayload);
 assert(omittedBudgetResult.success, "Omitted budget must succeed as null/undefined");
 

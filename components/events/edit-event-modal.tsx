@@ -6,7 +6,7 @@ import { Pencil, Loader2, MapPin, DollarSign, FileText, Activity } from "lucide-
 import { ModalShell } from "@/components/users/modal-shell";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { updateEvent } from "@/app/(dashboard)/events/actions";
-import type { Event, EventStatus } from "@/types/database";
+import type { Event } from "@/types/database";
 
 export interface EditEventModalProps {
   isOpen: boolean;

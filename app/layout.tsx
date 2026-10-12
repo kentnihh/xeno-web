@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   title: "Xeno Entertainment — Operations",
   description: "Sistem Manajemen Acara dan Kru Xeno Entertainment",
 };
+export const runtime = "edge";
+
 
 export default function RootLayout({
   children,

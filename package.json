@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npx @cloudflare/next-on-pages@1",
+    "pages:build": "npx @cloudflare/next-on-pages@1",
+    "build:next": "next build",
+    "preview": "wrangler pages dev .vercel/output/static",
     "start": "next start",
     "test": "npx tsx scripts/test-helpers.ts",
     "check:db": "npx tsx scripts/check-connection.ts",
@@ -23,6 +26,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.16",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -30,7 +34,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.149.0"
   },
   "packageManager": "pnpm@11.12.0"
 }

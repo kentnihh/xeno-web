@@ -40,6 +40,10 @@ supabase/.temp/
 
 .vercel
 
+
+# cloudflare
+.wrangler/
+
 # python
 .venv/
 venv/
