@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Plus, Search, ShieldCheck } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Plus, Search, ShieldCheck, CheckCircle2, X } from "lucide-react";
 import { UsersTable } from "./users-table";
 import { RolesTable, PermissionsList } from "./roles-table";
 import { UsersDialogHandler, DialogState } from "./users-dialog-handler";
@@ -20,10 +21,28 @@ export function UsersManagementView({
   initialRolePermissions: RolePermission[];
   currentUserId: string | null;
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState<"users" | "roles" | "permissions">("users");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSuccess = (message: string) => {
+    setToast(message);
+    router.refresh();
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
 
   const rolePermissionsMap = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -128,6 +147,7 @@ export function UsersManagementView({
             users={filteredUsers}
             currentUserId={currentUserId}
             onEdit={(u) => setDialog({ type: "edit_user", user: u })}
+            onResetPassword={(u) => setDialog({ type: "reset_password", user: u })}
             onDelete={(u) => setDialog({ type: "delete_user", user: u })}
           />
         </div>
@@ -152,10 +172,30 @@ export function UsersManagementView({
       <UsersDialogHandler
         dialog={dialog}
         onClose={() => setDialog(null)}
+        onSuccess={handleSuccess}
         roles={initialRoles}
         permissions={initialPermissions}
         rolePermissionsMap={rolePermissionsMap}
       />
+
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-card border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-xl shadow-black/20 text-xs font-semibold backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2"
+        >
+          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          <span>{toast}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-2 text-muted-foreground hover:text-foreground cursor-pointer"
+            aria-label="Tutup notifikasi"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

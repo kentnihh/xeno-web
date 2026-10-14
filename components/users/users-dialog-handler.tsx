@@ -4,6 +4,7 @@ import { UserModal } from "./user-modal";
 import { RoleModal } from "./role-modal";
 import { PermissionModal } from "./permission-modal";
 import { ConfirmDialog } from "./confirm-dialog";
+import { ResetPasswordModal } from "./reset-password-modal";
 import { deleteUser, deleteRole, deletePermission } from "@/app/(dashboard)/users/actions";
 import type { Role, Permission, UserWithRBAC } from "@/types/database";
 
@@ -11,6 +12,7 @@ export type DialogState =
   | { type: "create_user" }
   | { type: "edit_user"; user: UserWithRBAC }
   | { type: "delete_user"; user: UserWithRBAC }
+  | { type: "reset_password"; user: UserWithRBAC }
   | { type: "create_role" }
   | { type: "edit_role"; role: Role }
   | { type: "delete_role"; role: Role }
@@ -21,12 +23,14 @@ export type DialogState =
 export function UsersDialogHandler({
   dialog,
   onClose,
+  onSuccess,
   roles,
   permissions,
   rolePermissionsMap,
 }: {
   dialog: DialogState;
   onClose: () => void;
+  onSuccess?: (message: string) => void;
   roles: Role[];
   permissions: Permission[];
   rolePermissionsMap: Record<string, string[]>;
@@ -38,6 +42,9 @@ export function UsersDialogHandler({
   }
   if (dialog.type === "edit_user") {
     return <UserModal user={dialog.user} roles={roles} onClose={onClose} />;
+  }
+  if (dialog.type === "reset_password") {
+    return <ResetPasswordModal user={dialog.user} onClose={onClose} onSuccess={onSuccess} />;
   }
   if (dialog.type === "delete_user") {
     return (

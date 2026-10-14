@@ -297,4 +297,45 @@ for (const file of migrationFiles) {
   assert(sql.includes("for insert") && sql.includes("to authenticated"), `${file} must include INSERT policy for profiles`);
 }
 
+// 14. Verify Auth Security Overhaul & RBAC User Creation
+const authActionsPath = path.resolve(process.cwd(), "app/auth/actions.ts");
+const authActionsCode = fs.readFileSync(authActionsPath, "utf-8");
+assert(!authActionsCode.includes("export async function signup"), "app/auth/actions.ts must NOT export public signup action");
+
+const loginPagePath = path.resolve(process.cwd(), "app/login/page.tsx");
+const loginPageCode = fs.readFileSync(loginPagePath, "utf-8");
+assert(!loginPageCode.includes("isSignUp"), "LoginPage must NOT contain isSignUp state");
+assert(!loginPageCode.includes("Daftar Akun"), "LoginPage must NOT contain 'Daftar Akun' button");
+assert(loginPageCode.includes("Eye") && loginPageCode.includes("EyeOff"), "LoginPage must include password visibility toggle icons");
+
+const rbacActionsPath = path.resolve(process.cwd(), "app/(dashboard)/settings/rbac/actions.ts");
+const rbacActionsCode = fs.readFileSync(rbacActionsPath, "utf-8");
+assert(rbacActionsCode.includes("auth.admin.createUser"), "RBAC createUser must invoke auth.admin.createUser");
+assert(!rbacActionsCode.includes(".signUp("), "RBAC createUser must NOT call auth.signUp()");
+assert(rbacActionsCode.includes("confirmPassword"), "RBAC createUser must validate confirmPassword");
+
+const userModalPath = path.resolve(process.cwd(), "components/users/user-modal.tsx");
+const userModalCode = fs.readFileSync(userModalPath, "utf-8");
+assert(userModalCode.includes("name=\"confirmPassword\""), "UserModal must include confirmPassword input field");
+assert(userModalCode.includes("type=\"password\""), "UserModal confirmPassword must be a standard password input");
+assert(!userModalCode.includes("showConfirmPassword"), "UserModal must NOT include toggle for confirmPassword");
+assert(userModalCode.includes("Eye") && userModalCode.includes("EyeOff"), "UserModal must include password visibility toggle for main password");
+
+// 15. Verify RBAC Reset Password Feature
+assert(rbacActionsCode.includes("resetUserPassword"), "RBAC actions must export resetUserPassword");
+assert(rbacActionsCode.includes("auth.admin.updateUserById"), "resetUserPassword must use auth.admin.updateUserById");
+assert(!rbacActionsCode.includes("supabase.auth.updateUser("), "resetUserPassword must NOT use client supabase.auth.updateUser");
+
+const resetPasswordModalPath = path.resolve(process.cwd(), "components/users/reset-password-modal.tsx");
+const resetPasswordModalCode = fs.readFileSync(resetPasswordModalPath, "utf-8");
+assert(resetPasswordModalCode.includes("name=\"newPassword\""), "ResetPasswordModal must include newPassword input");
+assert(resetPasswordModalCode.includes("Eye") && resetPasswordModalCode.includes("EyeOff"), "ResetPasswordModal must include password toggle icons");
+assert(resetPasswordModalCode.includes("resetUserPassword"), "ResetPasswordModal must invoke resetUserPassword action");
+
+const usersTablePath = path.resolve(process.cwd(), "components/users/users-table.tsx");
+const usersTableCode = fs.readFileSync(usersTablePath, "utf-8");
+assert(usersTableCode.includes("onResetPassword"), "UsersTable must accept onResetPassword callback");
+assert(usersTableCode.includes("Reset Sandi"), "UsersTable must render Reset Sandi button next to Edit");
+
+
 console.log("Self-check passed successfully.");

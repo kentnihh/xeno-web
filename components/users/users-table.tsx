@@ -7,11 +7,13 @@ export function UsersTable({
   users,
   currentUserId,
   onEdit,
+  onResetPassword,
   onDelete,
 }: {
   users: UserWithRBAC[];
   currentUserId: string | null;
   onEdit: (user: UserWithRBAC) => void;
+  onResetPassword: (user: UserWithRBAC) => void;
   onDelete: (user: UserWithRBAC) => void;
 }) {
   return (
@@ -106,6 +108,15 @@ export function UsersTable({
                         className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
                       >
                         <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onResetPassword(u)}
+                        title="Reset Sandi"
+                        aria-label="Reset Sandi"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-[#007aff] hover:bg-[#007aff]/10 transition-colors cursor-pointer"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"

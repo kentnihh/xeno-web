@@ -1,22 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { login, signup } from "@/app/auth/actions";
-import { Sparkles, Calendar, ShieldCheck, ArrowRight, Loader2 } from "lucide-react";
+import { login } from "@/app/auth/actions";
+import { Sparkles, Calendar, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
-  const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError(null);
     const formData = new FormData(event.currentTarget);
-    const action = isSignUp ? signup : login;
-    const res = await action(formData);
+    const res = await login(formData);
     if (res?.error) {
       setError(res.error);
       setLoading(false);
@@ -77,10 +76,10 @@ export default function LoginPage() {
         <div className="w-full max-w-md apple-card p-8 space-y-6 border border-border shadow-xl">
           <div>
             <h2 className="text-2xl font-bold text-foreground tracking-tight">
-              {isSignUp ? "Registrasi Kru Baru" : "Masuk Sistem"}
+              Masuk Sistem
             </h2>
             <p className="text-xs text-muted-foreground mt-1 font-medium">
-              {isSignUp ? "Daftarkan akun staf baru." : "Gunakan kredensial internal Xeno Anda."}
+              Gunakan kredensial internal Xeno Anda.
             </p>
           </div>
 
@@ -91,19 +90,6 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
-              <div>
-                <label className="block text-xs font-bold text-foreground mb-1.5">Nama Lengkap</label>
-                <input
-                  name="fullName"
-                  type="text"
-                  required
-                  placeholder="Rian Pratama"
-                  className="apple-input w-full px-3.5 py-2.5 text-sm"
-                />
-              </div>
-            )}
-
             <div>
               <label className="block text-xs font-bold text-foreground mb-1.5">Email Internal</label>
               <input
@@ -117,13 +103,23 @@ export default function LoginPage() {
 
             <div>
               <label className="block text-xs font-bold text-foreground mb-1.5">Kata Sandi</label>
-              <input
-                name="password"
-                type="password"
-                required
-                placeholder="••••••••"
-                className="apple-input w-full px-3.5 py-2.5 text-sm"
-              />
+              <div className="relative">
+                <input
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="••••••••"
+                  className="apple-input w-full pl-3.5 pr-10 py-2.5 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 cursor-pointer"
+                  aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -134,24 +130,11 @@ export default function LoginPage() {
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <span>{isSignUp ? "Daftar Akun" : "Masuk Sistem"}</span>
+                <span>Masuk Sistem</span>
               )}
               {!loading && <ArrowRight className="w-4 h-4 stroke-[2.5]" />}
             </button>
           </form>
-
-          <div className="text-center text-xs text-muted-foreground pt-2 font-medium">
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError(null);
-              }}
-              className="hover:text-[#007aff] dark:hover:text-[#3894ff] transition-colors cursor-pointer"
-            >
-              {isSignUp ? "Sudah punya akun? Masuk di sini" : "Belum punya akses staf? Daftar akun baru"}
-            </button>
-          </div>
         </div>
       </div>
     </div>
