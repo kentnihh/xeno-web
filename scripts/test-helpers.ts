@@ -149,4 +149,132 @@ assert.strictEqual(clientValid.email, null, "Empty client email should normalize
 assert.strictEqual(clientValid.address, null, "Empty client address should normalize to null");
 assert.strictEqual(clientValid.name, "PT Mitra Sejahtera");
 
+// 10. Verify Event & Task enhancement utilities (countdown, sorting, priorities)
+import {
+  getEventCountdown,
+  sortEventsUpcomingFirst,
+  sortTasksByPriority,
+} from "../lib/utils";
+
+// Countdown tests (deterministic with local Dates)
+const refDate = new Date(2026, 9, 15, 12, 0, 0);
+const todayIso = new Date(2026, 9, 15, 18, 0, 0).toISOString();
+const tomorrowIso = new Date(2026, 9, 16, 9, 0, 0).toISOString();
+const in5DaysIso = new Date(2026, 9, 20, 14, 0, 0).toISOString();
+const yesterdayIso = new Date(2026, 9, 14, 10, 0, 0).toISOString();
+const pastIso = new Date(2026, 9, 10, 10, 0, 0).toISOString();
+
+const cdToday = getEventCountdown(todayIso, refDate);
+assert(cdToday.tone === "today" && cdToday.label === "Hari Ini", "Countdown for today must be 'Hari Ini'");
+
+const cdTomorrow = getEventCountdown(tomorrowIso, refDate);
+assert(cdTomorrow.tone === "tomorrow" && cdTomorrow.label === "Besok", "Countdown for tomorrow must be 'Besok'");
+
+const cd5Days = getEventCountdown(in5DaysIso, refDate);
+assert(cd5Days.tone === "upcoming" && cd5Days.label === "H-5", "Countdown for 5 days must be 'H-5'");
+
+const cdYesterday = getEventCountdown(yesterdayIso, refDate);
+assert(cdYesterday.tone === "past" && cdYesterday.label === "Kemarin", "Countdown for yesterday must be 'Kemarin'");
+
+const cdPast = getEventCountdown(pastIso, refDate);
+assert(cdPast.tone === "past" && cdPast.label === "Lewat 5h", "Countdown for 5 days past must be 'Lewat 5h'");
+
+// sortEventsUpcomingFirst tests
+const testEvents = [
+  { id: "e-past", title: "Past Event", start_date: "2025-01-01T10:00:00Z" },
+  { id: "e-far-future", title: "Far Future", start_date: "2027-01-01T10:00:00Z" },
+  { id: "e-near-future", title: "Near Future", start_date: tomorrowIso },
+];
+const sortedEvents = sortEventsUpcomingFirst(testEvents, refDate);
+assert.strictEqual(sortedEvents[0].id, "e-near-future", "Nearest upcoming event must be first");
+assert.strictEqual(sortedEvents[1].id, "e-far-future", "Farther future event must follow");
+assert.strictEqual(sortedEvents[2].id, "e-past", "Past event must come after upcoming");
+
+// sortTasksByPriority tests
+const testTasks = [
+  { id: "t-low", title: "Low Task", priority: "low", due_date: "2026-10-10" },
+  { id: "t-high-later", title: "High Task Later", priority: "high", due_date: "2026-10-25" },
+  { id: "t-urgent", title: "Urgent Task", priority: "urgent", due_date: "2026-10-30" },
+  { id: "t-high-earlier", title: "High Task Earlier", priority: "high", due_date: "2026-10-15" },
+];
+const sortedTasks = sortTasksByPriority(testTasks);
+assert.strictEqual(sortedTasks[0].id, "t-urgent", "Urgent task must be first");
+assert.strictEqual(sortedTasks[1].id, "t-high-earlier", "Earlier high task must precede later high task");
+assert.strictEqual(sortedTasks[2].id, "t-high-later", "Later high task must follow");
+assert.strictEqual(sortedTasks[3].id, "t-low", "Low task must be last");
+
+
+// 11. Verify Event Statuses and Lifecycle validation
+import { EVENT_STATUS_LIST, type EventStatus } from "../types/database";
+import { updateEventSchema } from "../lib/validations/event";
+
+assert.strictEqual(EVENT_STATUS_LIST.length, 6, "Must define 6 valid event lifecycle statuses");
+const expectedStatuses: EventStatus[] = ["draft", "planning", "confirmed", "ongoing", "completed", "cancelled"];
+for (const s of expectedStatuses) {
+  assert(EVENT_STATUS_LIST.includes(s), `EVENT_STATUS_LIST must contain "${s}"`);
+  const check = updateEventSchema.safeParse({
+    id: "evt-test-1",
+    title: "Test Event",
+    venue: "Test Venue",
+    start_date: "2026-10-20T10:00:00Z",
+    end_date: "2026-10-20T18:00:00Z",
+    status: s,
+  });
+  assert(check.success, `updateEventSchema must accept valid status "${s}"`);
+}
+
+const invalidCheck = updateEventSchema.safeParse({
+  id: "evt-test-1",
+  title: "Test Event",
+  venue: "Test Venue",
+  start_date: "2026-10-20T10:00:00Z",
+  end_date: "2026-10-20T18:00:00Z",
+  status: "archived",
+});
+assert(!invalidCheck.success, "updateEventSchema must reject unrecognized status 'archived'");
+
+// 12. Verify Event Sheets & Dynamic Spreadsheet
+import { INITIAL_EVENT_SHEETS, buildDefaultEventSheets } from "../lib/constants/event-sheets";
+import * as XLSX from "xlsx";
+
+const EXPECTED_INITIAL_TABS = [
+  "CHECKLIST",
+  "Meja VIP resepsi",
+  "Reception Rundown",
+  "List Teapai",
+  "LO Resepsi",
+  "F&B Resepsi",
+  "Event Resepsi",
+  "front desk",
+  "Hotel Room Reception",
+  "Family Data",
+];
+
+assert.strictEqual(INITIAL_EVENT_SHEETS.length, 10, "INITIAL_EVENT_SHEETS must have exactly 10 initial sheets");
+const initialNames = INITIAL_EVENT_SHEETS.map((s) => s.name);
+for (const expectedName of EXPECTED_INITIAL_TABS) {
+  assert(initialNames.includes(expectedName), `INITIAL_EVENT_SHEETS must contain tab: "${expectedName}"`);
+}
+
+// Check buildDefaultEventSheets helper
+const defaultSheets = buildDefaultEventSheets("evt-test-123");
+assert.strictEqual(defaultSheets.length, 10, "buildDefaultEventSheets must produce 10 records");
+for (const s of defaultSheets) {
+  assert.strictEqual(s.event_id, "evt-test-123");
+  assert(s.data.columns.length > 0, `Sheet "${s.sheet_name}" must have column definitions`);
+  assert(s.data.rows.length > 0, `Sheet "${s.sheet_name}" must have initial rows`);
+}
+
+// Check Excel (.xlsx) multi-sheet workbook generation
+const wb = XLSX.utils.book_new();
+for (const sheet of defaultSheets) {
+  const safeName = sheet.sheet_name.replace(/[:\\/?*\[\]]/g, "_").slice(0, 31);
+  const headers = sheet.data.columns.map((c) => c.name);
+  const rows = sheet.data.rows.map((r) => sheet.data.columns.map((c) => (r[c.id] ?? "")));
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  XLSX.utils.book_append_sheet(wb, ws, safeName);
+}
+assert.strictEqual(wb.SheetNames.length, 10, "Excel workbook must contain all 10 tab sheets");
+assert.strictEqual(wb.SheetNames[0], "CHECKLIST", "First sheet in Excel workbook must be CHECKLIST");
+
 console.log("Self-check passed successfully.");

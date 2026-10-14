@@ -11,12 +11,14 @@ interface EventItem {
   start_date: string;
   end_date?: string;
   venue: string;
-  budget?: number;
+  budget?: number | null;
   status: string;
 }
 
 interface Props {
   events: EventItem[];
+  title?: string;
+  subtitle?: string;
 }
 
 const MONTH_NAMES = [
@@ -26,7 +28,11 @@ const MONTH_NAMES = [
 
 const WEEK_DAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
-export function MonthlyCalendar({ events }: Props) {
+export function MonthlyCalendar({
+  events,
+  title = "Kalender Acara Bulanan",
+  subtitle = "Jadwal seluruh panggung Xeno Entertainment di bulan aktif",
+}: Props) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDayEvents, setSelectedDayEvents] = useState<EventItem[] | null>(null);
 
@@ -53,6 +59,9 @@ export function MonthlyCalendar({ events }: Props) {
   const today = new Date();
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
 
+  // Count total double-booked days in this month
+  const doubleBookedDaysCount = Object.values(eventsByDay).filter((arr) => arr.length > 1).length;
+
   return (
     <div className="apple-card p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
@@ -61,11 +70,18 @@ export function MonthlyCalendar({ events }: Props) {
             <CalendarIcon className="w-4 h-4 stroke-[2.5]" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-foreground tracking-tight">
-              Kalender Acara Bulanan
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-foreground tracking-tight">
+                {title}
+              </h2>
+              {doubleBookedDaysCount > 0 && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                  ⚠️ {doubleBookedDaysCount} Bentrok Jadwal
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Jadwal seluruh panggung Xeno Entertainment di bulan aktif
+              {subtitle}
             </p>
           </div>
         </div>
@@ -130,13 +146,16 @@ export function MonthlyCalendar({ events }: Props) {
           const dayEvents = eventsByDay[day] || [];
           const isToday = isCurrentMonth && today.getDate() === day;
           const hasEvents = dayEvents.length > 0;
+          const isDoubleBooked = dayEvents.length > 1;
 
           return (
             <div
               key={day}
               onClick={() => hasEvents && setSelectedDayEvents(dayEvents)}
               className={`min-h-[78px] p-2 rounded-xl border transition-all duration-150 flex flex-col justify-between ${
-                hasEvents
+                isDoubleBooked
+                  ? "bg-rose-500/10 border-rose-500 hover:border-rose-600 shadow-sm shadow-rose-500/20 hover:shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98] ring-1 ring-rose-500/40"
+                  : hasEvents
                   ? "bg-[#007aff]/10 border-[#007aff] hover:border-[#007aff] shadow-sm shadow-[#007aff]/15 hover:shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98] ring-1 ring-[#007aff]/30"
                   : "bg-card border-border hover:border-primary/50"
               } ${isToday ? "ring-2 ring-[#007aff] ring-offset-2 ring-offset-card font-bold" : ""}`}
@@ -146,6 +165,8 @@ export function MonthlyCalendar({ events }: Props) {
                   className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${
                     isToday
                       ? "bg-[#007aff] text-white shadow-sm shadow-[#007aff]/50"
+                      : isDoubleBooked
+                      ? "bg-rose-500 text-white shadow-xs"
                       : hasEvents
                       ? "bg-[#007aff] text-white"
                       : "text-foreground"
@@ -153,27 +174,43 @@ export function MonthlyCalendar({ events }: Props) {
                 >
                   {day}
                 </span>
-                {hasEvents && (
+
+                {isDoubleBooked ? (
+                  <span
+                    className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
+                    title="Jadwal Bentrok: Lebih dari 1 acara pada hari ini"
+                  >
+                    ⚠️ Bentrok ({dayEvents.length})
+                  </span>
+                ) : hasEvents ? (
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#30d158] opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-[#30d158]" />
                   </span>
-                )}
+                ) : null}
               </div>
 
-              {/* Event pill tags (High contrast) */}
+              {/* Event pill tags */}
               <div className="space-y-1 mt-1">
                 {dayEvents.slice(0, 2).map((ev) => (
                   <div
                     key={ev.id}
                     title={ev.title}
-                    className="truncate text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#007aff] text-white shadow-xs border border-[#0066d6] hover:bg-[#0066d6] transition-colors"
+                    className={`truncate text-[10px] font-bold px-1.5 py-0.5 rounded-md text-white shadow-xs transition-colors ${
+                      isDoubleBooked
+                        ? "bg-rose-600 border border-rose-700 hover:bg-rose-700"
+                        : "bg-[#007aff] border border-[#0066d6] hover:bg-[#0066d6]"
+                    }`}
                   >
                     {ev.title}
                   </div>
                 ))}
                 {dayEvents.length > 2 && (
-                  <span className="text-[9px] text-[#007aff] dark:text-[#3894ff] font-bold block text-right">
+                  <span
+                    className={`text-[9px] font-bold block text-right ${
+                      isDoubleBooked ? "text-rose-600 dark:text-rose-400" : "text-[#007aff] dark:text-[#3894ff]"
+                    }`}
+                  >
                     +{dayEvents.length - 2} lagi
                   </span>
                 )}
@@ -184,10 +221,21 @@ export function MonthlyCalendar({ events }: Props) {
       </div>
 
       {selectedDayEvents && (
-        <div className="p-4 rounded-2xl bg-muted/50 border-2 border-[#007aff] space-y-3 shadow-md">
+        <div
+          className={`p-4 rounded-2xl border-2 space-y-3 shadow-md ${
+            selectedDayEvents.length > 1
+              ? "bg-rose-500/10 border-rose-500"
+              : "bg-muted/50 border-[#007aff]"
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-[#007aff] uppercase tracking-wider flex items-center gap-1.5">
-              <CalendarIcon className="w-3.5 h-3.5 stroke-[2.5]" /> Acara Terpilih ({selectedDayEvents.length})
+            <h3
+              className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                selectedDayEvents.length > 1 ? "text-rose-600 dark:text-rose-400" : "text-[#007aff]"
+              }`}
+            >
+              <CalendarIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+              Acara Terpilih ({selectedDayEvents.length})
             </h3>
             <button
               type="button"
@@ -197,6 +245,15 @@ export function MonthlyCalendar({ events }: Props) {
               Tutup
             </button>
           </div>
+
+          {selectedDayEvents.length > 1 && (
+            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <div>
+                <span className="font-bold">Peringatan Double-Booking:</span> Terdapat {selectedDayEvents.length} acara dijadwalkan pada hari yang sama. Harap pastikan jadwal panggung dan kru lapangan tidak bentrok.
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             {selectedDayEvents.map((ev) => (

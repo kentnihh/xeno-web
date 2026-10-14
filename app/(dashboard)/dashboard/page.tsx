@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatIDR, formatDate } from "@/lib/utils";
+import { formatIDR, formatDate, sortEventsUpcomingFirst, sortTasksByPriority } from "@/lib/utils";
 import { CalendarDays, Coins, Plus, MapPin, ChevronRight, CheckCircle2 } from "lucide-react";
 import { MonthlyCalendar } from "@/components/dashboard/monthly-calendar";
+import { EventSearchBar } from "@/components/dashboard/event-search-bar";
+import { PriorityTasksWidget } from "@/components/dashboard/priority-tasks-widget";
+import { EventStatusBadge, EventCountdownBadge } from "@/components/events/event-status-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +32,32 @@ const FALLBACK_TASKS = [
   {
     id: "t1",
     title: "Finalize Rundown with MC",
+    description: "Meeting dengan MC dan show director di venue",
     priority: "high",
-    event: { title: "Sinar Jaya Gala" },
+    status: "todo",
+    due_date: "2026-10-18T10:00:00.000Z",
+    event: { id: "66666666-6666-6666-6666-666666666666", title: "Sinar Jaya Gala" },
+    assignee: { full_name: "Budi Santoso", role: "Show Director" },
   },
   {
     id: "t2",
     title: "Sound Check 20kW Rig",
+    description: "Cek line array dan mixer digital",
     priority: "urgent",
-    event: { title: "Sinar Jaya Gala" },
+    status: "in_progress",
+    due_date: "2026-10-19T14:00:00.000Z",
+    event: { id: "66666666-6666-6666-6666-666666666666", title: "Sinar Jaya Gala" },
+    assignee: { full_name: "Reza Fikri", role: "Audio Engineer" },
+  },
+  {
+    id: "t3",
+    title: "Briefing Vendor Katering & Dekorasi",
+    description: "Sinkronisasi loading dock dan jadwal pemasangan",
+    priority: "medium",
+    status: "todo",
+    due_date: "2026-10-25T09:00:00.000Z",
+    event: { id: "77777777-7777-7777-7777-777777777777", title: "Jessica & Kevin Wedding Reception" },
+    assignee: { full_name: "Maya Anggraini", role: "Event Coordinator" },
   },
 ];
 
@@ -50,14 +71,15 @@ export default async function DashboardPage() {
 
   const { data: rawTasks } = await supabase
     .from("event_tasks")
-    .select("*, event:events(title)")
-    .eq("status", "todo")
-    .limit(4);
+    .select("*, event:events(id, title), assignee:profiles(id, full_name, role)");
 
-  const events = rawEvents && rawEvents.length > 0 ? rawEvents : FALLBACK_EVENTS;
-  const tasks = rawTasks && rawTasks.length > 0 ? rawTasks : FALLBACK_TASKS;
+  const eventsList = rawEvents && rawEvents.length > 0 ? rawEvents : FALLBACK_EVENTS;
+  const events = sortEventsUpcomingFirst(eventsList);
+  const tasksList = rawTasks && rawTasks.length > 0 ? rawTasks : FALLBACK_TASKS;
+  const tasks = sortTasksByPriority(tasksList);
 
   const totalBudget = events.reduce((acc, ev) => acc + Number(ev.budget || 0), 0);
+  const pendingTasksCount = tasks.filter((t) => t.status !== "done").length;
 
   return (
     <div className="space-y-6">
@@ -77,6 +99,11 @@ export default async function DashboardPage() {
           <Plus className="w-4 h-4 stroke-[2.5]" />
           <span>Buat Acara</span>
         </Link>
+      </div>
+
+      {/* Global Cmd+K Event Search */}
+      <div className="max-w-xl">
+        <EventSearchBar events={events} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -112,7 +139,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="text-3xl font-extrabold text-foreground tracking-tight">
-            {tasks.length}
+            {pendingTasksCount}
           </div>
         </div>
       </div>
@@ -146,15 +173,8 @@ export default async function DashboardPage() {
                       <span className="font-bold text-foreground text-sm group-hover:text-[#007aff] transition-colors truncate">
                         {ev.title}
                       </span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          ev.status === "confirmed"
-                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
-                            : "bg-[#007aff]/15 text-[#007aff] dark:text-[#3894ff] border border-[#007aff]/30"
-                        }`}
-                      >
-                        {ev.status}
-                      </span>
+                      <EventCountdownBadge startDate={ev.start_date} />
+                      <EventStatusBadge status={ev.status} />
                     </div>
                     <div className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
                       <MapPin className="w-3.5 h-3.5 text-[#007aff] shrink-0" />
@@ -178,44 +198,8 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="apple-card p-6 space-y-4">
-          <div className="pb-2 border-b border-border">
-            <h2 className="text-sm font-bold text-foreground tracking-tight">
-              Tugas Kru Prioritas
-            </h2>
-          </div>
-          <div className="space-y-2.5">
-            {tasks.map((task) => (
-              <Link
-                key={task.id}
-                href="/events"
-                className="apple-card-interactive block p-3.5 rounded-xl border border-border shadow-xs hover:shadow-md hover:border-[#007aff] transition-all group"
-              >
-                <div className="flex justify-between items-start gap-2">
-                  <span className="text-xs font-bold text-foreground group-hover:text-[#007aff] transition-colors leading-tight">
-                    {task.title}
-                  </span>
-                  <span
-                    className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                      task.priority === "urgent"
-                        ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-                        : task.priority === "high"
-                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                        : "bg-[#007aff]/15 text-[#007aff] dark:text-[#3894ff] border border-[#007aff]/30"
-                    }`}
-                  >
-                    {task.priority}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-border text-[11px] font-medium text-muted-foreground">
-                  <span className="truncate">
-                    Acara: {task.event?.title || "Xeno Production"}
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 group-hover:text-[#007aff] group-hover:translate-x-0.5 transition-all shrink-0 ml-1" />
-                </div>
-              </Link>
-            ))}
-          </div>
+        <div>
+          <PriorityTasksWidget tasks={tasks} />
         </div>
       </div>
     </div>

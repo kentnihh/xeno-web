@@ -39,7 +39,9 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
         setErrorMsg(res.error || "Gagal memperbarui acara.");
       } else {
         onClose();
-        router.refresh();
+        startTransition(() => {
+          router.refresh();
+        });
       }
     });
   };

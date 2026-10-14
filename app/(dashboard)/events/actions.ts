@@ -11,7 +11,7 @@ import {
   updateCrewRoleSchema,
   removeCrewSchema,
 } from "@/lib/validations/event";
-import type { EventStatus, TaskPriority, TaskStatus, VendorStatus, EventTask, EventVendor } from "@/types/database";
+import { EVENT_STATUS_LIST, type EventStatus, type TaskPriority, type TaskStatus, type VendorStatus, type EventTask, type EventVendor } from "@/types/database";
 
 /**
  * Creates a new event in the database from form data and redirects to event detail page.
@@ -102,26 +102,76 @@ export async function createEvent(formData: FormData): Promise<void> {
   redirect(`/events/${data.id}`);
 }
 
-/**
- * Updates lifecycle status for an existing event.
- * @param eventId - Target event UUID
- * @param status - New event lifecycle status
- */
-export async function updateEventStatus(eventId: string, status: EventStatus): Promise<void> {
-  await requireAuth();
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("events")
-    .update({ status })
-    .eq("id", eventId);
+export async function updateEventStatus(
+  eventId: string,
+  status: EventStatus
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requireAuth();
 
-  if (error) {
-    throw new Error(error.message);
+    if (!eventId || typeof eventId !== "string") {
+      return { success: false, error: "ID acara tidak valid." };
+    }
+
+    if (!EVENT_STATUS_LIST.includes(status)) {
+      return { success: false, error: `Status "${status}" tidak valid.` };
+    }
+
+    const supabase = await createClient();
+    console.log(`[updateEventStatus] Updating event ${eventId} status to:`, status);
+
+    const { data, error } = await supabase
+      .from("events")
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", eventId)
+      .select("id, status");
+
+    if (error) {
+      console.error(`[updateEventStatus] Supabase error for event ${eventId}:`, error);
+      return { success: false, error: error.message };
+    }
+
+    if (!data || data.length === 0) {
+      console.warn(`[updateEventStatus] 0 rows updated for event ${eventId}. Checking existence or RLS policy.`);
+      const { data: existing, error: fetchErr } = await supabase
+        .from("events")
+        .select("id")
+        .eq("id", eventId)
+        .maybeSingle();
+
+      if (fetchErr) {
+        console.error(`[updateEventStatus] Error checking event existence:`, fetchErr);
+        return { success: false, error: fetchErr.message };
+      }
+
+      if (!existing) {
+        return { success: false, error: "Acara tidak ditemukan di database." };
+      }
+
+      return {
+        success: false,
+        error: "Gagal memperbarui status: Terhalang kebijakan izin (RLS). Pastikan Anda memiliki hak akses.",
+      };
+    }
+
+    console.log(`[updateEventStatus] Successfully updated event ${eventId} to:`, status);
+
+    revalidatePath(`/events/${eventId}`);
+    revalidatePath("/events");
+    revalidatePath("/dashboard");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (err: unknown) {
+    console.error(`[updateEventStatus] Unexpected error updating status for event ${eventId}:`, err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Terjadi kesalahan saat memperbarui status acara.",
+    };
   }
-
-  revalidatePath(`/events/${eventId}`);
-  revalidatePath("/events");
-  revalidatePath("/");
 }
 
 /**
@@ -165,17 +215,25 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
       updatePayload.client_id = validated.client_id;
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("events")
       .update(updatePayload)
-      .eq("id", validated.id);
+      .eq("id", validated.id)
+      .select("id");
 
     if (error) {
+      console.error("[updateEvent] Supabase error:", error);
       return { success: false, error: error.message };
+    }
+
+    if (!data || data.length === 0) {
+      console.warn(`[updateEvent] 0 rows updated for event ${validated.id}.`);
+      return { success: false, error: "Gagal memperbarui acara: Izin tidak mencukupi atau data tidak ditemukan." };
     }
 
     revalidatePath(`/events/${validated.id}`);
     revalidatePath("/events");
+    revalidatePath("/dashboard");
     revalidatePath("/");
 
     return { success: true };

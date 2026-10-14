@@ -1,10 +1,29 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatIDR, formatDate } from "@/lib/utils";
-import { CalendarDays, Plus, MapPin, Building2, ChevronRight } from "lucide-react";
+import { formatIDR, formatDate, sortEventsUpcomingFirst } from "@/lib/utils";
+import {
+  CalendarDays,
+  Plus,
+  MapPin,
+  Building2,
+  ChevronRight,
+  List,
+  ChevronLeft,
+} from "lucide-react";
 import { EditEventButton } from "@/components/events/edit-event-modal";
+import { MonthlyCalendar } from "@/components/dashboard/monthly-calendar";
+import { EventSearchBar } from "@/components/dashboard/event-search-bar";
+import {
+  EventStatusBadge,
+  EventCountdownBadge,
+} from "@/components/events/event-status-badge";
+import type { Event } from "@/types/database";
 
-const FALLBACK_EVENTS = [
+export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 15;
+
+const FALLBACK_EVENTS: Event[] = [
   {
     id: "66666666-6666-6666-6666-666666666666",
     title: "Sinar Jaya Annual Gala 2026",
@@ -13,7 +32,12 @@ const FALLBACK_EVENTS = [
     venue: "Grand Ballroom Hotel Indonesia Kempinski",
     budget: 250000000,
     status: "confirmed",
-    client: { name: "Rian Pratama", company: "PT Sinar Jaya Abadi" },
+    description: "Annual gala dinner Xeno production",
+    client_id: "c-1",
+    created_by: null,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    client: { id: "c-1", name: "Rian Pratama", company: "PT Sinar Jaya Abadi", email: null, phone: "", address: null, notes: null, created_at: "" },
   },
   {
     id: "77777777-7777-7777-7777-777777777777",
@@ -23,21 +47,82 @@ const FALLBACK_EVENTS = [
     venue: "Plataran Dharmawangsa",
     budget: 180000000,
     status: "planning",
-    client: { name: "Jessica Tan", company: "Tan & Partners" },
+    description: "Wedding reception ceremony and celebration",
+    client_id: "c-2",
+    created_by: null,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    client: { id: "c-2", name: "Jessica Tan", company: "Tan & Partners", email: null, phone: "", address: null, notes: null, created_at: "" },
   },
 ];
 
-export default async function EventsPage() {
+const STATUS_FILTERS: { key: string; label: string }[] = [
+  { key: "active", label: "Aktif (Tanpa Selesai)" },
+  { key: "all", label: "Semua Status" },
+  { key: "planning", label: "Planning" },
+  { key: "confirmed", label: "Confirmed" },
+  { key: "in_progress", label: "In Progress" },
+  { key: "completed", label: "Selesai" },
+  { key: "cancelled", label: "Batal" },
+];
+
+export default async function EventsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string; status?: string; view?: string }>;
+}) {
+  const resolved = await searchParams;
+  const page = Math.max(1, parseInt(resolved?.page || "1", 10) || 1);
+  const statusFilter = resolved?.status || "active";
+  const viewMode = resolved?.view === "calendar" ? "calendar" : "list";
+
   const supabase = await createClient();
-  const { data: rawEvents } = await supabase
+
+  let query = supabase
     .from("events")
-    .select("*, client:clients(*)")
+    .select("*, client:clients(*)", { count: "exact" })
     .order("start_date", { ascending: true });
 
-  const events = (rawEvents && rawEvents.length > 0) ? rawEvents : FALLBACK_EVENTS;
+  if (statusFilter === "active") {
+    query = query.neq("status", "completed");
+  } else if (statusFilter !== "all") {
+    query = query.eq("status", statusFilter);
+  }
+
+  if (viewMode === "list") {
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    query = query.range(from, to);
+  }
+
+  const { data: rawEvents, count } = await query;
+
+  const { data: allSearchEvents } = await supabase
+    .from("events")
+    .select("id, title, start_date, venue, status, budget")
+    .order("start_date", { ascending: true });
+
+  let eventsList: Event[] = [];
+  if (rawEvents && rawEvents.length > 0) {
+    eventsList = rawEvents as Event[];
+  } else {
+    eventsList = FALLBACK_EVENTS.filter((ev) => {
+      if (statusFilter === "active") return ev.status !== "completed";
+      if (statusFilter !== "all") return ev.status === statusFilter;
+      return true;
+    });
+  }
+
+  const events = sortEventsUpcomingFirst(eventsList);
+  const totalCount = count ?? events.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const searchableList = (allSearchEvents && allSearchEvents.length > 0
+    ? allSearchEvents
+    : FALLBACK_EVENTS) as Event[];
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">
@@ -56,64 +141,175 @@ export default async function EventsPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-3.5">
-        {events.map((event) => (
+      {/* Controls Bar: Cmd+K Search + View Switcher */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex-1 max-w-lg">
+          <EventSearchBar events={searchableList} />
+        </div>
+
+        {/* List vs Calendar Toggle */}
+        <div className="flex items-center gap-1 p-1 bg-muted rounded-2xl border border-border shrink-0 self-start md:self-auto">
           <Link
-            key={event.id}
-            href={`/events/${event.id}`}
-            className="apple-card-interactive p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 group rounded-2xl border border-border shadow-xs hover:shadow-md transition-all"
+            href={`/events?view=list&status=${statusFilter}`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+              viewMode === "list"
+                ? "bg-card text-foreground shadow-xs border border-border/80"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <span className="text-base font-bold text-foreground group-hover:text-[#007aff] transition-colors">
-                  {event.title}
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                    event.status === "confirmed"
-                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
-                      : "bg-[#007aff]/15 text-[#007aff] dark:text-[#3894ff] border border-[#007aff]/30"
-                  }`}
-                >
-                  {event.status}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-[#007aff]" />
-                  {event.venue}
-                </span>
-                {event.client && (
-                  <span className="flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-[#007aff]" />
-                    {event.client.company || event.client.name}
-                  </span>
-                )}
-                <span className="flex items-center gap-1.5">
-                  <CalendarDays className="w-3.5 h-3.5 text-[#007aff]" />
-                  {formatDate(event.start_date)}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between md:justify-end gap-4 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-border">
-              <div className="text-left md:text-right">
-                <div className="text-xs font-medium text-muted-foreground">
-                  Estimasi Budget
-                </div>
-                <div className="text-sm font-bold text-emerald-600 dark:text-[#30d158]">
-                  {event.budget != null ? formatIDR(event.budget) : "-"}
-                </div>
-              </div>
-              <div className="flex items-center">
-                <EditEventButton event={event} variant="icon" />
-              </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground/60 group-hover:text-[#007aff] group-hover:translate-x-1 transition-all" />
-            </div>
+            <List className="w-3.5 h-3.5" />
+            <span>List</span>
           </Link>
-        ))}
+          <Link
+            href={`/events?view=calendar&status=${statusFilter}`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+              viewMode === "calendar"
+                ? "bg-card text-foreground shadow-xs border border-border/80"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            <span>Kalender</span>
+          </Link>
+        </div>
       </div>
+
+      {/* Status Filter Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+        {STATUS_FILTERS.map((f) => {
+          const isActive = statusFilter === f.key;
+          return (
+            <Link
+              key={f.key}
+              href={`/events?status=${f.key}&view=${viewMode}`}
+              className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all border ${
+                isActive
+                  ? "bg-[#007aff] text-white border-[#007aff] shadow-xs"
+                  : "bg-card text-muted-foreground hover:text-foreground border-border hover:border-foreground/20"
+              }`}
+            >
+              {f.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Content View: Calendar or List */}
+      {viewMode === "calendar" ? (
+        <MonthlyCalendar events={events} />
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3.5">
+            {events.length === 0 ? (
+              <div className="apple-card p-12 text-center text-xs text-muted-foreground space-y-2">
+                <CalendarDays className="w-8 h-8 text-muted-foreground/40 mx-auto" />
+                <p className="font-semibold text-foreground text-sm">
+                  Tidak ada acara ditemukan
+                </p>
+                <p>
+                  Coba ubah filter status atau tambahkan acara baru ke portofolio.
+                </p>
+              </div>
+            ) : (
+              events.map((event) => (
+                <Link
+                  key={event.id}
+                  href={`/events/${event.id}`}
+                  className="apple-card-interactive p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 group rounded-2xl border border-border shadow-xs hover:shadow-md transition-all"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="text-base font-bold text-foreground group-hover:text-[#007aff] transition-colors">
+                        {event.title}
+                      </span>
+                      <EventCountdownBadge startDate={event.start_date} />
+                      <EventStatusBadge status={event.status} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#007aff]" />
+                        {event.venue}
+                      </span>
+                      {event.client && (
+                        <span className="flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-[#007aff]" />
+                          {event.client.company || event.client.name}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1.5">
+                        <CalendarDays className="w-3.5 h-3.5 text-[#007aff]" />
+                        {formatDate(event.start_date)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between md:justify-end gap-4 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-border">
+                    <div className="text-left md:text-right">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        Estimasi Budget
+                      </div>
+                      <div className="text-sm font-bold text-emerald-600 dark:text-[#30d158]">
+                        {event.budget != null ? formatIDR(event.budget) : "-"}
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <EditEventButton event={event} variant="icon" />
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground/60 group-hover:text-[#007aff] group-hover:translate-x-1 transition-all" />
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-3 border-t border-border text-xs">
+              <span className="text-muted-foreground font-medium">
+                Halaman {page} dari {totalPages} ({totalCount} acara)
+              </span>
+              <div className="flex items-center gap-2">
+                {page > 1 ? (
+                  <Link
+                    href={`/events?page=${page - 1}&status=${statusFilter}&view=${viewMode}`}
+                    className="apple-btn-secondary px-3 py-1.5 rounded-xl font-bold flex items-center gap-1"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Sebelumnya
+                  </Link>
+                ) : (
+                  <button
+                    disabled
+                    className="apple-btn-secondary px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 opacity-40 cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Sebelumnya
+                  </button>
+                )}
+
+                {page < totalPages ? (
+                  <Link
+                    href={`/events?page=${page + 1}&status=${statusFilter}&view=${viewMode}`}
+                    className="apple-btn-secondary px-3 py-1.5 rounded-xl font-bold flex items-center gap-1"
+                  >
+                    Berikutnya
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                ) : (
+                  <button
+                    disabled
+                    className="apple-btn-secondary px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 opacity-40 cursor-not-allowed"
+                  >
+                    Berikutnya
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

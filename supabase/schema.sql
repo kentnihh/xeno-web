@@ -439,3 +439,33 @@ create policy "Authenticated users can update bucket-files" on storage.objects f
 drop policy if exists "Authenticated users can delete bucket-files" on storage.objects;
 create policy "Authenticated users can delete bucket-files" on storage.objects for delete to authenticated using (bucket_id = 'bucket-files');
 
+
+-- Event Sheets (Dynamic Spreadsheet JSONB)
+create table if not exists public.event_sheets (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.events(id) on delete cascade,
+  sheet_name text not null,
+  order_index integer not null default 0,
+  data jsonb not null default '{"columns": [], "rows": []}'::jsonb,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null,
+  unique(event_id, sheet_name)
+);
+
+create index if not exists idx_event_sheets_event_id on public.event_sheets(event_id);
+create index if not exists idx_event_sheets_order_index on public.event_sheets(order_index);
+
+alter table public.event_sheets enable row level security;
+
+drop policy if exists "Event sheets viewable by authenticated users" on public.event_sheets;
+create policy "Event sheets viewable by authenticated users" on public.event_sheets for select to authenticated using (true);
+
+drop policy if exists "Authenticated users can insert event sheets" on public.event_sheets;
+create policy "Authenticated users can insert event sheets" on public.event_sheets for insert to authenticated with check (true);
+
+drop policy if exists "Authenticated users can update event sheets" on public.event_sheets;
+create policy "Authenticated users can update event sheets" on public.event_sheets for update to authenticated using (true) with check (true);
+
+drop policy if exists "Authenticated users can delete event sheets" on public.event_sheets;
+create policy "Authenticated users can delete event sheets" on public.event_sheets for delete to authenticated using (true);
+

@@ -70,3 +70,91 @@ export function getStoragePathFromUrl(fileUrl: string): string {
   return fileUrl;
 }
 
+export type CountdownTone = "today" | "tomorrow" | "upcoming" | "past";
+
+export interface CountdownInfo {
+  label: string;
+  tone: CountdownTone;
+  diffDays: number;
+}
+
+/**
+ * Computes countdown label relative to today (e.g., "Hari Ini", "Besok", "H-3", "Lewat 2h").
+ * @param dateStr - ISO string or date parseable string
+ * @param refDate - Optional reference date (default: now) for testing determinism
+ */
+export function getEventCountdown(
+  dateStr: string | null | undefined,
+  refDate?: Date
+): CountdownInfo {
+  if (!dateStr) return { label: "-", tone: "past", diffDays: -9999 };
+  const target = new Date(dateStr);
+  if (isNaN(target.getTime())) return { label: "-", tone: "past", diffDays: -9999 };
+
+  const now = refDate || new Date();
+  const targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const diffDays = Math.round((targetMidnight - todayMidnight) / oneDayMs);
+
+  if (diffDays === 0) return { label: "Hari Ini", tone: "today", diffDays: 0 };
+  if (diffDays === 1) return { label: "Besok", tone: "tomorrow", diffDays: 1 };
+  if (diffDays > 1) return { label: `H-${diffDays}`, tone: "upcoming", diffDays };
+  if (diffDays === -1) return { label: "Kemarin", tone: "past", diffDays: -1 };
+  return { label: `Lewat ${Math.abs(diffDays)}h`, tone: "past", diffDays };
+}
+
+/**
+ * Sorts events so that closest upcoming dates appear first (today, tomorrow, H-3...),
+ * followed by past events (most recent past first).
+ */
+export function sortEventsUpcomingFirst<T extends { start_date: string }>(
+  events: T[],
+  refDate?: Date
+): T[] {
+  const now = refDate || new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  return [...events].sort((a, b) => {
+    const timeA = new Date(a.start_date).getTime();
+    const timeB = new Date(b.start_date).getTime();
+    const isUpcomingA = timeA >= todayStart;
+    const isUpcomingB = timeB >= todayStart;
+
+    if (isUpcomingA && isUpcomingB) {
+      return timeA - timeB; // Closest upcoming first
+    }
+    if (isUpcomingA && !isUpcomingB) return -1;
+    if (!isUpcomingA && isUpcomingB) return 1;
+    return timeB - timeA; // Most recent past first
+  });
+}
+
+export const TASK_PRIORITY_WEIGHT: Record<string, number> = {
+  urgent: 1,
+  high: 2,
+  medium: 3,
+  low: 4,
+};
+
+/**
+ * Sorts tasks strictly by priority: Urgent -> High -> Medium -> Low.
+ * Equal priority falls back to earliest due date.
+ */
+export function sortTasksByPriority<T extends { priority?: string | null; due_date?: string | null }>(
+  tasks: T[]
+): T[] {
+  return [...tasks].sort((a, b) => {
+    const keyA = (a.priority || "").toLowerCase();
+    const keyB = (b.priority || "").toLowerCase();
+    const wA = TASK_PRIORITY_WEIGHT[keyA] ?? 99;
+    const wB = TASK_PRIORITY_WEIGHT[keyB] ?? 99;
+    if (wA !== wB) return wA - wB;
+    if (a.due_date && b.due_date) {
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    }
+    return 0;
+  });
+}
+
+

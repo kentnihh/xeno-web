@@ -12,13 +12,16 @@ export type Json =
   | Json[];
 
 /** Lifecycle status for an event */
-export type EventStatus =
-  | 'draft'
-  | 'planning'
-  | 'confirmed'
-  | 'ongoing'
-  | 'completed'
-  | 'cancelled';
+export const EVENT_STATUS_LIST = [
+  'draft',
+  'planning',
+  'confirmed',
+  'ongoing',
+  'completed',
+  'cancelled',
+] as const;
+
+export type EventStatus = (typeof EVENT_STATUS_LIST)[number];
 
 /** Progress status for crew tasks */
 export type TaskStatus = 'todo' | 'in_progress' | 'done';
@@ -200,4 +203,36 @@ export interface UserWithRBAC extends Profile {
   permissions: Permission[];
 }
 
+
+
+
+/** Spreadsheet grid column definition */
+export interface SheetColumn {
+  id: string;
+  name: string;
+  width?: number;
+}
+
+/** Spreadsheet grid row: dynamic key-value dictionary with unique id */
+export interface SheetRow {
+  id: string;
+  [columnId: string]: string | number | boolean | null | undefined;
+}
+
+/** Spreadsheet grid payload stored inside event_sheets.data JSONB */
+export interface SheetData {
+  columns: SheetColumn[];
+  rows: SheetRow[];
+}
+
+/** Flexible event spreadsheet tab record */
+export interface EventSheet {
+  id: string;
+  event_id: string;
+  sheet_name: string;
+  order_index: number;
+  data: SheetData;
+  created_at: string;
+  updated_at: string;
+}
 

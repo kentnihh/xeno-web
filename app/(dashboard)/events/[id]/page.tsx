@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatIDR, formatDate } from "@/lib/utils";
-import { deleteEvent, updateEventStatus } from "../actions";
+import { deleteEvent } from "../actions";
+import { getEventSheets } from "../sheet-actions";
 import { isAdmin } from "@/lib/auth";
 import { ArrowLeft, Calendar, MapPin, Coins, Trash2 } from "lucide-react";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
 import { ExportPdfButton } from "@/components/events/export-pdf-button";
 import { EditEventButton } from "@/components/events/edit-event-modal";
+import { EventStatusSelect } from "@/components/events/event-status-select";
+import { ExportExcelButton } from "@/components/events/spreadsheet/export-excel-button";
+import { EventSpreadsheetTabs } from "@/components/events/spreadsheet/event-spreadsheet-tabs";
 import type { EventStatus, EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument } from "@/types/database";
 
 const FALLBACK_EVENT = {
@@ -51,6 +55,7 @@ export default async function EventDetailPage({
     { data: rawAllVendors },
     { data: rawExpenses },
     { data: rawDocuments },
+    sheets,
   ] = await Promise.all([
     supabase.from("events").select("*, client:clients(*)").eq("id", id).single(),
     supabase.from("event_tasks").select("*, assignee:profiles(*)").eq("event_id", id).order("created_at", { ascending: false }),
@@ -60,6 +65,7 @@ export default async function EventDetailPage({
     supabase.from("vendors").select("*").order("name"),
     supabase.from("event_expenses").select("*").eq("event_id", id).order("expense_date", { ascending: false }),
     supabase.from("event_documents").select("*, uploader:profiles(*)").eq("event_id", id).order("created_at", { ascending: false }),
+    getEventSheets(id),
   ]);
 
   const event = rawEvent || { id, ...FALLBACK_EVENT };
@@ -73,8 +79,8 @@ export default async function EventDetailPage({
 
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between gap-3">
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link
             href="/events"
@@ -90,7 +96,9 @@ export default async function EventDetailPage({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <ExportExcelButton eventTitle={event.title} sheets={sheets} />
+
           <EditEventButton event={event} />
 
           <ExportPdfButton
@@ -116,25 +124,8 @@ export default async function EventDetailPage({
 
       <div className="apple-card p-5 grid grid-cols-2 md:grid-cols-4 gap-4 border border-border shadow-xs">
         <div>
-          <div className="text-xs font-medium text-muted-foreground">Status</div>
-          <form action={async (formData: FormData) => {
-            "use server";
-            const st = formData.get("status") as EventStatus;
-            await updateEventStatus(event.id, st);
-          }} className="mt-1">
-            <select
-              name="status"
-              defaultValue={event.status}
-              className="apple-input px-2.5 py-1 text-[11px] font-bold uppercase bg-muted text-[#007aff] dark:text-[#3894ff] border-border cursor-pointer"
-            >
-              <option value="draft" className="bg-card text-foreground">Draft</option>
-              <option value="planning" className="bg-card text-foreground">Planning</option>
-              <option value="confirmed" className="bg-card text-foreground">Confirmed</option>
-              <option value="ongoing" className="bg-card text-foreground">Ongoing</option>
-              <option value="completed" className="bg-card text-foreground">Completed</option>
-              <option value="cancelled" className="bg-card text-foreground">Cancelled</option>
-            </select>
-          </form>
+          <div className="text-xs font-medium text-muted-foreground mb-1">Status</div>
+          <EventStatusSelect eventId={event.id} initialStatus={event.status} />
         </div>
         <div>
           <div className="text-xs font-medium text-muted-foreground">Venue</div>
@@ -159,19 +150,34 @@ export default async function EventDetailPage({
         </div>
       </div>
 
-      {/* Tabs View: Operasional vs Keuangan vs Dokumen */}
-      <EventDetailTabs
-        event={event}
-        crew={crew}
-        tasks={tasks}
-        allProfiles={allProfiles}
-        eventVendors={eventVendors}
-        allVendors={allVendors}
-        expenses={expenses}
-        documents={documents}
-        canManage={true}
-        initialTab={initialTab}
-      />
+      {/* Dynamic Spreadsheet UI (Horizontal Tabs & Inline Data Grid) */}
+      <section className="space-y-3">
+        <EventSpreadsheetTabs
+          eventId={event.id}
+          initialSheets={sheets}
+          canManage={true}
+        />
+      </section>
+
+      {/* Additional Event Modules: Operasional, Keuangan, Dokumen */}
+      <section className="pt-6 border-t border-border">
+        <div className="mb-4">
+          <h2 className="text-sm font-bold text-foreground">Modul & Administrasi Acara</h2>
+          <p className="text-xs text-muted-foreground">Manajemen kru internal, vendor pihak ketiga, pencatatan biaya riil, dan dokumen lampiran.</p>
+        </div>
+        <EventDetailTabs
+          event={event}
+          crew={crew}
+          tasks={tasks}
+          allProfiles={allProfiles}
+          eventVendors={eventVendors}
+          allVendors={allVendors}
+          expenses={expenses}
+          documents={documents}
+          canManage={true}
+          initialTab={initialTab}
+        />
+      </section>
     </div>
   );
 }
