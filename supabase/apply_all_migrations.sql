@@ -228,3 +228,77 @@ drop policy if exists "Authenticated users can delete event documents" on public
 create policy "Authenticated users can delete event documents"
   on public.event_documents for delete to authenticated using (true);
 
+
+-- ==============================================================================
+-- 8. PROFILES ROW LEVEL SECURITY & AUTH TRIGGER REPAIR
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  ) OR EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = auth.uid() AND role_id = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE;
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, email, role)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    NEW.email,
+    'staff'
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name),
+    email = COALESCE(EXCLUDED.email, public.profiles.email);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+CREATE POLICY "Users can view own profile"
+  ON public.profiles FOR SELECT
+  TO authenticated
+  USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Profiles viewable by authenticated users" ON public.profiles;
+CREATE POLICY "Profiles viewable by authenticated users"
+  ON public.profiles FOR SELECT
+  TO authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Authenticated users or admin can insert profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users or admin can insert profile" ON public.profiles;
+CREATE POLICY "Users or admin can insert profile"
+  ON public.profiles FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = id OR public.is_admin());
+
+DROP POLICY IF EXISTS "Users or admin can update profile" ON public.profiles;
+CREATE POLICY "Users or admin can update profile"
+  ON public.profiles FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = id OR public.is_admin())
+  WITH CHECK (auth.uid() = id OR public.is_admin());
+
+DROP POLICY IF EXISTS "Admin can delete profile" ON public.profiles;
+CREATE POLICY "Admin can delete profile"
+  ON public.profiles FOR DELETE
+  TO authenticated
+  USING (public.is_admin());
+

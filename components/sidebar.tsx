@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -39,12 +39,14 @@ export function Sidebar() {
   const router = useRouter();
   const isSettingsActive = pathname.startsWith("/settings");
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const [prevIsSettingsActive, setPrevIsSettingsActive] = useState(isSettingsActive);
 
-  useEffect(() => {
+  if (isSettingsActive !== prevIsSettingsActive) {
+    setPrevIsSettingsActive(isSettingsActive);
     if (isSettingsActive) {
       setIsSettingsOpen(true);
     }
-  }, [isSettingsActive]);
+  }
 
   const handleLogout = async () => {
     const supabase = createClient();

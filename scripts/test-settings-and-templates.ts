@@ -2,7 +2,6 @@ import assert from "node:assert";
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { INITIAL_EVENT_SHEETS } from "../lib/constants/event-sheets";
 
 const envFiles = [".env.local", ".env"];
 for (const envFile of envFiles) {

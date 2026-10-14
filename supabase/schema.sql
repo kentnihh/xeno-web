@@ -209,10 +209,13 @@ begin
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
     new.email,
     'staff'
-  );
+  )
+  on conflict (id) do update set
+    full_name = coalesce(excluded.full_name, public.profiles.full_name),
+    email = coalesce(excluded.email, public.profiles.email);
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
@@ -231,7 +234,7 @@ begin
     where user_id = auth.uid() and role_id = 'admin'
   );
 end;
-$$ language plpgsql security definer stable;
+$$ language plpgsql security definer set search_path = public stable;
 
 -- Row Level Security (RLS)
 alter table public.profiles enable row level security;
@@ -293,12 +296,20 @@ create policy "Admin can insert user_roles" on public.user_roles for insert to a
 drop policy if exists "Admin can delete user_roles" on public.user_roles;
 create policy "Admin can delete user_roles" on public.user_roles for delete to authenticated using (public.is_admin());
 
--- Profiles: Authenticated read, self or admin update, admin delete
+-- Profiles: Authenticated read, self/admin insert, self/admin update, admin delete
+drop policy if exists "Users can view own profile" on public.profiles;
+create policy "Users can view own profile" on public.profiles for select to authenticated using (auth.uid() = id);
+
 drop policy if exists "Profiles viewable by authenticated users" on public.profiles;
 create policy "Profiles viewable by authenticated users" on public.profiles for select to authenticated using (true);
 
+drop policy if exists "Users can insert own profile" on public.profiles;
+drop policy if exists "Authenticated users or admin can insert profile" on public.profiles;
+drop policy if exists "Users or admin can insert profile" on public.profiles;
+create policy "Users or admin can insert profile" on public.profiles for insert to authenticated with check (auth.uid() = id or public.is_admin());
+
 drop policy if exists "Users or admin can update profile" on public.profiles;
-create policy "Users or admin can update profile" on public.profiles for update to authenticated using (auth.uid() = id or public.is_admin());
+create policy "Users or admin can update profile" on public.profiles for update to authenticated using (auth.uid() = id or public.is_admin()) with check (auth.uid() = id or public.is_admin());
 
 drop policy if exists "Admin can delete profile" on public.profiles;
 create policy "Admin can delete profile" on public.profiles for delete to authenticated using (public.is_admin());

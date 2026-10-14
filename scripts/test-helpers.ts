@@ -277,4 +277,24 @@ for (const sheet of defaultSheets) {
 assert.strictEqual(wb.SheetNames.length, 10, "Excel workbook must contain all 10 tab sheets");
 assert.strictEqual(wb.SheetNames[0], "CHECKLIST", "First sheet in Excel workbook must be CHECKLIST");
 
+// 13. Verify Profiles RLS & Auth Trigger definitions
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+const migrationFiles = [
+  path.resolve(process.cwd(), "supabase/schema.sql"),
+  path.resolve(process.cwd(), "supabase/apply_all_migrations.sql"),
+  path.resolve(process.cwd(), "supabase/fix_profiles_rls.sql"),
+  path.resolve(process.cwd(), "supabase/migrations/20261014_fix_profiles_rls_and_trigger.sql"),
+];
+
+for (const file of migrationFiles) {
+  assert(fs.existsSync(file), `Migration file must exist: ${file}`);
+  const sql = fs.readFileSync(file, "utf-8").toLowerCase();
+  assert(sql.includes("auth.uid() = id"), `${file} must include SELECT policy checking auth.uid() = id`);
+  assert(sql.includes("handle_new_user"), `${file} must define handle_new_user trigger function`);
+  assert(sql.includes("security definer"), `${file} must specify SECURITY DEFINER`);
+  assert(sql.includes("for insert") && sql.includes("to authenticated"), `${file} must include INSERT policy for profiles`);
+}
+
 console.log("Self-check passed successfully.");

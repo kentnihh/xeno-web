@@ -33,6 +33,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
 
     const adminClient = createAdminClient();
     const supabase = await createClient();
+    const dbClient = process.env.SUPABASE_SERVICE_ROLE_KEY ? adminClient : supabase;
     let createdUserId: string | null = null;
 
     // 1. Supabase Auth
@@ -61,7 +62,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
     }
 
     // 2. Profile
-    const { error: profileError } = await supabase.from("profiles").upsert(
+    const { error: profileError } = await dbClient.from("profiles").upsert(
       {
         id: createdUserId,
         full_name: fullName,
@@ -74,7 +75,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
     if (profileError) return { error: profileError.message };
 
     // 3. User Role
-    await supabase.from("user_roles").upsert(
+    await dbClient.from("user_roles").upsert(
       { user_id: createdUserId, role_id: roleId },
       { onConflict: "user_id,role_id" }
     );
@@ -227,15 +228,15 @@ export async function createPermission(formData: FormData): Promise<ActionResult
 
     const id = (formData.get("id") as string)?.trim().toLowerCase();
     const name = (formData.get("name") as string)?.trim();
-    const module = (formData.get("module") as string)?.trim().toLowerCase();
+    const permModule = (formData.get("module") as string)?.trim().toLowerCase();
     const description = (formData.get("description") as string)?.trim() || null;
 
-    if (!id || !name || !module) {
+    if (!id || !name || !permModule) {
       return { error: "ID, nama, dan modul permission wajib diisi." };
     }
 
     const supabase = await createClient();
-    const { error } = await supabase.from("permissions").insert({ id, name, module, description });
+    const { error } = await supabase.from("permissions").insert({ id, name, module: permModule, description });
     if (error) return { error: error.message };
 
     revalidateRBAC();
