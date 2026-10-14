@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { ChevronDown, Plus, Check, Loader2, AlertCircle, RotateCcw, Trash2, Edit2 } from "lucide-react";
 import { DynamicSheetGrid } from "./dynamic-sheet-grid";
-import { saveEventSheet, deleteEventSheet } from "@/app/(dashboard)/events/sheet-actions";
+import { saveEventSheet, deleteEventSheet, resetSheetToMaster } from "@/app/(dashboard)/events/sheet-actions";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import type { EventSheet, SheetData } from "@/types/database";
 
@@ -140,12 +140,30 @@ export function EventSpreadsheetTabs({
   };
 
   const handleResetSheet = (sheetName: string) => {
-    const tpl = INITIAL_EVENT_SHEETS.find((t) => t.name.toLowerCase() === sheetName.toLowerCase());
-    if (!tpl || !confirm(`Reset data "${sheetName}"?`)) return;
-    setSheets(sheets.map((s) => (s.sheet_name === sheetName ? { ...s, data: tpl.data } : s)));
+    if (!confirm(`Reset data "${sheetName}" ke format master template?`)) return;
     setOpenMenuSheet(null);
+    setSaveStatus("saving");
     startTransition(async () => {
-      await saveEventSheet(eventId, sheetName, tpl.data);
+      const res = await resetSheetToMaster(eventId, sheetName);
+      if (res.success && res.data) {
+        setSheets((prev) =>
+          prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: res.data! } : s))
+        );
+        setSaveStatus("saved");
+      } else {
+        // Fallback to static template
+        const tpl = INITIAL_EVENT_SHEETS.find((t) => t.name.toLowerCase() === sheetName.toLowerCase());
+        if (tpl) {
+          setSheets((prev) =>
+            prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: tpl.data } : s))
+          );
+          await saveEventSheet(eventId, sheetName, tpl.data);
+          setSaveStatus("saved");
+        } else {
+          setSaveStatus("error");
+          setStatusMessage(res.error || "Gagal mereset");
+        }
+      }
     });
   };
 

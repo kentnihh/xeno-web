@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
-import { downloadEventSummaryPdf } from "@/lib/pdf/event-summary-pdf";
 import type {
   Event,
   EventCrew,
@@ -48,6 +47,7 @@ export function ExportPdfButton({
     if (isExporting) return;
     try {
       setIsExporting(true);
+      const { downloadEventSummaryPdf } = await import("@/lib/pdf/event-summary-pdf");
       await downloadEventSummaryPdf({
         event,
         crew,
@@ -79,3 +79,4 @@ export function ExportPdfButton({
     </button>
   );
 }
+

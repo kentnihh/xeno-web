@@ -236,3 +236,14 @@ export interface EventSheet {
   updated_at: string;
 }
 
+/** Master template record stored in public.master_templates */
+export interface MasterTemplate {
+  id: string;
+  sheet_name: string;
+  order_index: number;
+  jsonb_structure: SheetData;
+  created_at: string;
+  updated_at: string;
+}
+
+

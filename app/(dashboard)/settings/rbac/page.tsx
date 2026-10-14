@@ -11,7 +11,7 @@ import {
 } from "@/lib/rbac-fallbacks";
 import type { UserWithRBAC } from "@/types/database";
 
-export default async function UsersPage() {
+export default async function SettingsRBACPage() {
   const isUserAdmin = await isAdmin();
 
   if (!isUserAdmin) {
@@ -34,10 +34,10 @@ export default async function UsersPage() {
             Masuk sebagai Admin
           </Link>
           <Link
-            href="/"
+            href="/dashboard"
             className="px-4 py-2 rounded-lg border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-semibold transition-colors"
           >
-            Kembali ke Beranda
+            Kembali ke Dashboard
           </Link>
         </div>
       </div>

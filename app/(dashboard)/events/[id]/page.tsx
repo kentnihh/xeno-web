@@ -6,10 +6,8 @@ import { getEventSheets } from "../sheet-actions";
 import { isAdmin } from "@/lib/auth";
 import { ArrowLeft, Calendar, MapPin, Coins, Trash2 } from "lucide-react";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
-import { ExportPdfButton } from "@/components/events/export-pdf-button";
-import { EditEventButton } from "@/components/events/edit-event-modal";
 import { EventStatusSelect } from "@/components/events/event-status-select";
-import { ExportExcelButton } from "@/components/events/spreadsheet/export-excel-button";
+import { EventActionButtons } from "@/components/events/event-action-buttons";
 import { EventSpreadsheetTabs } from "@/components/events/spreadsheet/event-spreadsheet-tabs";
 import type { EventStatus, EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument } from "@/types/database";
 
@@ -97,12 +95,9 @@ export default async function EventDetailPage({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          <ExportExcelButton eventTitle={event.title} sheets={sheets} />
-
-          <EditEventButton event={event} />
-
-          <ExportPdfButton
+          <EventActionButtons
             event={event}
+            sheets={sheets}
             crew={crew}
             tasks={tasks}
             expenses={expenses}

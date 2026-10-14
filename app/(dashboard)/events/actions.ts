@@ -12,6 +12,9 @@ import {
   removeCrewSchema,
 } from "@/lib/validations/event";
 import { EVENT_STATUS_LIST, type EventStatus, type TaskPriority, type TaskStatus, type VendorStatus, type EventTask, type EventVendor } from "@/types/database";
+import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
+import type { MasterTemplate } from "@/types/database";
+
 
 /**
  * Creates a new event in the database from form data and redirects to event detail page.
@@ -95,6 +98,34 @@ export async function createEvent(formData: FormData): Promise<void> {
     }));
     await supabase.from("event_documents").insert(docRows);
   }
+  // Fetch master templates from database table instead of hardcoded file
+  const { data: dbTemplates } = await supabase
+    .from("master_templates")
+    .select("sheet_name, order_index, jsonb_structure")
+    .order("order_index", { ascending: true });
+
+  const sheetRows =
+    dbTemplates && dbTemplates.length > 0
+      ? (dbTemplates as MasterTemplate[]).map((tpl, idx) => ({
+          event_id: data.id,
+          sheet_name: tpl.sheet_name,
+          order_index: tpl.order_index ?? idx,
+          data: tpl.jsonb_structure,
+        }))
+      : INITIAL_EVENT_SHEETS.map((tpl, idx) => ({
+          event_id: data.id,
+          sheet_name: tpl.name,
+          order_index: idx,
+          data: tpl.data,
+        }));
+
+  if (sheetRows.length > 0) {
+    const { error: sheetsError } = await supabase.from("event_sheets").insert(sheetRows);
+    if (sheetsError) {
+      console.warn(`[createEvent] Warning seeding event_sheets for ${data.id}:`, sheetsError.message);
+    }
+  }
+
 
   // Invalidate event listings and redirect to new event view
   revalidatePath("/events");

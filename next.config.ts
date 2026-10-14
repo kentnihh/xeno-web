@@ -41,7 +41,17 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/dashboard/users",
-        destination: "/users",
+        destination: "/settings/rbac",
+        permanent: false,
+      },
+      {
+        source: "/users",
+        destination: "/settings/rbac",
+        permanent: false,
+      },
+      {
+        source: "/settings",
+        destination: "/settings/templates",
         permanent: false,
       },
     ];
