@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npx @cloudflare/next-on-pages@1",
+    "deploy:cloud": "npm run build && npx wrangler pages deploy .vercel/output/static --project-name xeno",
     "pages:build": "npx @cloudflare/next-on-pages@1",
     "build:next": "next build",
     "preview": "wrangler pages dev .vercel/output/static",
