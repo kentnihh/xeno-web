@@ -21,15 +21,11 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
     const fullName = (formData.get("fullName") as string)?.trim();
     const email = (formData.get("email") as string)?.trim().toLowerCase();
     const password = formData.get("password") as string;
-    const confirmPassword = formData.get("confirmPassword") as string;
     const phone = (formData.get("phone") as string)?.trim() || null;
     const roleId = ((formData.get("roleId") as string)?.trim() || "staff").toLowerCase();
 
     if (!fullName || !email || !password) {
       return { error: "Nama lengkap, email, dan kata sandi wajib diisi." };
-    }
-    if (confirmPassword !== undefined && confirmPassword !== null && password !== confirmPassword) {
-      return { error: "Kata sandi dan konfirmasi kata sandi tidak cocok." };
     }
     if (password.length < 6) {
       return { error: "Kata sandi minimal 6 karakter." };

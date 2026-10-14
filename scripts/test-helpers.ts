@@ -312,14 +312,13 @@ const rbacActionsPath = path.resolve(process.cwd(), "app/(dashboard)/settings/rb
 const rbacActionsCode = fs.readFileSync(rbacActionsPath, "utf-8");
 assert(rbacActionsCode.includes("auth.admin.createUser"), "RBAC createUser must invoke auth.admin.createUser");
 assert(!rbacActionsCode.includes(".signUp("), "RBAC createUser must NOT call auth.signUp()");
-assert(rbacActionsCode.includes("confirmPassword"), "RBAC createUser must validate confirmPassword");
+assert(!rbacActionsCode.includes("confirmPassword"), "RBAC createUser must NOT require confirmPassword");
 
 const userModalPath = path.resolve(process.cwd(), "components/users/user-modal.tsx");
 const userModalCode = fs.readFileSync(userModalPath, "utf-8");
-assert(userModalCode.includes("name=\"confirmPassword\""), "UserModal must include confirmPassword input field");
-assert(userModalCode.includes("type=\"password\""), "UserModal confirmPassword must be a standard password input");
-assert(!userModalCode.includes("showConfirmPassword"), "UserModal must NOT include toggle for confirmPassword");
-assert(userModalCode.includes("Eye") && userModalCode.includes("EyeOff"), "UserModal must include password visibility toggle for main password");
+assert(!userModalCode.includes("name=\"confirmPassword\""), "UserModal must NOT include confirmPassword input field");
+assert(userModalCode.includes("name=\"password\""), "UserModal must include single password input field");
+assert(userModalCode.includes("Eye") && userModalCode.includes("EyeOff"), "UserModal must include password visibility toggle for password");
 
 // 15. Verify RBAC Reset Password Feature
 assert(rbacActionsCode.includes("resetUserPassword"), "RBAC actions must export resetUserPassword");
@@ -329,6 +328,7 @@ assert(!rbacActionsCode.includes("supabase.auth.updateUser("), "resetUserPasswor
 const resetPasswordModalPath = path.resolve(process.cwd(), "components/users/reset-password-modal.tsx");
 const resetPasswordModalCode = fs.readFileSync(resetPasswordModalPath, "utf-8");
 assert(resetPasswordModalCode.includes("name=\"newPassword\""), "ResetPasswordModal must include newPassword input");
+assert(!resetPasswordModalCode.includes("confirmPassword"), "ResetPasswordModal must NOT include confirmPassword input");
 assert(resetPasswordModalCode.includes("Eye") && resetPasswordModalCode.includes("EyeOff"), "ResetPasswordModal must include password toggle icons");
 assert(resetPasswordModalCode.includes("resetUserPassword"), "ResetPasswordModal must invoke resetUserPassword action");
 

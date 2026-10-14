@@ -27,15 +27,9 @@ export function UserModal({
 
     if (!isEdit) {
       const password = formData.get("password") as string;
-      const confirmPassword = formData.get("confirmPassword") as string;
 
       if (!password || password.length < 6) {
         setError("Kata sandi minimal 6 karakter.");
-        return;
-      }
-
-      if (password !== confirmPassword) {
-        setError("Kata sandi dan konfirmasi kata sandi tidak cocok.");
         return;
       }
     }
@@ -100,43 +94,27 @@ export function UserModal({
         </div>
 
         {!isEdit && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1.5">
-                Kata Sandi Login <span className="text-[#ff453a]">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  minLength={6}
-                  placeholder="Minimal 6 karakter"
-                  className="apple-input w-full pl-3.5 pr-10 py-2 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 cursor-pointer"
-                  aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1.5">
-                Konfirmasi Kata Sandi <span className="text-[#ff453a]">*</span>
-              </label>
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1.5">
+              Kata Sandi Login <span className="text-[#ff453a]">*</span>
+            </label>
+            <div className="relative">
               <input
-                name="confirmPassword"
-                type="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
                 required
                 minLength={6}
-                placeholder="Ulangi kata sandi"
-                className="apple-input w-full px-3.5 py-2 text-sm"
+                placeholder="Minimal 6 karakter"
+                className="apple-input w-full pl-3.5 pr-10 py-2 text-sm"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 cursor-pointer"
+                aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
         )}
