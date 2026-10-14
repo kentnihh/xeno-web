@@ -336,6 +336,12 @@ const usersTablePath = path.resolve(process.cwd(), "components/users/users-table
 const usersTableCode = fs.readFileSync(usersTablePath, "utf-8");
 assert(usersTableCode.includes("onResetPassword"), "UsersTable must accept onResetPassword callback");
 assert(usersTableCode.includes("Reset Sandi"), "UsersTable must render Reset Sandi button next to Edit");
+// 16. Verify RoleModal handles role ID correctly on edit
+const roleModalPath = path.resolve(process.cwd(), "components/users/role-modal.tsx");
+const roleModalCode = fs.readFileSync(roleModalPath, "utf-8");
+assert(roleModalCode.includes("input type=\"hidden\" name=\"id\""), "RoleModal must include hidden id input when isEdit");
+assert(roleModalCode.includes("formData.set(\"id\", role.id)"), "RoleModal handleSubmit must set id on formData when isEdit");
+
 
 
 console.log("Self-check passed successfully.");

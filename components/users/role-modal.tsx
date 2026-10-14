@@ -32,6 +32,9 @@ export function RoleModal({
     event.preventDefault();
     setError(null);
     const formData = new FormData(event.currentTarget);
+    if (isEdit && role?.id) {
+      formData.set("id", role.id);
+    }
     formData.delete("permissionIds");
     selectedPerms.forEach((pId) => formData.append("permissionIds", pId));
 
@@ -58,16 +61,18 @@ export function RoleModal({
           </div>
         )}
 
+        {isEdit && <input type="hidden" name="id" value={role!.id} />}
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-foreground mb-1.5">
               Kode / Slug <span className="text-[#ff453a]">*</span>
             </label>
             <input
-              name="id"
+              name={isEdit ? undefined : "id"}
               defaultValue={role?.id || ""}
               disabled={isEdit}
-              required
+              required={!isEdit}
               placeholder="misal: stage_coordinator"
               className={`apple-input w-full px-3.5 py-2 text-sm ${
                 isEdit ? "opacity-50 cursor-not-allowed" : ""
