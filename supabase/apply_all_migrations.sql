@@ -4,11 +4,14 @@
 -- https://supabase.com/dashboard/project/yblhtchviuslhfwiwyuo/sql/new
 -- ==============================================================================
 
--- 1. EVENT BUDGET RULES (Optional & > 0)
-alter table public.events alter column budget drop not null;
-alter table public.events alter column budget drop default;
+-- 1. EVENT SCHEMA SYNC (Drop budget, Add PIC & Client ID)
 alter table public.events drop constraint if exists check_event_budget_positive;
-alter table public.events add constraint check_event_budget_positive check (budget is null or budget > 0);
+alter table public.events drop column if exists budget;
+alter table public.events drop column if exists estimated_budget;
+alter table public.events drop column if exists actual_cost;
+alter table public.events add column if not exists pic text;
+alter table public.events add column if not exists client_id uuid references public.clients(id) on delete set null;
+create index if not exists idx_events_client_id on public.events(client_id);
 
 -- 2. EVENT CREW (Internal Staff Assignments)
 create table if not exists public.event_crew (
@@ -87,15 +90,23 @@ alter table public.user_roles enable row level security;
 
 drop policy if exists "Roles select" on public.roles;
 create policy "Roles select" on public.roles for select to authenticated using (true);
+drop policy if exists "Roles all admin" on public.roles;
+create policy "Roles all admin" on public.roles for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists "Permissions select" on public.permissions;
 create policy "Permissions select" on public.permissions for select to authenticated using (true);
+drop policy if exists "Permissions all admin" on public.permissions;
+create policy "Permissions all admin" on public.permissions for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists "Role perms select" on public.role_permissions;
 create policy "Role perms select" on public.role_permissions for select to authenticated using (true);
+drop policy if exists "Role perms all admin" on public.role_permissions;
+create policy "Role perms all admin" on public.role_permissions for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists "User roles select" on public.user_roles;
 create policy "User roles select" on public.user_roles for select to authenticated using (true);
+drop policy if exists "User roles all admin" on public.user_roles;
+create policy "User roles all admin" on public.user_roles for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 insert into public.roles (id, name, description) values
   ('admin', 'Administrator', 'Akses penuh seluruh konfigurasi sistem & hak akses'),
