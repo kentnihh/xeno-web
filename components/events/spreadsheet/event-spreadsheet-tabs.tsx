@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import { ChevronDown, Plus, Check, Loader2, AlertCircle, RotateCcw, Trash2, Edit2 } from "lucide-react";
 import { DynamicSheetGrid } from "./dynamic-sheet-grid";
 import { saveEventSheet, deleteEventSheet, resetSheetToMaster } from "@/app/(dashboard)/events/sheet-actions";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import type { EventSheet, SheetData } from "@/types/database";
 
@@ -27,6 +28,8 @@ export function EventSpreadsheetTabs({
   const [openMenuSheet, setOpenMenuSheet] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "error">("saved");
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [deletingSheetName, setDeletingSheetName] = useState<string | null>(null);
+  const [resettingSheetName, setResettingSheetName] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -128,43 +131,45 @@ export function EventSpreadsheetTabs({
     });
   };
 
-  const handleDeleteSheet = (sheetName: string) => {
-    if (sheets.length <= 1 || !confirm(`Hapus "${sheetName}"?`)) return;
+  const confirmDeleteSheet = async () => {
+    if (!deletingSheetName || sheets.length <= 1) return;
+    const sheetName = deletingSheetName;
     const next = sheets.filter((s) => s.sheet_name !== sheetName);
     setSheets(next);
     if (activeTabName === sheetName) setActiveTabName(next[0].sheet_name);
-    setOpenMenuSheet(null);
-    startTransition(async () => {
-      await deleteEventSheet(eventId, sheetName);
-    });
+    await deleteEventSheet(eventId, sheetName);
   };
 
   const handleResetSheet = (sheetName: string) => {
-    if (!confirm(`Reset data "${sheetName}" ke format master template?`)) return;
     setOpenMenuSheet(null);
+    setResettingSheetName(sheetName);
+  };
+
+  const confirmResetSheet = async () => {
+    if (!resettingSheetName) return;
+    const sheetName = resettingSheetName;
     setSaveStatus("saving");
-    startTransition(async () => {
-      const res = await resetSheetToMaster(eventId, sheetName);
-      if (res.success && res.data) {
+    const res = await resetSheetToMaster(eventId, sheetName);
+    if (res.success && res.data) {
+      setSheets((prev) =>
+        prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: res.data! } : s))
+      );
+      setSaveStatus("saved");
+    } else {
+      // Fallback to static template
+      const tpl = INITIAL_EVENT_SHEETS.find((t) => t.name.toLowerCase() === sheetName.toLowerCase());
+      if (tpl) {
         setSheets((prev) =>
-          prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: res.data! } : s))
+          prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: tpl.data } : s))
         );
+        await saveEventSheet(eventId, sheetName, tpl.data);
         setSaveStatus("saved");
       } else {
-        // Fallback to static template
-        const tpl = INITIAL_EVENT_SHEETS.find((t) => t.name.toLowerCase() === sheetName.toLowerCase());
-        if (tpl) {
-          setSheets((prev) =>
-            prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: tpl.data } : s))
-          );
-          await saveEventSheet(eventId, sheetName, tpl.data);
-          setSaveStatus("saved");
-        } else {
-          setSaveStatus("error");
-          setStatusMessage(res.error || "Gagal mereset");
-        }
+        setSaveStatus("error");
+        setStatusMessage(res.error || "Gagal mereset");
+        throw new Error(res.error || "Gagal mereset");
       }
-    });
+    }
   };
 
   return (
@@ -235,8 +240,11 @@ export function EventSpreadsheetTabs({
                     {sheets.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteSheet(sheet.sheet_name)}
-                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-500/10 text-left"
+                        onClick={() => {
+                          setOpenMenuSheet(null);
+                          setDeletingSheetName(sheet.sheet_name);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-500/10 text-left cursor-pointer"
                       >
                         <Trash2 className="w-3 h-3" />
                         <span>Hapus Sheet</span>
@@ -292,6 +300,24 @@ export function EventSpreadsheetTabs({
           readOnly={!canManage}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!deletingSheetName}
+        title="Konfirmasi Hapus Lembar Kerja"
+        itemName={deletingSheetName || undefined}
+        onConfirm={confirmDeleteSheet}
+        onClose={() => setDeletingSheetName(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!resettingSheetName}
+        title="Konfirmasi Reset Lembar Kerja"
+        itemName={resettingSheetName || undefined}
+        message={resettingSheetName ? `Apakah Anda yakin ingin mereset data "${resettingSheetName}" ke format master template? Data kustom akan ditimpa.` : undefined}
+        confirmLabel="Reset"
+        onConfirm={confirmResetSheet}
+        onClose={() => setResettingSheetName(null)}
+      />
     </div>
   );
 }

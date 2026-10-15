@@ -50,7 +50,7 @@ export function UsersDialogHandler({
     return (
       <ConfirmDialog
         title="Konfirmasi Hapus Staf"
-        message={`Hapus staf "${dialog.user.full_name}" (${dialog.user.email})?`}
+        message={`Apakah Anda yakin ingin menghapus staf "${dialog.user.full_name}" (${dialog.user.email})? Tindakan ini tidak dapat dibatalkan.`}
         onConfirm={async () => {
           const res = await deleteUser(dialog.user.id);
           if (res.error) throw new Error(res.error);
@@ -78,7 +78,7 @@ export function UsersDialogHandler({
     return (
       <ConfirmDialog
         title="Konfirmasi Hapus Peran"
-        message={`Hapus peran "${dialog.role.name}" (${dialog.role.id})?`}
+        message={`Apakah Anda yakin ingin menghapus peran "${dialog.role.name}" (${dialog.role.id})? Tindakan ini tidak dapat dibatalkan.`}
         onConfirm={async () => {
           const res = await deleteRole(dialog.role.id);
           if (res.error) throw new Error(res.error);
@@ -95,7 +95,7 @@ export function UsersDialogHandler({
     return (
       <ConfirmDialog
         title="Konfirmasi Hapus Izin"
-        message={`Hapus izin "${dialog.perm.name}" (${dialog.perm.id})?`}
+        message={`Apakah Anda yakin ingin menghapus izin "${dialog.perm.name}" (${dialog.perm.id})? Tindakan ini tidak dapat dibatalkan.`}
         onConfirm={async () => {
           const res = await deletePermission(dialog.perm.id);
           if (res.error) throw new Error(res.error);

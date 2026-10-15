@@ -23,6 +23,7 @@ import {
   deleteEventDocument,
   getDocumentSignedUrl,
 } from "@/app/(dashboard)/events/document-actions";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { formatFileSize, formatDate } from "@/lib/utils";
 import type { EventDocument } from "@/types/database";
 
@@ -507,37 +508,15 @@ export function EventDocumentsSection({
         </div>
       )}
 
-      {deleteDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="apple-card w-full max-w-sm rounded-3xl p-6 border border-border shadow-2xl space-y-4">
-            <div className="w-10 h-10 rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-              <Trash2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-foreground">Hapus Berkas?</h3>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Berkas <strong className="text-foreground">&ldquo;{deleteDoc.file_name}&rdquo;</strong> akan dihapus permanen dari Supabase Storage.
-              </p>
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeleteDoc(null)}
-                className="apple-btn-secondary px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-[0.98]"
-              >
-                Hapus Berkas
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={!!deleteDoc}
+        title="Konfirmasi Hapus Berkas"
+        itemName={deleteDoc?.file_name}
+        message={deleteDoc ? `Berkas "${deleteDoc.file_name}" akan dihapus permanen dari Supabase Storage. Tindakan ini tidak dapat dibatalkan.` : undefined}
+        confirmLabel="Hapus Berkas"
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteDoc(null)}
+      />
     </div>
   );
 }

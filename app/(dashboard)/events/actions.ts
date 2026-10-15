@@ -18,7 +18,7 @@ import type { MasterTemplate } from "@/types/database";
 
 /**
  * Creates a new event in the database from form data and redirects to event detail page.
- * @param formData - FormData with title, venue, start_date, end_date, budget, description, client_id
+ * @param formData - FormData with title, venue, start_date, end_date, pic, client_id, use_template, description
  */
 export async function createEvent(formData: FormData): Promise<void> {
   await requirePermission("events.create");
@@ -50,9 +50,10 @@ export async function createEvent(formData: FormData): Promise<void> {
     venue: formData.get("venue"),
     start_date: formData.get("start_date"),
     end_date: formData.get("end_date"),
-    budget: formData.get("budget"),
-    description: formData.get("description") || null,
+    pic: formData.get("pic"),
     client_id: formData.get("client_id") || null,
+    use_template: formData.get("use_template") !== null ? formData.get("use_template") : true,
+    description: formData.get("description") || null,
     expenses: parsedExpenses,
     documents: parsedDocuments,
   });
@@ -64,7 +65,7 @@ export async function createEvent(formData: FormData): Promise<void> {
       venue: validated.venue,
       start_date: new Date(validated.start_date).toISOString(),
       end_date: new Date(validated.end_date).toISOString(),
-      budget: validated.budget,
+      pic: validated.pic || null,
       description: validated.description,
       client_id: validated.client_id,
       status: "planning" as EventStatus,
@@ -98,31 +99,54 @@ export async function createEvent(formData: FormData): Promise<void> {
     }));
     await supabase.from("event_documents").insert(docRows);
   }
-  // Fetch master templates from database table instead of hardcoded file
-  const { data: dbTemplates } = await supabase
-    .from("master_templates")
-    .select("sheet_name, order_index, jsonb_structure")
-    .order("order_index", { ascending: true });
 
-  const sheetRows =
-    dbTemplates && dbTemplates.length > 0
-      ? (dbTemplates as MasterTemplate[]).map((tpl, idx) => ({
-          event_id: data.id,
-          sheet_name: tpl.sheet_name,
-          order_index: tpl.order_index ?? idx,
-          data: tpl.jsonb_structure,
-        }))
-      : INITIAL_EVENT_SHEETS.map((tpl, idx) => ({
-          event_id: data.id,
-          sheet_name: tpl.name,
-          order_index: idx,
-          data: tpl.data,
-        }));
+  if (validated.use_template) {
+    // Fetch master templates from database table instead of hardcoded file
+    const { data: dbTemplates } = await supabase
+      .from("master_templates")
+      .select("sheet_name, order_index, jsonb_structure")
+      .order("order_index", { ascending: true });
 
-  if (sheetRows.length > 0) {
-    const { error: sheetsError } = await supabase.from("event_sheets").insert(sheetRows);
-    if (sheetsError) {
-      console.warn(`[createEvent] Warning seeding event_sheets for ${data.id}:`, sheetsError.message);
+    const sheetRows =
+      dbTemplates && dbTemplates.length > 0
+        ? (dbTemplates as MasterTemplate[]).map((tpl, idx) => ({
+            event_id: data.id,
+            sheet_name: tpl.sheet_name,
+            order_index: tpl.order_index ?? idx,
+            data: tpl.jsonb_structure,
+          }))
+        : INITIAL_EVENT_SHEETS.map((tpl, idx) => ({
+            event_id: data.id,
+            sheet_name: tpl.name,
+            order_index: idx,
+            data: tpl.data,
+          }));
+
+    if (sheetRows.length > 0) {
+      const { error: sheetsError } = await supabase.from("event_sheets").insert(sheetRows);
+      if (sheetsError) {
+        console.warn(`[createEvent] Warning seeding event_sheets for ${data.id}:`, sheetsError.message);
+      }
+    }
+  } else {
+    // Insert single blank sheet
+    const blankSheet = {
+      event_id: data.id,
+      sheet_name: "Sheet 1",
+      order_index: 0,
+      data: {
+        columns: [
+          { id: "col_1", name: "Kolom 1", width: 180 },
+          { id: "col_2", name: "Kolom 2", width: 240 },
+        ],
+        rows: [
+          { id: "row_1", col_1: "", col_2: "" },
+        ],
+      },
+    };
+    const { error: blankSheetErr } = await supabase.from("event_sheets").insert([blankSheet]);
+    if (blankSheetErr) {
+      console.warn(`[createEvent] Warning inserting blank sheet for ${data.id}:`, blankSheetErr.message);
     }
   }
 
@@ -209,7 +233,7 @@ export async function updateEventStatus(
  * Updates an existing event record with validated fields.
  * Invalidator triggers instant refresh across detail and index routes.
  * ponytail: nested relations update handled separately via respective sub-actions.
- * @param formData - FormData containing id, title, venue, start_date, end_date, budget, status, description, client_id
+ * @param formData - FormData containing id, title, venue, start_date, end_date, pic, client_id, status, description
  */
 export async function updateEvent(formData: FormData): Promise<{ success: boolean; error?: string }> {
   try {
@@ -226,7 +250,7 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
       start_date: formData.get("start_date"),
       end_date: formData.get("end_date"),
       status: rawStatus ? rawStatus : undefined,
-      budget: formData.get("budget"),
+      pic: formData.get("pic"),
       description: formData.get("description") || null,
       client_id: formData.get("client_id") || null,
     });
@@ -236,7 +260,7 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
       venue: validated.venue,
       start_date: new Date(validated.start_date).toISOString(),
       end_date: new Date(validated.end_date).toISOString(),
-      budget: validated.budget,
+      pic: validated.pic ?? null,
       description: validated.description,
       status: validated.status,
       updated_at: new Date().toISOString(),

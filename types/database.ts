@@ -84,11 +84,11 @@ export interface Event {
   title: string;
   description: string | null;
   client_id: string | null;
+  pic?: string | null;
   venue: string;
   start_date: string;
   end_date: string;
   status: EventStatus;
-  budget: number | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

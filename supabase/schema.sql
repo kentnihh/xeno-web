@@ -70,11 +70,11 @@ create table if not exists public.events (
   title text not null,
   description text,
   client_id uuid references public.clients(id) on delete set null,
+  pic text,
   venue text not null,
   start_date timestamptz not null,
   end_date timestamptz not null,
   status event_status not null default 'planning',
-  budget numeric(14, 2) check (budget is null or budget > 0),
   created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null

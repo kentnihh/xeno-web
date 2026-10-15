@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/auth";
 import { createClientAction, deleteClientAction } from "./actions";
 import { Users, Phone, Mail, MapPin, Trash2, Plus } from "lucide-react";
+import { DeleteConfirmButton } from "@/components/ui/confirm-modal";
 
 const FALLBACK_CLIENTS = [
   {
@@ -82,15 +83,18 @@ export default async function ClientsPage() {
               </div>
 
               {canDeleteClient && (
-                <form action={async () => { "use server"; await deleteClientAction(client.id); }}>
-                  <button
-                    type="submit"
-                    className="text-muted-foreground hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                    title="Hapus Klien"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </form>
+                <DeleteConfirmButton
+                  title="Konfirmasi Hapus Klien"
+                  itemName={client.name}
+                  onConfirm={async () => {
+                    "use server";
+                    await deleteClientAction(client.id);
+                  }}
+                  triggerClassName="text-muted-foreground hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  triggerTitle="Hapus Klien"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </DeleteConfirmButton>
               )}
             </div>
 

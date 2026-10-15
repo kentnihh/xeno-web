@@ -12,6 +12,14 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Xeno Entertainment — Operations",
   description: "Sistem Manajemen Acara dan Kru Xeno Entertainment",
+  icons: {
+    icon: [
+      { url: "/logo-xeno.png" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/logo-xeno.png",
+    apple: "/logo-xeno.png",
+  },
 };
 export const runtime = "edge";
 

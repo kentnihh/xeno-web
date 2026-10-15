@@ -20,6 +20,7 @@ interface ExportPdfButtonProps {
         start_date: string;
         end_date?: string;
         status: EventStatus;
+        pic?: string | null;
         budget?: number | null;
         client?: {
           name: string;

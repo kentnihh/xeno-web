@@ -10,7 +10,7 @@
     "build:next": "next build",
     "preview": "wrangler pages dev .vercel/output/static",
     "start": "next start",
-    "test": "npx tsx scripts/test-helpers.ts",
+    "test": "npx tsx scripts/test-helpers.ts && npx tsx scripts/test_confirm_modal.ts",
     "check:db": "npx tsx scripts/check-connection.ts",
     "lint": "eslint"
   },

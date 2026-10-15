@@ -13,6 +13,7 @@ export interface SearchableEvent {
   start_date: string;
   venue: string;
   status: EventStatus | string;
+  pic?: string | null;
   budget?: number | null;
 }
 

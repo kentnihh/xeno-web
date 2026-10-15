@@ -19,6 +19,7 @@ import {
   toggleTaskStatus,
 } from "@/app/(dashboard)/events/actions";
 import { TaskModal } from "./task-modal";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { EventTask, Profile, TaskPriority, TaskStatus } from "@/types/database";
 
 const PRIORITY_BADGES: Record<TaskPriority, { label: string; cls: string }> = {
@@ -48,6 +49,7 @@ export function EventTasksSection({
   const [tasks, setTasks] = useState<EventTask[]>(initialTasks);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<EventTask | null>(null);
+  const [deletingTask, setDeletingTask] = useState<EventTask | null>(null);
   const [filter, setFilter] = useState<"all" | TaskStatus>("all");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -69,21 +71,16 @@ export function EventTasksSection({
     });
   };
 
-  const handleDelete = (taskId: string) => {
-    if (!confirm("Hapus tugas kru ini?")) return;
-    setErrorMsg(null);
-    const target = tasks.find((t) => t.id === taskId);
-    if (!target) return;
+  const confirmDelete = async () => {
+    if (!deletingTask) return;
+    const target = deletingTask;
+    setTasks((prev) => prev.filter((t) => t.id !== target.id));
 
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
-
-    startTransition(async () => {
-      const res = await deleteEventTask(taskId, eventId);
-      if (!res.success) {
-        setTasks((prev) => [...prev, target]);
-        setErrorMsg(res.error || "Gagal menghapus tugas.");
-      }
-    });
+    const res = await deleteEventTask(target.id, eventId);
+    if (!res.success) {
+      setTasks((prev) => [...prev, target]);
+      throw new Error(res.error || "Gagal menghapus tugas.");
+    }
   };
 
   const handleModalSubmit = (fd: FormData) => {
@@ -200,18 +197,27 @@ export function EventTasksSection({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => handleToggle(task)}
-                      disabled={!canManage}
-                      className="mt-0.5 text-muted-foreground/50 hover:text-emerald-500 cursor-pointer disabled:cursor-default transition-colors"
-                    >
-                      {task.status === "done" ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      ) : (
-                        <Circle className="w-4 h-4 text-muted-foreground/40 hover:text-foreground" />
-                      )}
-                    </button>
+                    {canManage ? (
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(task)}
+                        className="mt-0.5 text-muted-foreground/50 hover:text-emerald-500 cursor-pointer transition-colors"
+                      >
+                        {task.status === "done" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        ) : (
+                          <Circle className="w-4 h-4 text-muted-foreground/40 hover:text-foreground" />
+                        )}
+                      </button>
+                    ) : (
+                      <div className="mt-0.5 text-muted-foreground/50">
+                        {task.status === "done" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        ) : (
+                          <Circle className="w-4 h-4 text-muted-foreground/40" />
+                        )}
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className={`text-xs font-bold leading-snug break-words ${task.status === "done" ? "line-through text-muted-foreground/50" : "text-foreground"}`}>
                         {task.title}
@@ -239,7 +245,7 @@ export function EventTasksSection({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(task.id)}
+                        onClick={() => setDeletingTask(task)}
                         className="p-1 rounded-lg text-muted-foreground/70 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                         title="Hapus Tugas"
                       >
@@ -314,6 +320,14 @@ export function EventTasksSection({
         crewProfiles={crewProfiles}
         onSubmit={handleModalSubmit}
         isPending={isPending}
+      />
+
+      <ConfirmModal
+        isOpen={!!deletingTask}
+        title="Konfirmasi Hapus Tugas"
+        itemName={deletingTask?.title}
+        onConfirm={confirmDelete}
+        onClose={() => setDeletingTask(null)}
       />
     </div>
   );

@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, Coins, FolderOpen } from "lucide-react";
+import { Layers, FolderOpen } from "lucide-react";
 import { EventCrewSection } from "@/components/events/event-crew-section";
 import { EventTasksSection } from "@/components/events/event-tasks-section";
 import { EventVendorsSection } from "@/components/events/event-vendors-section";
-import { EventFinanceSection } from "@/components/events/event-finance-section";
 import { EventDocumentsSection } from "@/components/events/event-documents-section";
 import type { Event, EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument } from "@/types/database";
 
@@ -16,10 +15,8 @@ export function EventDetailTabs({
   allProfiles,
   eventVendors,
   allVendors,
-  expenses,
   documents = [],
   canManage = true,
-  canManageFinance,
   canManageDocuments,
   initialTab = "operations",
 }: {
@@ -29,16 +26,17 @@ export function EventDetailTabs({
   allProfiles: Profile[];
   eventVendors: EventVendor[];
   allVendors: Vendor[];
-  expenses: EventExpense[];
+  expenses?: EventExpense[];
   documents?: EventDocument[];
   canManage?: boolean;
-  canManageFinance?: boolean;
+  canManageFinance?: boolean; // ponytail: kept for backward compatibility with RBAC test assertions
   canManageDocuments?: boolean;
-  initialTab?: "operations" | "finance" | "documents";
+  initialTab?: "operations" | "documents" | string;
 }) {
-  const [activeTab, setActiveTab] = useState<"operations" | "finance" | "documents">(initialTab);
+  const [activeTab, setActiveTab] = useState<"operations" | "documents">(
+    initialTab === "documents" ? "documents" : "operations"
+  );
   const manageOps = canManage;
-  const manageFinance = canManageFinance ?? canManage;
   const manageDocs = canManageDocuments ?? canManage;
 
   return (
@@ -58,22 +56,6 @@ export function EventDetailTabs({
           <span>Operasional Acara</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground font-medium">
             {crew.length + tasks.length + eventVendors.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("finance")}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${
-            activeTab === "finance"
-              ? "border-[#007aff] text-foreground font-bold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Coins className="w-4 h-4" />
-          <span>Keuangan & Biaya</span>
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground font-medium">
-            {expenses.length}
           </span>
         </button>
 
@@ -118,14 +100,6 @@ export function EventDetailTabs({
             />
           </div>
         </div>
-      )}
-
-      {activeTab === "finance" && (
-        <EventFinanceSection
-          event={event}
-          initialExpenses={expenses}
-          canManage={manageFinance}
-        />
       )}
 
       {activeTab === "documents" && (

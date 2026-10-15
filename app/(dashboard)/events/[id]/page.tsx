@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatIDR, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { deleteEvent } from "../actions";
 import { getEventSheets } from "../sheet-actions";
 import { hasPermission } from "@/lib/auth";
-import { ArrowLeft, Calendar, MapPin, Coins, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, User, Trash2 } from "lucide-react";
+import { DeleteConfirmButton } from "@/components/ui/confirm-modal";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
 import { EventStatusSelect } from "@/components/events/event-status-select";
 import { EventActionButtons } from "@/components/events/event-action-buttons";
@@ -16,7 +17,7 @@ const FALLBACK_EVENT = {
   venue: "Grand Ballroom Hotel Indonesia",
   start_date: "2026-10-20T11:00:00.000Z",
   end_date: "2026-10-20T19:00:00.000Z",
-  budget: 250000000,
+  pic: "Jonathan Admin",
   status: "confirmed" as EventStatus,
 };
 
@@ -37,8 +38,6 @@ export default async function EventDetailPage({
   const initialTab =
     resolvedSearchParams?.tab === "documents"
       ? "documents"
-      : resolvedSearchParams?.tab === "finance"
-      ? "finance"
       : "operations";
 
   const [canEditEvent, canDeleteEvent, canManageFinance, canManageDocs] = await Promise.all([
@@ -110,15 +109,19 @@ export default async function EventDetailPage({
           />
 
           {canDeleteEvent && (
-            <form action={async () => { "use server"; await deleteEvent(event.id); }}>
-              <button
-                type="submit"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-600 dark:text-rose-400 hover:text-white text-xs font-semibold border border-rose-500/20 dark:border-rose-500/30 transition-all cursor-pointer active:scale-[0.98]"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Hapus Acara</span>
-              </button>
-            </form>
+            <DeleteConfirmButton
+              title="Konfirmasi Hapus Acara"
+              itemName={event.title}
+              onConfirm={async () => {
+                "use server";
+                await deleteEvent(event.id);
+              }}
+              triggerClassName="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-600 dark:text-rose-400 hover:text-white text-xs font-semibold border border-rose-500/20 dark:border-rose-500/30 transition-all cursor-pointer active:scale-[0.98]"
+              triggerTitle="Hapus Acara"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Hapus Acara</span>
+            </DeleteConfirmButton>
           )}
         </div>
       </div>
@@ -143,10 +146,10 @@ export default async function EventDetailPage({
           </div>
         </div>
         <div>
-          <div className="text-xs font-medium text-muted-foreground">Budget</div>
-          <div className="text-xs font-bold text-emerald-600 dark:text-[#30d158] mt-1.5 flex items-center gap-1.5">
-            <Coins className="w-3.5 h-3.5" />
-            <span>{event.budget != null ? formatIDR(event.budget) : "Tidak Ditentukan"}</span>
+          <div className="text-xs font-medium text-muted-foreground">PIC</div>
+          <div className="text-xs font-bold text-foreground mt-1.5 flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5 text-[#007aff]" />
+            <span>{event.pic || "-"}</span>
           </div>
         </div>
       </div>
@@ -160,11 +163,11 @@ export default async function EventDetailPage({
         />
       </section>
 
-      {/* Additional Event Modules: Operasional, Keuangan, Dokumen */}
+      {/* Additional Event Modules: Operasional, Dokumen */}
       <section className="pt-6 border-t border-border">
         <div className="mb-4">
           <h2 className="text-sm font-bold text-foreground">Modul & Administrasi Acara</h2>
-          <p className="text-xs text-muted-foreground">Manajemen kru internal, vendor pihak ketiga, pencatatan biaya riil, dan dokumen lampiran.</p>
+          <p className="text-xs text-muted-foreground">Manajemen kru internal, vendor pihak ketiga, dan dokumen lampiran.</p>
         </div>
         <EventDetailTabs
           event={event}

@@ -32,9 +32,17 @@ export const createEventSchema = z.object({
   venue: z.string().trim().min(1, "Lokasi venue wajib diisi"),
   start_date: z.string().min(1, "Tanggal & waktu mulai wajib diisi"),
   end_date: z.string().min(1, "Tanggal & waktu selesai wajib diisi"),
-  budget: eventBudgetInputSchema,
+  pic: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
+  client_id: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
+  use_template: z.preprocess((val) => {
+    if (typeof val === "boolean") return val;
+    if (val === "true" || val === "on" || val === "1") return true;
+    if (val === "false" || val === "off" || val === "0") return false;
+    if (val === null || val === undefined) return false;
+    return Boolean(val);
+  }, z.boolean()).default(true),
+  budget: eventBudgetInputSchema.optional(),
   description: z.string().nullable().optional(),
-  client_id: z.string().nullable().optional(),
   expenses: z.array(z.any()).nullable().optional().default([]),
   documents: z.array(z.any()).nullable().optional().default([]),
 });
@@ -43,7 +51,7 @@ export type CreateEventInput = z.infer<typeof createEventSchema>;
 
 /**
  * Event Update Validation Schema
- * Matches event fields with optional/nullable budget and lifecycle status.
+ * Matches event fields with PIC, client_id, and lifecycle status.
  */
 export const updateEventSchema = z.object({
   id: z.string().min(1, "ID acara wajib diisi"),
@@ -52,9 +60,10 @@ export const updateEventSchema = z.object({
   start_date: z.string().min(1, "Tanggal & waktu mulai wajib diisi"),
   end_date: z.string().min(1, "Tanggal & waktu selesai wajib diisi"),
   status: z.enum(["draft", "planning", "confirmed", "ongoing", "completed", "cancelled"]).default("planning"),
-  budget: eventBudgetInputSchema,
+  pic: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
+  client_id: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
+  budget: eventBudgetInputSchema.optional(),
   description: z.string().nullable().optional(),
-  client_id: z.string().nullable().optional(),
 });
 
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Loader2, MapPin, DollarSign, FileText, Activity } from "lucide-react";
+import { Pencil, Loader2, MapPin, User, FileText, Activity } from "lucide-react";
 import { ModalShell } from "@/components/users/modal-shell";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { updateEvent } from "@/app/(dashboard)/events/actions";
@@ -49,7 +49,7 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
   return (
     <ModalShell
       title="Edit Informasi Acara"
-      subtitle="Perbarui jadwal, venue, status, dan rencana anggaran"
+      subtitle="Perbarui jadwal, venue, status, dan penanggung jawab"
       onClose={onClose}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -114,15 +114,13 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
 
           <div>
             <label className="block text-xs font-bold text-foreground mb-1 flex items-center gap-1.5">
-              <DollarSign className="w-3.5 h-3.5 text-[#30d158]" /> Rencana Anggaran (IDR)
+              <User className="w-3.5 h-3.5 text-[#007aff]" /> PIC (Person In Charge)
             </label>
             <input
-              name="budget"
-              type="number"
-              min="1"
-              step="any"
-              defaultValue={event.budget != null ? String(event.budget) : ""}
-              placeholder="Opsional (> 0)"
+              name="pic"
+              type="text"
+              defaultValue={event.pic || ""}
+              placeholder="Contoh: Budi Santoso"
               className="apple-input w-full px-3 py-2 text-sm"
             />
           </div>

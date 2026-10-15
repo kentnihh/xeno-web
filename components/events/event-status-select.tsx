@@ -75,6 +75,18 @@ export function EventStatusSelect({
 
   const themeClass = STATUS_THEMES[optimisticStatus] || STATUS_THEMES.planning;
 
+  if (disabled) {
+    return (
+      <div className={`mt-1 inline-block ${className}`}>
+        <span
+          className={`inline-flex items-center px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg border ${themeClass}`}
+        >
+          {optimisticStatus}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className={`relative mt-1 inline-block ${className}`}>
       <div className="relative inline-flex items-center">

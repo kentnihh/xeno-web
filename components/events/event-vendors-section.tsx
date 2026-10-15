@@ -16,6 +16,7 @@ import {
   removeEventVendor,
 } from "@/app/(dashboard)/events/actions";
 import { AssignVendorModal } from "./assign-vendor-modal";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { EventVendor, Vendor, VendorStatus } from "@/types/database";
 
 const STATUS_BADGES: Record<VendorStatus, { label: string; cls: string }> = {
@@ -38,6 +39,7 @@ export function EventVendorsSection({
   const [eventVendors, setEventVendors] = useState<EventVendor[]>(initialEventVendors);
   const [vendorsPool, setVendorsPool] = useState<Vendor[]>(allVendors);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deletingVendor, setDeletingVendor] = useState<EventVendor | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -76,21 +78,16 @@ export function EventVendorsSection({
     });
   };
 
-  const handleRemove = (eventVendorId: string) => {
-    if (!confirm("Hapus penugasan vendor dari acara ini?")) return;
-    setErrorMsg(null);
-    const target = eventVendors.find((ev) => ev.id === eventVendorId);
-    if (!target) return;
+  const confirmRemove = async () => {
+    if (!deletingVendor) return;
+    const target = deletingVendor;
+    setEventVendors((prev) => prev.filter((ev) => ev.id !== target.id));
 
-    setEventVendors((prev) => prev.filter((ev) => ev.id !== eventVendorId));
-
-    startTransition(async () => {
-      const res = await removeEventVendor(eventVendorId, eventId);
-      if (!res.success) {
-        setEventVendors((prev) => [...prev, target]);
-        setErrorMsg(res.error || "Gagal menghapus penugasan vendor.");
-      }
-    });
+    const res = await removeEventVendor(target.id, eventId);
+    if (!res.success) {
+      setEventVendors((prev) => [...prev, target]);
+      throw new Error(res.error || "Gagal menghapus penugasan vendor.");
+    }
   };
 
   return (
@@ -194,7 +191,7 @@ export function EventVendorsSection({
                   {canManage && (
                     <button
                       type="button"
-                      onClick={() => handleRemove(ev.id)}
+                      onClick={() => setDeletingVendor(ev)}
                       className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
                       title="Hapus Vendor dari Acara"
                     >
@@ -226,6 +223,15 @@ export function EventVendorsSection({
         onAssignExisting={handleAssignExisting}
         onCreateAndAssign={handleCreateAndAssign}
         isPending={isPending}
+      />
+
+      <ConfirmModal
+        isOpen={!!deletingVendor}
+        title="Konfirmasi Hapus Penugasan Vendor"
+        itemName={deletingVendor?.vendor?.name || "Vendor"}
+        message={deletingVendor ? `Apakah Anda yakin ingin menghapus penugasan vendor "${deletingVendor.vendor?.name || "Vendor"}" dari acara ini?` : undefined}
+        onConfirm={confirmRemove}
+        onClose={() => setDeletingVendor(null)}
       />
     </div>
   );

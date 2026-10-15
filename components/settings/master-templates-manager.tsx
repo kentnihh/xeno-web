@@ -20,6 +20,7 @@ import {
   deleteMasterTemplate,
   resetAllMasterTemplates,
 } from "@/app/(dashboard)/settings/templates/actions";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { MasterTemplate, SheetData } from "@/types/database";
 
 interface MasterTemplatesManagerProps {
@@ -34,6 +35,8 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
   const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -159,41 +162,41 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
       alert("Minimal harus ada 1 master template dalam sistem.");
       return;
     }
-    if (!confirm(`Hapus master template "${activeTemplate.sheet_name}"? Template ini tidak akan disalin lagi ke event baru berikutnya.`)) {
-      return;
-    }
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!activeTemplate || templates.length <= 1) return;
 
     setSaveStatus("saving");
-    startTransition(async () => {
-      const res = await deleteMasterTemplate(activeTemplate.id);
-      if (res.success) {
-        const remaining = templates.filter((t) => t.id !== activeTemplate.id);
-        setTemplates(remaining);
-        setActiveTemplateId(remaining[0]?.id || "");
-        setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 2500);
-      } else {
-        setSaveStatus("error");
-        setStatusMessage(res.error || "Gagal menghapus template");
-      }
-    });
+    const res = await deleteMasterTemplate(activeTemplate.id);
+    if (res.success) {
+      const remaining = templates.filter((t) => t.id !== activeTemplate.id);
+      setTemplates(remaining);
+      setActiveTemplateId(remaining[0]?.id || "");
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2500);
+    } else {
+      setSaveStatus("error");
+      setStatusMessage(res.error || "Gagal menghapus template");
+      throw new Error(res.error || "Gagal menghapus template");
+    }
   };
 
   const handleResetAll = () => {
-    if (!confirm("Peringatan: Reset semua template master ke 10 preset awal bawaan sistem? Template custom akan ditimpa.")) {
-      return;
-    }
+    setShowResetConfirm(true);
+  };
 
+  const confirmResetAll = async () => {
     setSaveStatus("saving");
-    startTransition(async () => {
-      const res = await resetAllMasterTemplates();
-      if (res.success) {
-        window.location.reload();
-      } else {
-        setSaveStatus("error");
-        setStatusMessage(res.error || "Gagal mereset master templates");
-      }
-    });
+    const res = await resetAllMasterTemplates();
+    if (res.success) {
+      window.location.reload();
+    } else {
+      setSaveStatus("error");
+      setStatusMessage(res.error || "Gagal mereset master templates");
+      throw new Error(res.error || "Gagal mereset master templates");
+    }
   };
   return (
     <div className="space-y-6">
@@ -334,6 +337,23 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
         </div>
       )}
 
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Konfirmasi Hapus Master Template"
+        itemName={activeTemplate?.sheet_name}
+        message={activeTemplate ? `Hapus master template "${activeTemplate.sheet_name}"? Template ini tidak akan disalin lagi ke event baru berikutnya.` : undefined}
+        onConfirm={confirmDeleteTemplate}
+        onClose={() => setShowDeleteConfirm(false)}
+      />
+
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        title="Konfirmasi Reset Semua Master Template"
+        message="Peringatan: Reset semua template master ke 10 preset awal bawaan sistem? Template custom akan ditimpa."
+        confirmLabel="Reset Semua"
+        onConfirm={confirmResetAll}
+        onClose={() => setShowResetConfirm(false)}
+      />
     </div>
   );
 }

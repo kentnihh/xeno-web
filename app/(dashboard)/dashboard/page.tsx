@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/auth";
-import { formatIDR, formatDate, sortEventsUpcomingFirst, sortTasksByPriority } from "@/lib/utils";
-import { CalendarDays, Coins, Plus, MapPin, ChevronRight, CheckCircle2 } from "lucide-react";
+import { formatDate, sortEventsUpcomingFirst, sortTasksByPriority } from "@/lib/utils";
+import { CalendarDays, Plus, MapPin, ChevronRight, CheckCircle2 } from "lucide-react";
 import { MonthlyCalendar } from "@/components/dashboard/monthly-calendar";
 import { EventSearchBar } from "@/components/dashboard/event-search-bar";
 import { PriorityTasksWidget } from "@/components/dashboard/priority-tasks-widget";
@@ -16,7 +16,6 @@ const FALLBACK_EVENTS = [
     title: "Sinar Jaya Annual Gala 2026",
     start_date: "2026-10-20T11:00:00.000Z",
     venue: "Grand Ballroom Hotel Indonesia",
-    budget: 250000000,
     status: "confirmed",
   },
   {
@@ -24,7 +23,6 @@ const FALLBACK_EVENTS = [
     title: "Jessica & Kevin Wedding Reception",
     start_date: "2026-10-29T11:00:00.000Z",
     venue: "Plataran Dharmawangsa",
-    budget: 180000000,
     status: "planning",
   },
 ];
@@ -81,7 +79,6 @@ export default async function DashboardPage() {
 
   const canCreateEvent = await hasPermission("events.create");
 
-  const totalBudget = events.reduce((acc, ev) => acc + Number(ev.budget || 0), 0);
   const pendingTasksCount = tasks.filter((t) => t.status !== "done").length;
 
   return (
@@ -111,7 +108,7 @@ export default async function DashboardPage() {
         <EventSearchBar events={events} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="apple-card p-5 space-y-2 border border-border shadow-xs">
           <div className="flex justify-between items-center text-xs font-medium text-muted-foreground">
             <span>Acara Aktif</span>
@@ -121,18 +118,6 @@ export default async function DashboardPage() {
           </div>
           <div className="text-3xl font-extrabold text-foreground tracking-tight">
             {events.length}
-          </div>
-        </div>
-
-        <div className="apple-card p-5 space-y-2 border border-border shadow-xs">
-          <div className="flex justify-between items-center text-xs font-medium text-muted-foreground">
-            <span>Kelolaan Budget</span>
-            <div className="w-7 h-7 rounded-lg bg-[#30d158]/15 flex items-center justify-center text-[#30d158]">
-              <Coins className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-foreground tracking-tight">
-            {formatIDR(totalBudget)}
           </div>
         </div>
 
@@ -190,9 +175,6 @@ export default async function DashboardPage() {
                     <div className="text-right space-y-0.5">
                       <div className="text-xs font-medium text-muted-foreground">
                         {formatDate(ev.start_date)}
-                      </div>
-                      <div className="text-xs text-emerald-600 dark:text-[#30d158] font-bold">
-                        {ev.budget != null ? formatIDR(ev.budget) : "-"}
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#007aff] group-hover:translate-x-1 transition-all shrink-0" />

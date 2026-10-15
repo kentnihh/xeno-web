@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -9,7 +10,6 @@ import {
   Users,
   Briefcase,
   Layers,
-  Sparkles,
   LogOut,
   ShieldCheck,
   ChevronRight,
@@ -34,7 +34,11 @@ const settingsSubNavigation = [
 ];
 
 
-export function Sidebar() {
+interface SidebarProps {
+  canAccessSettings?: boolean;
+}
+
+export function Sidebar({ canAccessSettings = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isSettingsActive = pathname.startsWith("/settings");
@@ -59,19 +63,21 @@ export function Sidebar() {
       <div className="overflow-y-auto">
         {/* macOS Traffic Lights + Brand */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-sidebar-border sticky top-0 bg-sidebar/80 backdrop-blur-md z-10">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-b from-[#007aff] to-[#0051d5] flex items-center justify-center text-white shadow-md shadow-[#007aff]/30">
-              <Sparkles className="w-4 h-4" />
+          <Link href="/dashboard" className="flex items-center gap-2.5">
+            <div className="bg-white px-2 py-1 rounded-xl border border-black/10 dark:border-white/20 shadow-xs flex items-center justify-center shrink-0">
+              <Image
+                src="/logo-xeno.png"
+                alt="XENO Logo"
+                width={150}
+                height={50}
+                className="h-10 w-auto object-contain"
+                priority
+              />
             </div>
-            <div>
-              <div className="font-bold tracking-tight text-foreground text-sm">
-                XENO
-              </div>
-              <div className="text-[10px] text-[#007aff] dark:text-[#3894ff] tracking-wider uppercase font-bold">
-                OPERATIONS
-              </div>
+            <div className="text-[10px] text-[#007aff] dark:text-[#3894ff] tracking-wider uppercase font-bold">
+              OPERATIONS
             </div>
-          </div>
+          </Link>
 
           {/* macOS Window Controls */}
           <div className="flex items-center gap-1.5 opacity-75 hover:opacity-100 transition-opacity">
@@ -130,93 +136,95 @@ export function Sidebar() {
           </div>
 
           {/* Settings Section (Pengaturan) */}
-          <div className="space-y-1 pt-2 border-t border-sidebar-border">
-            <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Pengaturan
-            </div>
-
-            {/* Main Settings Menu Item */}
-            <div>
-              <div
-                className={cn(
-                  "group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-                  isSettingsActive && pathname === "/settings"
-                    ? "bg-[#007aff] text-white shadow-[0_2px_12px_rgba(0,122,255,0.4)]"
-                    : isSettingsActive
-                    ? "text-[#007aff] bg-[#007aff]/10 font-bold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                )}
-                onClick={() => setIsSettingsOpen((prev) => !prev)}
-              >
-                <Link
-                  href="/settings"
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex items-center gap-3 min-w-0 flex-1"
-                >
-                  <Settings
-                    className={cn(
-                      "w-4 h-4 transition-transform duration-150 group-hover:scale-110 shrink-0",
-                      isSettingsActive && pathname === "/settings"
-                        ? "text-white"
-                        : isSettingsActive
-                        ? "text-[#007aff]"
-                        : "text-muted-foreground group-hover:text-foreground"
-                    )}
-                  />
-                  <span className="truncate">Settings</span>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setIsSettingsOpen((prev) => !prev)}
-                  className="p-1 -mr-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                >
-                  {isSettingsOpen ? (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  )}
-                </button>
+          {canAccessSettings && (
+            <div className="space-y-1 pt-2 border-t border-sidebar-border">
+              <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Pengaturan
               </div>
 
-              {/* Nested Sub-navigation */}
-              {isSettingsOpen && (
-                <div className="mt-1 ml-4 pl-2 border-l border-sidebar-border/70 space-y-1">
-                  {settingsSubNavigation.map((sub) => {
-                    const SubIcon = sub.icon;
-                    const isSubActive = pathname.startsWith(sub.href);
-
-                    return (
-                      <Link
-                        key={sub.name}
-                        href={sub.href}
-                        className={cn(
-                          "group flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150",
-                          isSubActive
-                            ? "bg-[#007aff] text-white font-semibold shadow-xs"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                        )}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <SubIcon
-                            className={cn(
-                              "w-3.5 h-3.5 shrink-0",
-                              isSubActive
-                                ? "text-white"
-                                : "text-muted-foreground group-hover:text-foreground"
-                            )}
-                          />
-                          <span className="truncate">{sub.name}</span>
-                        </div>
-                        {isSubActive && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" />
-                        )}
-                      </Link>
-                    );
-                  })}
+              {/* Main Settings Menu Item */}
+              <div>
+                <div
+                  className={cn(
+                    "group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
+                    isSettingsActive && pathname === "/settings"
+                      ? "bg-[#007aff] text-white shadow-[0_2px_12px_rgba(0,122,255,0.4)]"
+                      : isSettingsActive
+                      ? "text-[#007aff] bg-[#007aff]/10 font-bold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                  )}
+                  onClick={() => setIsSettingsOpen((prev) => !prev)}
+                >
+                  <Link
+                    href="/settings/templates"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-3 min-w-0 flex-1"
+                  >
+                    <Settings
+                      className={cn(
+                        "w-4 h-4 transition-transform duration-150 group-hover:scale-110 shrink-0",
+                        isSettingsActive && pathname === "/settings"
+                          ? "text-white"
+                          : isSettingsActive
+                          ? "text-[#007aff]"
+                          : "text-muted-foreground group-hover:text-foreground"
+                      )}
+                    />
+                    <span className="truncate">Settings</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsOpen((prev) => !prev)}
+                    className="p-1 -mr-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    {isSettingsOpen ? (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    )}
+                  </button>
                 </div>
-              )}
+
+                {/* Nested Sub-navigation */}
+                {isSettingsOpen && (
+                  <div className="mt-1 ml-4 pl-2 border-l border-sidebar-border/70 space-y-1">
+                    {settingsSubNavigation.map((sub) => {
+                      const SubIcon = sub.icon;
+                      const isSubActive = pathname.startsWith(sub.href);
+
+                      return (
+                        <Link
+                          key={sub.name}
+                          href={sub.href}
+                          className={cn(
+                            "group flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150",
+                            isSubActive
+                              ? "bg-[#007aff] text-white font-semibold shadow-xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <SubIcon
+                              className={cn(
+                                "w-3.5 h-3.5 shrink-0",
+                                isSubActive
+                                  ? "text-white"
+                                  : "text-muted-foreground group-hover:text-foreground"
+                              )}
+                            />
+                            <span className="truncate">{sub.name}</span>
+                          </div>
+                          {isSubActive && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" />
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
         </nav>
       </div>

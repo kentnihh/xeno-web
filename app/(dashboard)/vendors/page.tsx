@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/auth";
 import { createVendorAction, deleteVendorAction } from "./actions";
 import { Briefcase, Phone, Mail, User, Trash2, Plus } from "lucide-react";
+import { DeleteConfirmButton } from "@/components/ui/confirm-modal";
 
 const FALLBACK_VENDORS = [
   {
@@ -97,15 +98,18 @@ export default async function VendorsPage() {
               </div>
 
               {canDeleteVendor && (
-                <form action={async () => { "use server"; await deleteVendorAction(v.id); }}>
-                  <button
-                    type="submit"
-                    className="text-muted-foreground hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                    title="Hapus Vendor"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </form>
+                <DeleteConfirmButton
+                  title="Konfirmasi Hapus Vendor"
+                  itemName={v.name}
+                  onConfirm={async () => {
+                    "use server";
+                    await deleteVendorAction(v.id);
+                  }}
+                  triggerClassName="text-muted-foreground hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  triggerTitle="Hapus Vendor"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </DeleteConfirmButton>
               )}
             </div>
 

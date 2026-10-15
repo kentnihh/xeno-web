@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { UserCheck, Plus, Trash2, Shield, User, Loader2 } from "lucide-react";
 import { assignEventCrew, removeEventCrew } from "@/app/(dashboard)/events/actions";
 import { AssignCrewModal } from "./assign-crew-modal";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { EventCrew, Profile } from "@/types/database";
 
 export function EventCrewSection({
@@ -22,6 +23,7 @@ export function EventCrewSection({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingCrew, setDeletingCrew] = useState<EventCrew | null>(null);
 
   const assignedIds = new Set(crew.map((c) => c.profile_id));
   const available = allProfiles.filter((p) => !assignedIds.has(p.id));
@@ -60,21 +62,18 @@ export function EventCrewSection({
     });
   };
 
-  const handleRemove = (id: string) => {
-    const item = crew.find((c) => c.id === id);
-    if (!item) return;
+  const confirmRemove = async () => {
+    if (!deletingCrew) return;
+    const target = deletingCrew;
+    setDeletingId(target.id);
+    setCrew((prev) => prev.filter((c) => c.id !== target.id));
 
-    setDeletingId(id);
-    setCrew((prev) => prev.filter((c) => c.id !== id));
-
-    startTransition(async () => {
-      const res = await removeEventCrew(id, eventId);
-      setDeletingId(null);
-      if (!res.success) {
-        setCrew((prev) => [...prev, item]);
-        setErrorMsg(res.error || "Gagal menghapus.");
-      }
-    });
+    const res = await removeEventCrew(target.id, eventId);
+    setDeletingId(null);
+    if (!res.success) {
+      setCrew((prev) => [...prev, target]);
+      throw new Error(res.error || "Gagal menghapus.");
+    }
   };
 
   return (
@@ -136,9 +135,10 @@ export function EventCrewSection({
                 </div>
                 {canManage && (
                   <button
-                    onClick={() => handleRemove(m.id)}
+                    onClick={() => setDeletingCrew(m)}
                     disabled={deletingId === m.id}
                     className="text-muted-foreground/70 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                    title="Hapus Penugasan Kru"
                   >
                     {deletingId === m.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                   </button>
@@ -155,6 +155,15 @@ export function EventCrewSection({
         availableProfiles={available}
         onSubmit={handleAssign}
         isPending={isPending}
+      />
+
+      <ConfirmModal
+        isOpen={!!deletingCrew}
+        title="Konfirmasi Hapus Penugasan Kru"
+        itemName={deletingCrew?.profile?.full_name || "Kru"}
+        message={deletingCrew ? `Apakah Anda yakin ingin melepas penugasan kru "${deletingCrew.profile?.full_name || "Kru"}" dari acara ini?` : undefined}
+        onConfirm={confirmRemove}
+        onClose={() => setDeletingCrew(null)}
       />
     </div>
   );

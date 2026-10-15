@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Navbar } from "@/components/navbar";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { isAdmin, hasPermission } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +32,27 @@ export default async function DashboardLayout({
     }
   }
 
+  const [isAdminUser, hasRbacManage, hasTemplatesManage, hasUsersManage, canCreateEvent] =
+    await Promise.all([
+      isAdmin(),
+      hasPermission("rbac.manage"),
+      hasPermission("templates.manage"),
+      hasPermission("users.manage"),
+      hasPermission("events.create"),
+    ]);
+
+  const canAccessSettings =
+    isAdminUser || hasRbacManage || hasTemplatesManage || hasUsersManage;
+
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans transition-colors duration-150">
-      <Sidebar />
+      <Sidebar canAccessSettings={canAccessSettings} />
       <div className="flex-1 flex flex-col min-w-0 bg-background">
-        <Navbar userEmail={user?.email || "staf@xenoent.com"} userRole={userRole} />
+        <Navbar
+          userEmail={user?.email || "staf@xenoent.com"}
+          userRole={userRole}
+          canCreateEvent={canCreateEvent}
+        />
         <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">{children}</main>
       </div>
     </div>

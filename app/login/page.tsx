@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { login } from "@/app/auth/actions";
-import { Sparkles, Calendar, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
+import { Calendar, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
@@ -36,8 +37,15 @@ export default function LoginPage() {
 
         <div className="flex items-center justify-between relative z-10">
           <div className="flex items-center gap-3.5">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-b from-[#007aff] to-[#0051d5] flex items-center justify-center shadow-lg shadow-[#007aff]/30">
-              <Sparkles className="w-5 h-5 text-white" />
+            <div className="bg-white p-1.5 rounded-2xl border border-black/10 dark:border-white/20 shadow-md flex items-center justify-center">
+              <Image
+                src="/logo-xeno.png"
+                alt="XENO Logo"
+                width={150}
+                height={50}
+                className="h-10 w-auto object-contain"
+                priority
+              />
             </div>
             <div>
               <span className="text-xl font-bold tracking-tight text-foreground">XENO</span>

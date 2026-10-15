@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Plus, Trash2, Edit2, Check } from "lucide-react";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { SheetData, SheetColumn, SheetRow } from "@/types/database";
 
 interface DynamicSheetGridProps {
@@ -14,6 +15,8 @@ export function DynamicSheetGrid({ data, onChange, readOnly = false }: DynamicSh
   const [activeCell, setActiveCell] = useState<{ rowIdx: number; colId: string } | null>(null);
   const [editingColId, setEditingColId] = useState<string | null>(null);
   const [colNameDraft, setColNameDraft] = useState("");
+  const [deletingCol, setDeletingCol] = useState<SheetColumn | null>(null);
+  const [deletingRowIdx, setDeletingRowIdx] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const colInputRef = useRef<HTMLInputElement>(null);
   const counterRef = useRef(0);
@@ -55,11 +58,11 @@ export function DynamicSheetGrid({ data, onChange, readOnly = false }: DynamicSh
     }
   };
 
-  const handleDeleteRow = (rowIdx: number) => {
-    if (rows.length <= 1) return;
-    const nextRows = rows.filter((_, idx) => idx !== rowIdx);
+  const confirmDeleteRow = () => {
+    if (deletingRowIdx === null || rows.length <= 1) return;
+    const nextRows = rows.filter((_, idx) => idx !== deletingRowIdx);
     onChange({ columns, rows: nextRows });
-    if (activeCell?.rowIdx === rowIdx) setActiveCell(null);
+    if (activeCell?.rowIdx === deletingRowIdx) setActiveCell(null);
   };
 
   const handleAddColumn = () => {
@@ -82,8 +85,9 @@ export function DynamicSheetGrid({ data, onChange, readOnly = false }: DynamicSh
     setColNameDraft("");
   };
 
-  const handleDeleteColumn = (colId: string) => {
-    if (columns.length <= 1) return;
+  const confirmDeleteColumn = () => {
+    if (!deletingCol || columns.length <= 1) return;
+    const colId = deletingCol.id;
     const nextCols = columns.filter((c) => c.id !== colId);
     const nextRows = rows.map((row) => {
       const copy = { ...row };
@@ -191,8 +195,8 @@ export function DynamicSheetGrid({ data, onChange, readOnly = false }: DynamicSh
                             {columns.length > 1 && (
                               <button
                                 type="button"
-                                onClick={() => handleDeleteColumn(col.id)}
-                                className="p-0.5 text-muted-foreground hover:text-rose-500 ml-0.5"
+                                onClick={() => setDeletingCol(col)}
+                                className="p-0.5 text-muted-foreground hover:text-rose-500 ml-0.5 cursor-pointer"
                                 title="Hapus kolom"
                               >
                                 <Trash2 className="w-2.5 h-2.5" />
@@ -211,10 +215,10 @@ export function DynamicSheetGrid({ data, onChange, readOnly = false }: DynamicSh
                 <tr key={row.id || `r-${rowIdx}`} className="hover:bg-muted/30 divide-x divide-border transition-colors group">
                   <td className="w-10 px-1 py-1.5 text-center font-mono text-[10px] text-muted-foreground bg-muted/40 group-hover:bg-muted/60 relative select-none">
                     <span className="group-hover:hidden">{rowIdx + 1}</span>
-                    {!readOnly && (
+                    {!readOnly && rows.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteRow(rowIdx)}
+                        onClick={() => setDeletingRowIdx(rowIdx)}
                         className="hidden group-hover:inline-flex items-center justify-center text-muted-foreground hover:text-rose-500 cursor-pointer w-full"
                         title="Hapus baris"
                       >
@@ -257,6 +261,24 @@ export function DynamicSheetGrid({ data, onChange, readOnly = false }: DynamicSh
           </table>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!deletingCol}
+        title="Konfirmasi Hapus Kolom"
+        itemName={deletingCol?.name}
+        message={deletingCol ? `Apakah Anda yakin ingin menghapus kolom "${deletingCol.name}"? Semua data dalam kolom ini akan dihapus permanen.` : undefined}
+        onConfirm={confirmDeleteColumn}
+        onClose={() => setDeletingCol(null)}
+      />
+
+      <ConfirmModal
+        isOpen={deletingRowIdx !== null}
+        title="Konfirmasi Hapus Baris"
+        itemName={deletingRowIdx !== null ? `Baris ${deletingRowIdx + 1}` : undefined}
+        message={deletingRowIdx !== null ? `Apakah Anda yakin ingin menghapus baris ke-${deletingRowIdx + 1}? Semua data pada baris ini akan dihapus.` : undefined}
+        onConfirm={confirmDeleteRow}
+        onClose={() => setDeletingRowIdx(null)}
+      />
     </div>
   );
 }

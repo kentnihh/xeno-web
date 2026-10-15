@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, ExternalLink } from "lucide-react";
-import { formatIDR } from "@/lib/utils";
 
 interface EventItem {
   id: string;
@@ -11,6 +10,7 @@ interface EventItem {
   start_date: string;
   end_date?: string;
   venue: string;
+  pic?: string | null;
   budget?: number | null;
   status: string;
 }
@@ -266,9 +266,9 @@ export function MonthlyCalendar({
                   <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                     <MapPin className="w-3 h-3 text-[#007aff]" /> {ev.venue}
                   </div>
-                  {ev.budget && (
-                    <div className="text-[11px] text-[#30d158] font-bold mt-0.5">
-                      {formatIDR(ev.budget)}
+                  {ev.pic && (
+                    <div className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                      PIC: {ev.pic}
                     </div>
                   )}
                 </div>

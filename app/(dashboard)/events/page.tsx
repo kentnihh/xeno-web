@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/auth";
-import { formatIDR, formatDate, sortEventsUpcomingFirst } from "@/lib/utils";
+import { formatDate, sortEventsUpcomingFirst } from "@/lib/utils";
 import {
   CalendarDays,
   Plus,
@@ -31,7 +31,7 @@ const FALLBACK_EVENTS: Event[] = [
     start_date: "2026-10-20T11:00:00.000Z",
     end_date: "2026-10-20T19:00:00.000Z",
     venue: "Grand Ballroom Hotel Indonesia Kempinski",
-    budget: 250000000,
+    pic: "Jonathan Admin",
     status: "confirmed",
     description: "Annual gala dinner Xeno production",
     client_id: "c-1",
@@ -46,7 +46,7 @@ const FALLBACK_EVENTS: Event[] = [
     start_date: "2026-10-29T11:00:00.000Z",
     end_date: "2026-10-29T17:00:00.000Z",
     venue: "Plataran Dharmawangsa",
-    budget: 180000000,
+    pic: "Rian Kru Operasional",
     status: "planning",
     description: "Wedding reception ceremony and celebration",
     client_id: "c-2",
@@ -105,7 +105,7 @@ export default async function EventsPage({
 
   const { data: allSearchEvents } = await supabase
     .from("events")
-    .select("id, title, start_date, venue, status, budget")
+    .select("id, title, start_date, venue, status, pic")
     .order("start_date", { ascending: true });
 
   let eventsList: Event[] = [];
@@ -253,12 +253,12 @@ export default async function EventsPage({
                   </div>
 
                   <div className="flex items-center justify-between md:justify-end gap-4 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-border">
-                    <div className="text-left md:text-right">
+                    <div className="text-left md:text-right space-y-0.5">
                       <div className="text-xs font-medium text-muted-foreground">
-                        Estimasi Budget
+                        PIC
                       </div>
-                      <div className="text-sm font-bold text-emerald-600 dark:text-[#30d158]">
-                        {event.budget != null ? formatIDR(event.budget) : "-"}
+                      <div className="text-xs font-semibold text-foreground">
+                        {event.pic || "-"}
                       </div>
                     </div>
                     {canEditEvent && (

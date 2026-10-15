@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { PRESET_ROLES } from "./assign-crew-modal";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { EventCrew, Profile } from "@/types/database";
 
 interface ManageCrewModalProps {
@@ -58,6 +59,7 @@ export function ManageCrewModal({
   const [assignPending, setAssignPending] = useState(false);
   const [updatingCrewId, setUpdatingCrewId] = useState<string | null>(null);
   const [removingCrewId, setRemovingCrewId] = useState<string | null>(null);
+  const [deletingMember, setDeletingMember] = useState<EventCrew | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -130,7 +132,9 @@ export function ManageCrewModal({
     }
   };
 
-  const handleRemoveMember = async (crewId: string) => {
+  const confirmRemoveMember = async () => {
+    if (!deletingMember) return;
+    const crewId = deletingMember.id;
     setErrorMsg(null);
     setSuccessMsg(null);
     setRemovingCrewId(crewId);
@@ -139,6 +143,7 @@ export function ManageCrewModal({
       setSuccessMsg("Kru berhasil dilepas dari penugasan.");
     } catch {
       setErrorMsg("Gagal menghapus penugasan kru.");
+      throw new Error("Gagal menghapus penugasan kru.");
     } finally {
       setRemovingCrewId(null);
     }
@@ -312,7 +317,7 @@ export function ManageCrewModal({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleRemoveMember(m.id)}
+                                onClick={() => setDeletingMember(m)}
                                 disabled={removingCrewId === m.id}
                                 className="p-1 rounded text-muted-foreground hover:text-rose-500 cursor-pointer"
                                 title="Lepas"
@@ -471,6 +476,15 @@ export function ManageCrewModal({
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!deletingMember}
+        title="Konfirmasi Lepas Penugasan Kru"
+        itemName={deletingMember?.profile?.full_name || "Kru"}
+        message={deletingMember ? `Apakah Anda yakin ingin melepas penugasan kru "${deletingMember.profile?.full_name || "Kru"}" dari acara ini?` : undefined}
+        onConfirm={confirmRemoveMember}
+        onClose={() => setDeletingMember(null)}
+      />
     </div>
   );
 }

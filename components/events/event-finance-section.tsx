@@ -21,6 +21,7 @@ import {
   toggleExpenseStatus,
 } from "@/app/(dashboard)/events/expense-actions";
 import { ExpenseModal } from "./expense-modal";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { Event, EventExpense, ExpenseStatus } from "@/types/database";
 
 const CATEGORY_COLORS: Record<string, { label: string; badge: string }> = {
@@ -42,12 +43,13 @@ export function EventFinanceSection({
   const [expenses, setExpenses] = useState<EventExpense[]>(initialExpenses);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<EventExpense | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState<EventExpense | null>(null);
   const [catFilter, setCatFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const budget = event.budget != null ? Number(event.budget) : null;
+  const budget = (event as { budget?: number | null }).budget != null ? Number((event as { budget?: number | null }).budget) : null;
   const totalSpent = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const paidSpent = expenses
     .filter((e) => e.status === "Paid")
@@ -80,20 +82,16 @@ export function EventFinanceSection({
     });
   };
 
-  const handleDelete = (expenseId: string) => {
-    if (!confirm("Hapus catatan pengeluaran ini?")) return;
-    setErrorMsg(null);
-    const target = expenses.find((e) => e.id === expenseId);
-    if (!target) return;
-    setExpenses((prev) => prev.filter((e) => e.id !== expenseId));
+  const confirmDelete = async () => {
+    if (!deletingExpense) return;
+    const target = deletingExpense;
+    setExpenses((prev) => prev.filter((e) => e.id !== target.id));
 
-    startTransition(async () => {
-      const res = await deleteEventExpense(expenseId, event.id);
-      if (!res.success) {
-        setExpenses((prev) => [...prev, target]);
-        setErrorMsg(res.error || "Gagal menghapus pengeluaran.");
-      }
-    });
+    const res = await deleteEventExpense(target.id, event.id);
+    if (!res.success) {
+      setExpenses((prev) => [...prev, target]);
+      throw new Error(res.error || "Gagal menghapus pengeluaran.");
+    }
   };
 
   const handleModalSubmit = (fd: FormData) => {
@@ -319,19 +317,32 @@ export function EventFinanceSection({
                         {exp.notes || <span className="text-muted-foreground italic">—</span>}
                       </td>
                       <td className="py-3 text-center whitespace-nowrap">
-                        <button
-                          type="button"
-                          disabled={!canManage || isPending}
-                          onClick={() => handleToggleStatus(exp)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-transform cursor-pointer active:scale-95 ${
-                            exp.status === "Paid"
-                              ? "bg-emerald-500/15 text-emerald-600 dark:text-[#30d158] border-emerald-500/30"
-                              : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                          }`}
-                        >
-                          {exp.status === "Paid" ? <CheckCircle2 className="w-3 h-3 stroke-[2.5]" /> : <Clock className="w-3 h-3 stroke-[2.5]" />}
-                          <span>{exp.status === "Paid" ? "Lunas" : "Belum Bayar"}</span>
-                        </button>
+                        {canManage ? (
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleToggleStatus(exp)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-transform cursor-pointer active:scale-95 ${
+                              exp.status === "Paid"
+                                ? "bg-emerald-500/15 text-emerald-600 dark:text-[#30d158] border-emerald-500/30"
+                                : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                            }`}
+                          >
+                            {exp.status === "Paid" ? <CheckCircle2 className="w-3 h-3 stroke-[2.5]" /> : <Clock className="w-3 h-3 stroke-[2.5]" />}
+                            <span>{exp.status === "Paid" ? "Lunas" : "Belum Bayar"}</span>
+                          </button>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              exp.status === "Paid"
+                                ? "bg-emerald-500/15 text-emerald-600 dark:text-[#30d158] border-emerald-500/30"
+                                : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                            }`}
+                          >
+                            {exp.status === "Paid" ? <CheckCircle2 className="w-3 h-3 stroke-[2.5]" /> : <Clock className="w-3 h-3 stroke-[2.5]" />}
+                            <span>{exp.status === "Paid" ? "Lunas" : "Belum Bayar"}</span>
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 text-right font-bold text-foreground whitespace-nowrap">
                         {formatIDR(exp.amount)}
@@ -351,8 +362,9 @@ export function EventFinanceSection({
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDelete(exp.id)}
+                              onClick={() => setDeletingExpense(exp)}
                               className="p-1 rounded-lg text-rose-500/80 hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                              title="Hapus Pengeluaran"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -378,6 +390,14 @@ export function EventFinanceSection({
         expense={editingExpense}
         onSubmit={handleModalSubmit}
         isPending={isPending}
+      />
+
+      <ConfirmModal
+        isOpen={!!deletingExpense}
+        title="Konfirmasi Hapus Pengeluaran"
+        itemName={deletingExpense ? `${deletingExpense.category} - ${formatIDR(deletingExpense.amount)}` : undefined}
+        onConfirm={confirmDelete}
+        onClose={() => setDeletingExpense(null)}
       />
     </div>
   );

@@ -18,13 +18,41 @@ function getPermissionAliases(perm: string): string[] {
   const set = new Set([normalized, colonForm, dotForm]);
 
   if (
-    ["events.edit", "events:edit", "events.update", "events:update"].includes(normalized) ||
-    ["events.edit", "events:edit", "events.update", "events:update"].includes(colonForm)
+    [
+      "events.edit", "events:edit",
+      "events.update", "events:update",
+      "events.manage", "events:manage",
+      "events.create", "events:create",
+    ].includes(normalized) ||
+    [
+      "events.edit", "events:edit",
+      "events.update", "events:update",
+      "events.manage", "events:manage",
+      "events.create", "events:create",
+    ].includes(colonForm)
   ) {
-    set.add("events.edit");
-    set.add("events:edit");
-    set.add("events.update");
-    set.add("events:update");
+    if (["events.manage", "events:manage"].includes(colonForm)) {
+      set.add("events:manage");
+      set.add("events.manage");
+      set.add("events:create");
+      set.add("events.create");
+      set.add("events:update");
+      set.add("events.update");
+      set.add("events:edit");
+      set.add("events.edit");
+    } else if (["events.create", "events:create"].includes(colonForm)) {
+      set.add("events.create");
+      set.add("events:create");
+      set.add("events.manage");
+      set.add("events:manage");
+    } else {
+      set.add("events.edit");
+      set.add("events:edit");
+      set.add("events.update");
+      set.add("events:update");
+      set.add("events.manage");
+      set.add("events:manage");
+    }
   }
 
   if (

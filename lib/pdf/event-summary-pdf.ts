@@ -18,7 +18,8 @@ export interface EventSummaryPdfData {
         start_date: string;
         end_date?: string;
         status: EventStatus;
-        budget?: number | null;
+        pic?: string | null;
+        budget?: number | null; // ponytail: optional for legacy test caller compatibility
         client?: {
           name: string;
           company?: string | null;
@@ -189,7 +190,7 @@ export function buildEventSummaryPdf(data: EventSummaryPdfData): jsPDF {
   doc.setFontSize(7);
   doc.setTextColor(107, 114, 128);
   doc.text("Klien Terdaftar:", col1X, cursorY + 28);
-  doc.text("Anggaran / Budget:", col2X, cursorY + 28);
+  doc.text("PIC (Person In Charge):", col2X, cursorY + 28);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
@@ -197,10 +198,9 @@ export function buildEventSummaryPdf(data: EventSummaryPdfData): jsPDF {
   const clientName = event.client?.name || "Klien Internal / Direct";
   doc.text(clientName, col1X, cursorY + 33);
 
-  const budgetText =
-    event.budget != null ? formatIDR(event.budget) : "Tidak Ditentukan";
-  doc.setTextColor(5, 150, 105);
-  doc.text(budgetText, col2X, cursorY + 33);
+  const picText = event.pic || "-";
+  doc.setTextColor(17, 24, 39);
+  doc.text(picText, col2X, cursorY + 33);
 
   cursorY += cardHeight + 8;
 
@@ -435,9 +435,7 @@ export function buildEventSummaryPdf(data: EventSummaryPdfData): jsPDF {
     );
     cursorY += 6;
 
-    const totalBudget = event.budget || 0;
     const totalSpent = expenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-    const remaining = totalBudget - totalSpent;
 
     doc.setFillColor(249, 250, 251);
     doc.setDrawColor(229, 231, 235);
@@ -449,24 +447,15 @@ export function buildEventSummaryPdf(data: EventSummaryPdfData): jsPDF {
 
     const fCol1 = marginX + 5;
     const fCol2 = marginX + 60;
-    const fCol3 = marginX + 120;
 
-    doc.text("Total Anggaran:", fCol1, cursorY + 4.5);
-    doc.text("Total Realisasi:", fCol2, cursorY + 4.5);
-    doc.text("Sisa Saldo:", fCol3, cursorY + 4.5);
+    doc.text("Total Realisasi Biaya:", fCol1, cursorY + 4.5);
+    doc.text("Jumlah Transaksi:", fCol2, cursorY + 4.5);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(17, 24, 39);
-    doc.text(formatIDR(totalBudget), fCol1, cursorY + 9);
-    doc.text(formatIDR(totalSpent), fCol2, cursorY + 9);
-
-    if (remaining < 0) {
-      doc.setTextColor(220, 38, 38);
-    } else {
-      doc.setTextColor(5, 150, 105);
-    }
-    doc.text(formatIDR(remaining), fCol3, cursorY + 9);
+    doc.text(formatIDR(totalSpent), fCol1, cursorY + 9);
+    doc.text(`${expenses.length} entri`, fCol2, cursorY + 9);
 
     cursorY += 17;
   }

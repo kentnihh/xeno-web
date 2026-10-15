@@ -3,12 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MapPin, DollarSign, FileText, Activity, Loader2 } from "lucide-react";
+import { MapPin, User, Building2, FileText, Activity, Loader2 } from "lucide-react";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { updateEvent } from "@/app/(dashboard)/events/actions";
-import type { Event } from "@/types/database";
+import type { Event, Client } from "@/types/database";
 
-export function EditEventForm({ event }: { event: Event }) {
+export function EditEventForm({ event, clients = [] }: { event: Event; clients?: Client[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -38,7 +38,6 @@ export function EditEventForm({ event }: { event: Event }) {
   return (
     <form onSubmit={handleSubmit} className="apple-card p-6 md:p-8 space-y-5 border border-border shadow-xs">
       <input type="hidden" name="id" value={event.id} />
-      {event.client_id && <input type="hidden" name="client_id" value={event.client_id} />}
 
       {errorMsg && (
         <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold">
@@ -110,18 +109,34 @@ export function EditEventForm({ event }: { event: Event }) {
 
         <div>
           <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5 text-[#30d158]" /> Rencana Anggaran (IDR)
+            <User className="w-3.5 h-3.5 text-[#007aff]" /> PIC (Person In Charge)
           </label>
           <input
-            name="budget"
-            type="number"
-            min="1"
-            step="any"
-            defaultValue={event.budget != null ? String(event.budget) : ""}
-            placeholder="Opsional — contoh: 250000000"
+            name="pic"
+            type="text"
+            defaultValue={event.pic || ""}
+            placeholder="Contoh: Budi Santoso / Maya"
             className="apple-input w-full px-3.5 py-2.5 text-sm"
           />
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
+          <Building2 className="w-3.5 h-3.5 text-[#007aff]" /> Klien
+        </label>
+        <select
+          name="client_id"
+          defaultValue={event.client_id || ""}
+          className="apple-input w-full px-3.5 py-2.5 text-sm bg-muted border-border cursor-pointer"
+        >
+          <option value="">Pilih Klien (Opsional)</option>
+          {clients.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name} {c.company ? `(${c.company})` : ""}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>

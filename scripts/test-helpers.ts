@@ -106,6 +106,24 @@ if (parsedOmitted.success) {
   assert.deepEqual(parsedOmitted.data.documents, [], "Omitted documents must default to empty array");
 }
 
+// Check pic, client_id, and use_template fields
+const validPayloadWithPicAndClient = {
+  title: "Astra Gala",
+  venue: "Ballroom",
+  start_date: "2026-11-01T10:00:00Z",
+  end_date: "2026-11-01T18:00:00Z",
+  pic: "Budi Santoso",
+  client_id: "11111111-1111-1111-1111-111111111111",
+  use_template: "true",
+};
+const parsedPicClient = createEventSchema.safeParse(validPayloadWithPicAndClient);
+assert(parsedPicClient.success, "Event with pic, client_id, and use_template must be valid");
+if (parsedPicClient.success) {
+  assert.equal(parsedPicClient.data.pic, "Budi Santoso");
+  assert.equal(parsedPicClient.data.client_id, "11111111-1111-1111-1111-111111111111");
+  assert.equal(parsedPicClient.data.use_template, true);
+}
+
 
 // 8. Verify PDF Export generator
 import { buildEventSummaryPdf } from "../lib/pdf/event-summary-pdf";
@@ -391,5 +409,90 @@ const dialogHandlerPath = path.resolve(process.cwd(), "components/users/users-di
 const dialogHandlerCode = fs.readFileSync(dialogHandlerPath, "utf-8");
 assert(dialogHandlerCode.includes("<RoleModal") && dialogHandlerCode.includes("onSuccess={onSuccess}"), "UsersDialogHandler must forward onSuccess to RoleModal");
 
+// 19. Verify Conditional UI Hiding for Unauthorized Elements
+const sidebarPath = path.resolve(process.cwd(), "components/sidebar.tsx");
+const sidebarCode = fs.readFileSync(sidebarPath, "utf-8");
+assert(sidebarCode.includes("canAccessSettings &&"), "Sidebar must conditionally hide Pengaturan section if canAccessSettings is false");
+
+const navbarPath = path.resolve(process.cwd(), "components/navbar.tsx");
+const navbarCode = fs.readFileSync(navbarPath, "utf-8");
+assert(navbarCode.includes("canCreateEvent &&"), "Navbar must conditionally hide Buat Acara button if canCreateEvent is false");
+
+const layoutPath = path.resolve(process.cwd(), "app/(dashboard)/layout.tsx");
+const layoutCode = fs.readFileSync(layoutPath, "utf-8");
+assert(layoutCode.includes("canAccessSettings={canAccessSettings}"), "DashboardLayout must pass canAccessSettings prop to Sidebar");
+assert(layoutCode.includes("canCreateEvent={canCreateEvent}"), "DashboardLayout must pass canCreateEvent prop to Navbar");
+
+const statusSelectPath = path.resolve(process.cwd(), "components/events/event-status-select.tsx");
+const statusSelectCode = fs.readFileSync(statusSelectPath, "utf-8");
+assert(statusSelectCode.includes("if (disabled)"), "EventStatusSelect must hide select dropdown and render static badge when disabled");
+
+const financeSectionPath = path.resolve(process.cwd(), "components/events/event-finance-section.tsx");
+const financeSectionCode = fs.readFileSync(financeSectionPath, "utf-8");
+assert(financeSectionCode.includes("{canManage ? (") && financeSectionCode.includes("<span>{exp.status === \"Paid\""), "EventFinanceSection must render static span instead of button when cannot manage");
+
+const tasksSectionPath = path.resolve(process.cwd(), "components/events/event-tasks-section.tsx");
+const tasksSectionCode = fs.readFileSync(tasksSectionPath, "utf-8");
+assert(tasksSectionCode.includes("{canManage ? (") && tasksSectionCode.includes("<div className=\"mt-0.5 text-muted-foreground/50\">"), "EventTasksSection must render non-interactive div instead of button when cannot manage");
+
+// 20. Verify Branding: Logo and Favicon
+assert(sidebarCode.includes("logo-xeno.png"), "Sidebar must use /logo-xeno.png branding");
+assert(sidebarCode.includes("alt=\"XENO Logo\""), "Sidebar must have XENO Logo alt attribute");
+assert(navbarCode.includes("logo-xeno.png"), "Navbar must use /logo-xeno.png branding");
+assert(navbarCode.includes("alt=\"XENO Logo\""), "Navbar must have XENO Logo alt attribute");
+const rootLayoutPath = path.resolve(process.cwd(), "app/layout.tsx");
+const rootLayoutCode = fs.readFileSync(rootLayoutPath, "utf-8");
+assert(rootLayoutCode.includes("/logo-xeno.png"), "Root layout metadata must configure logo-xeno.png as icon");
+assert(fs.existsSync(path.resolve(process.cwd(), "public/logo-xeno.png")), "public/logo-xeno.png must exist");
+assert(fs.existsSync(path.resolve(process.cwd(), "app/icon.png")), "app/icon.png must exist for browser favicon");
+assert(fs.existsSync(path.resolve(process.cwd(), "app/favicon.ico")), "app/favicon.ico must exist");
+
+// 21. Verify Confirmation Modal Safeguard for Destructive Actions
+const confirmModalPath = path.resolve(process.cwd(), "components/ui/confirm-modal.tsx");
+assert(fs.existsSync(confirmModalPath), "components/ui/confirm-modal.tsx must exist");
+const confirmModalCode = fs.readFileSync(confirmModalPath, "utf-8");
+assert(confirmModalCode.includes("export function ConfirmModal"), "ConfirmModal component must be exported");
+assert(confirmModalCode.includes("export function DeleteConfirmButton"), "DeleteConfirmButton component must be exported");
+assert(confirmModalCode.includes("Batal"), "ConfirmModal must render Batal cancel button");
+assert(confirmModalCode.includes("Hapus"), "ConfirmModal must render Hapus action button");
+assert(confirmModalCode.includes("#ff453a"), "ConfirmModal must render prominent red delete button");
+
+// Verify RBAC and Team confirmation
+const freshUsersDialogCode = fs.readFileSync(path.resolve(process.cwd(), "components/users/users-dialog-handler.tsx"), "utf-8");
+assert(freshUsersDialogCode.includes("ConfirmDialog"), "UsersDialogHandler must use ConfirmDialog");
+const teamMemberActionsCode = fs.readFileSync(path.resolve(process.cwd(), "components/team/team-member-actions.tsx"), "utf-8");
+assert(teamMemberActionsCode.includes("<ConfirmModal"), "TeamMemberActions must render ConfirmModal");
+
+// Verify Events, Clients, and Vendors deletion interception
+const eventDetailPageCode = fs.readFileSync(path.resolve(process.cwd(), "app/(dashboard)/events/[id]/page.tsx"), "utf-8");
+assert(eventDetailPageCode.includes("<DeleteConfirmButton"), "Event Detail page must use DeleteConfirmButton");
+assert(eventDetailPageCode.includes("itemName={event.title}"), "Event Detail page must pass event.title to confirmation");
+
+const clientsPageCode = fs.readFileSync(path.resolve(process.cwd(), "app/(dashboard)/clients/page.tsx"), "utf-8");
+assert(clientsPageCode.includes("<DeleteConfirmButton"), "Clients page must use DeleteConfirmButton");
+assert(clientsPageCode.includes("itemName={client.name}"), "Clients page must pass client.name to confirmation");
+
+const vendorsPageCode = fs.readFileSync(path.resolve(process.cwd(), "app/(dashboard)/vendors/page.tsx"), "utf-8");
+assert(vendorsPageCode.includes("<DeleteConfirmButton"), "Vendors page must use DeleteConfirmButton");
+assert(vendorsPageCode.includes("itemName={v.name}"), "Vendors page must pass vendor name to confirmation");
+
+// Verify Event sections and spreadsheet tabs
+const eventTasksCode = fs.readFileSync(path.resolve(process.cwd(), "components/events/event-tasks-section.tsx"), "utf-8");
+assert(eventTasksCode.includes("<ConfirmModal"), "EventTasksSection must render ConfirmModal");
+
+const eventVendorsCode = fs.readFileSync(path.resolve(process.cwd(), "components/events/event-vendors-section.tsx"), "utf-8");
+assert(eventVendorsCode.includes("<ConfirmModal"), "EventVendorsSection must render ConfirmModal");
+
+const eventCrewCode = fs.readFileSync(path.resolve(process.cwd(), "components/events/event-crew-section.tsx"), "utf-8");
+assert(eventCrewCode.includes("<ConfirmModal"), "EventCrewSection must render ConfirmModal");
+
+const eventDocsCode = fs.readFileSync(path.resolve(process.cwd(), "components/events/event-documents-section.tsx"), "utf-8");
+assert(eventDocsCode.includes("<ConfirmModal"), "EventDocumentsSection must render ConfirmModal");
+
+const spreadsheetTabsCode = fs.readFileSync(path.resolve(process.cwd(), "components/events/spreadsheet/event-spreadsheet-tabs.tsx"), "utf-8");
+assert(spreadsheetTabsCode.includes("<ConfirmModal"), "EventSpreadsheetTabs must render ConfirmModal");
+
+const masterTemplatesCode = fs.readFileSync(path.resolve(process.cwd(), "components/settings/master-templates-manager.tsx"), "utf-8");
+assert(masterTemplatesCode.includes("<ConfirmModal"), "MasterTemplatesManager must render ConfirmModal");
 
 console.log("Self-check passed successfully.");
