@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Sparkles, X, Loader2 } from "lucide-react";
 import type { Profile } from "@/types/database";
 
@@ -32,6 +33,20 @@ export function AssignCrewModal({
   const [role, setRole] = useState(PRESET_ROLES[0]);
   const [custom, setCustom] = useState("");
   const [notes, setNotes] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isPending) onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isPending, onClose]);
 
   if (!isOpen) return null;
 
@@ -44,8 +59,8 @@ export function AssignCrewModal({
     onSubmit(pid, effectiveRole, notes);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/70 backdrop-blur-md">
+  const content = (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
       <div className="w-full max-w-md rounded-3xl bg-card backdrop-blur-2xl border border-border shadow-2xl p-6 space-y-4 text-foreground">
         <div className="flex items-center justify-between pb-3 border-b border-border">
           <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
@@ -142,4 +157,10 @@ export function AssignCrewModal({
       </div>
     </div>
   );
+
+  if (typeof document === "undefined" || !mounted) {
+    return content;
+  }
+
+  return createPortal(content, document.body);
 }

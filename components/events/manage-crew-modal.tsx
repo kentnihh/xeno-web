@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Users,
   UserPlus,
@@ -41,6 +42,12 @@ export function ManageCrewModal({
   initialTab = "list",
   initialEditCrewId = null,
 }: ManageCrewModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [activeTab, setActiveTab] = useState<"list" | "assign">(
     crew.length === 0 ? "assign" : initialTab
   );
@@ -182,7 +189,7 @@ export function ManageCrewModal({
     }
   };
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-md">
       <div className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-3xl bg-card border border-border shadow-2xl text-foreground overflow-hidden">
         <div className="flex items-center justify-between p-5 pb-4 border-b border-border shrink-0">
@@ -487,4 +494,10 @@ export function ManageCrewModal({
       />
     </div>
   );
+
+  if (typeof document === "undefined" || !mounted) {
+    return modalContent;
+  }
+
+  return createPortal(modalContent, document.body);
 }
