@@ -140,3 +140,20 @@ CREATE POLICY "User roles all admin"
 UPDATE storage.buckets
 SET file_size_limit = 52428800 -- 50MB
 WHERE id = 'bucket-files';
+
+
+-- 7. SYNCHRONIZE CLIENTS DELETE POLICY (Admins & Managers with clients:manage)
+DROP POLICY IF EXISTS "Admin can delete clients" ON public.clients;
+DROP POLICY IF EXISTS "Admin or manager can delete clients" ON public.clients;
+CREATE POLICY "Admin or manager can delete clients"
+  ON public.clients FOR DELETE
+  TO authenticated
+  USING (
+    public.is_admin() OR 
+    EXISTS (
+      SELECT 1 FROM public.user_roles ur 
+      JOIN public.role_permissions rp ON ur.role_id = rp.role_id 
+      WHERE ur.user_id = auth.uid() AND rp.permission_id IN ('clients:manage', 'clients.delete')
+    )
+  );
+

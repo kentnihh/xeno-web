@@ -67,6 +67,62 @@ function getPermissionAliases(perm: string): string[] {
     set.add("rbac.manage");
   }
 
+  if (
+    [
+      "clients.manage", "clients:manage",
+      "clients.create", "clients:create",
+      "clients.edit", "clients:edit",
+      "clients.update", "clients:update",
+      "clients.delete", "clients:delete",
+    ].includes(normalized) ||
+    [
+      "clients.manage", "clients:manage",
+      "clients.create", "clients:create",
+      "clients.edit", "clients:edit",
+      "clients.update", "clients:update",
+      "clients.delete", "clients:delete",
+    ].includes(colonForm)
+  ) {
+    set.add("clients:manage");
+    set.add("clients.manage");
+    set.add("clients:create");
+    set.add("clients.create");
+    set.add("clients:edit");
+    set.add("clients.edit");
+    set.add("clients:update");
+    set.add("clients.update");
+    set.add("clients:delete");
+    set.add("clients.delete");
+  }
+
+  if (
+    [
+      "vendors.manage", "vendors:manage",
+      "vendors.create", "vendors:create",
+      "vendors.edit", "vendors:edit",
+      "vendors.update", "vendors:update",
+      "vendors.delete", "vendors:delete",
+    ].includes(normalized) ||
+    [
+      "vendors.manage", "vendors:manage",
+      "vendors.create", "vendors:create",
+      "vendors.edit", "vendors:edit",
+      "vendors.update", "vendors:update",
+      "vendors.delete", "vendors:delete",
+    ].includes(colonForm)
+  ) {
+    set.add("vendors:manage");
+    set.add("vendors.manage");
+    set.add("vendors:create");
+    set.add("vendors.create");
+    set.add("vendors:edit");
+    set.add("vendors.edit");
+    set.add("vendors:update");
+    set.add("vendors.update");
+    set.add("vendors:delete");
+    set.add("vendors.delete");
+  }
+
   return Array.from(set);
 }
 

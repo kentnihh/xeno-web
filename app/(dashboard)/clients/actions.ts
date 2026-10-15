@@ -7,46 +7,57 @@ import { requirePermission } from "@/lib/auth";
 
 const createClientSchema = z.object({
   name: z.string().trim().min(1, "Nama klien wajib diisi"),
-  company: z.string().trim().optional().transform((v) => v || null),
+  company: z.preprocess((v) => (typeof v === "string" && !v.trim() ? null : v), z.string().trim().nullable().optional()),
   phone: z.string().trim().min(1, "Nomor telepon wajib diisi"),
-  email: z
-    .string()
-    .trim()
-    .email("Format email tidak valid")
-    .optional()
-    .or(z.literal(""))
-    .transform((v) => v || null),
-  address: z.string().trim().optional().transform((v) => v || null),
+  email: z.preprocess(
+    (v) => (typeof v === "string" && !v.trim() ? null : v),
+    z.string().trim().email("Format email tidak valid").nullable().optional()
+  ),
+  address: z.preprocess((v) => (typeof v === "string" && !v.trim() ? null : v), z.string().trim().nullable().optional()),
 });
 
-export async function createClientAction(formData: FormData): Promise<{ success: boolean; error?: string }> {
+export type CreateClientInput = z.infer<typeof createClientSchema>;
+
+export async function createClientAction(
+  input: FormData | Record<string, unknown>
+): Promise<{ success: boolean; error?: string; client?: unknown }> {
   try {
     await requirePermission("clients.create");
 
-    const raw = {
-      name: formData.get("name"),
-      company: formData.get("company"),
-      phone: formData.get("phone"),
-      email: formData.get("email"),
-      address: formData.get("address"),
-    };
+    let raw: Record<string, unknown>;
+    if (input instanceof FormData) {
+      raw = {
+        name: input.get("name"),
+        company: input.get("company"),
+        phone: input.get("phone"),
+        email: input.get("email"),
+        address: input.get("address"),
+      };
+    } else {
+      raw = input;
+    }
 
     const parsed = createClientSchema.safeParse(raw);
     if (!parsed.success) {
-      return { success: false, error: parsed.error.issues[0]?.message || "Data klien tidak valid." };
+      const errMsg = parsed.error.issues[0]?.message || "Data klien tidak valid.";
+      console.warn("[createClientAction] Validation error:", errMsg);
+      return { success: false, error: errMsg };
     }
 
     const supabase = await createClient();
-    const { error } = await supabase.from("clients").insert(parsed.data);
+    const { data, error } = await supabase.from("clients").insert(parsed.data).select().single();
 
     if (error) {
+      console.error("[createClientAction] Supabase error:", error);
       return { success: false, error: error.message };
     }
 
     revalidatePath("/clients");
     revalidatePath("/events");
-    return { success: true };
+    revalidatePath("/events/new");
+    return { success: true, client: data };
   } catch (err: unknown) {
+    console.error("[createClientAction] Execution exception:", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Gagal menambahkan klien baru.",
