@@ -146,4 +146,93 @@ const bytes2 = doc2.output("arraybuffer").byteLength;
 assert(bytes2 > 2000, `Empty PDF byte length should be > 2000 bytes, got ${bytes2}`);
 console.log(`✓ Empty fallback PDF export succeeded (${bytes2} bytes)`);
 
-console.log("== All PDF Export checks passed successfully! ==");
+// ==========================================
+// Test 3: Spreadsheet PDF Export (Legacy & Rich Formats)
+// ==========================================
+import { buildSpreadsheetPdf, parseFortuneSheetForAutoTable } from "../lib/pdf/spreadsheet-pdf";
+import type { EventSheet } from "../types/database";
+
+console.log("\n== Testing Spreadsheet PDF Generation ==");
+
+// Legacy format sheet
+const legacySheet: EventSheet = {
+  id: "sheet-leg-1",
+  event_id: mockEvent.id,
+  sheet_name: "CHECKLIST_OPS",
+  order_index: 0,
+  data: {
+    columns: [
+      { id: "col_1", name: "No" },
+      { id: "col_2", name: "Item Kebutuhan" },
+      { id: "col_3", name: "Penanggung Jawab" },
+      { id: "col_4", name: "Status" },
+    ],
+    rows: [
+      { id: "r1", col_1: "1", col_2: "Sound System 10.000W", col_3: "Vendor Audio", col_4: "Confirmed" },
+      { id: "r2", col_1: "2", col_2: "LED Videotron 6x4m", col_3: "Vendor Visual", col_4: "Confirmed" },
+      { id: "r3", col_1: "3", col_2: "Lighting Stage Set", col_3: "Vendor Lighting", col_4: "Pending" },
+    ],
+  },
+  created_at: "2026-10-01T00:00:00.000Z",
+  updated_at: "2026-10-01T00:00:00.000Z",
+};
+
+// Rich FortuneSheet with cell styles (bg, fc, bl) and merged cells
+const richSheet: EventSheet = {
+  id: "sheet-rich-1",
+  event_id: mockEvent.id,
+  sheet_name: "RUNDOWN_VIP",
+  order_index: 1,
+  data: {
+    name: "RUNDOWN_VIP",
+    id: "sheet_rundown_vip",
+    status: 1,
+    order: 1,
+    row: 30,
+    column: 10,
+    celldata: [
+      { r: 0, c: 0, v: { v: "SESI UTAMA ACARA (MERGED)", bl: 1, bg: "#1e293b", fc: "#ffffff" } },
+      { r: 0, c: 1, v: { v: "", bl: 1 } },
+      { r: 0, c: 2, v: { v: "KETERANGAN TEKNIS", bl: 1, bg: "#334155", fc: "#ffffff" } },
+      { r: 1, c: 0, v: { v: "18:00 - 19:00", bl: 1, bg: "#fef3c7", ht: 0 } },
+      { r: 1, c: 1, v: { v: "Welcoming VIP Guest & Cocktail", fc: "#0369a1", bl: 1 } },
+      { r: 1, c: 2, v: { v: "Lounge Area, BGM Jazz Live", it: 1 } },
+      { r: 2, c: 0, v: { v: "19:00 - 20:00", bl: 1, bg: "#dcfce7", ht: 0 } },
+      { r: 2, c: 1, v: { v: "Main Gala Opening & Keynote", fc: "#15803d", bl: 1 } },
+      { r: 2, c: 2, v: { v: "Stage Center, Spotlight on Speaker", it: 1 } },
+    ],
+    config: {
+      merge: {
+        "0_0": { r: 0, c: 0, rs: 1, cs: 2 },
+      },
+    },
+  },
+  created_at: "2026-10-01T00:00:00.000Z",
+  updated_at: "2026-10-01T00:00:00.000Z",
+};
+
+// Test parseFortuneSheetForAutoTable
+const parsed = parseFortuneSheetForAutoTable(richSheet.data);
+assert(parsed.head.length === 1, "Should have 1 header row");
+assert(parsed.body.length === 2, "Should have 2 body rows");
+// Verify merged root cell
+const mergedRoot = parsed.head[0][0];
+assert.strictEqual(typeof mergedRoot, "object", "Merged cell should be an object");
+assert.strictEqual(mergedRoot.colSpan, 2, "Merged cell should have colSpan = 2");
+assert.strictEqual(mergedRoot.content, "SESI UTAMA ACARA (MERGED)");
+console.log("✓ parseFortuneSheetForAutoTable correctly preserves cell styles and merge spans");
+
+// Test multi-sheet PDF generation
+const sheetDoc = buildSpreadsheetPdf({
+  eventTitle: mockEvent.title,
+  sheets: [legacySheet, richSheet],
+  orientation: "landscape",
+});
+
+assert(sheetDoc !== null, "Spreadsheet PDF should be created");
+assert.strictEqual(sheetDoc.getNumberOfPages(), 2, "Two sheets should produce 2 pages");
+const sheetPdfBytes = sheetDoc.output("arraybuffer").byteLength;
+assert(sheetPdfBytes > 3000, `Spreadsheet PDF byte length should be > 3000, got ${sheetPdfBytes}`);
+console.log(`✓ Multi-sheet PDF generation succeeded (${sheetPdfBytes} bytes, ${sheetDoc.getNumberOfPages()} pages)`);
+
+console.log("\n== All PDF Export checks passed successfully! ==");

@@ -1,284 +1,171 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Plus, Trash2, Edit2, Check } from "lucide-react";
-import { ConfirmModal } from "@/components/ui/confirm-modal";
-import type { SheetData, SheetColumn, SheetRow } from "@/types/database";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
+import dynamic from "next/dynamic";
+import { Loader2 } from "lucide-react";
+import { convertToFortuneSheet, matrixToCelldata } from "@/lib/spreadsheet-adapter";
+import type { SheetData } from "@/types/database";
+import type { WorkbookInstance } from "@fortune-sheet/react";
+import type { Sheet } from "@fortune-sheet/core";
+import "@fortune-sheet/react/dist/index.css";
 
-interface DynamicSheetGridProps {
+// Dynamic import with ssr: false ensures canvas/DOM APIs only initialize on client
+const Workbook = dynamic(
+  () => import("@fortune-sheet/react").then((mod) => mod.Workbook),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[620px] sm:h-[680px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
+        <Loader2 className="w-7 h-7 animate-spin text-[#007aff]" />
+        <span className="text-xs font-semibold tracking-tight">Memuat Lembar Kerja Excel...</span>
+      </div>
+    ),
+  }
+);
+
+export interface DynamicSheetGridHandle {
+  getData: () => SheetData;
+  getAllSheets: () => Sheet[];
+}
+
+export interface DynamicSheetGridProps {
   data: SheetData;
-  onChange: (updatedData: SheetData) => void;
   readOnly?: boolean;
+  sheetName?: string;
 }
 
-export function DynamicSheetGrid({ data, onChange, readOnly = false }: DynamicSheetGridProps) {
-  const [activeCell, setActiveCell] = useState<{ rowIdx: number; colId: string } | null>(null);
-  const [editingColId, setEditingColId] = useState<string | null>(null);
-  const [colNameDraft, setColNameDraft] = useState("");
-  const [deletingCol, setDeletingCol] = useState<SheetColumn | null>(null);
-  const [deletingRowIdx, setDeletingRowIdx] = useState<number | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const colInputRef = useRef<HTMLInputElement>(null);
-  const counterRef = useRef(0);
+export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetGridProps>(
+  function DynamicSheetGrid(
+    { data, readOnly = false, sheetName = "Sheet 1" },
+    ref
+  ) {
+    const [mounted, setMounted] = useState(false);
+    const workbookRef = useRef<WorkbookInstance | null>(null);
 
-  const columns = useMemo(() => data.columns || [], [data.columns]);
-  const rows = useMemo(() => data.rows || [], [data.rows]);
+    // Initialize initialSheets ONCE on mount for this sheet key.
+    // FortuneSheet operates as an uncontrolled component managing its internal canvas state.
+    const [initialSheets] = useState<Sheet[]>(() => [
+      convertToFortuneSheet(data, sheetName),
+    ]);
 
-  useEffect(() => {
-    if (activeCell && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [activeCell]);
+    const latestSheetRef = useRef<Sheet>(initialSheets[0]);
 
-  useEffect(() => {
-    if (editingColId && colInputRef.current) {
-      colInputRef.current.focus();
-      colInputRef.current.select();
-    }
-  }, [editingColId]);
+    useEffect(() => {
+      setMounted(true);
+    }, []);
 
-  const handleCellChange = useCallback(
-    (rowIdx: number, colId: string, value: string) => {
-      const nextRows = rows.map((r, idx) => (idx === rowIdx ? { ...r, [colId]: value } : r));
-      onChange({ columns, rows: nextRows });
-    },
-    [columns, rows, onChange]
-  );
+    // Expose imperative handle so parents can grab fresh data on-demand
+    useImperativeHandle(
+      ref,
+      () => ({
+        getData: () => {
+          let sheet: Sheet | null = null;
+          if (workbookRef.current?.getAllSheets) {
+            const all = workbookRef.current.getAllSheets();
+            if (all && all.length > 0) {
+              sheet = all[0];
+            }
+          }
+          if (!sheet) {
+            sheet = latestSheetRef.current;
+          }
+          if (!sheet) return convertToFortuneSheet(data, sheetName) as unknown as SheetData;
 
-  const handleAddRow = () => {
-    counterRef.current += 1;
-    const newRowId = `row_${rows.length + 1}_${counterRef.current}`;
-    const newRow: SheetRow = { id: newRowId };
-    columns.forEach((col) => { newRow[col.id] = ""; });
-    const nextRows = [...rows, newRow];
-    onChange({ columns, rows: nextRows });
-    if (columns.length > 0) {
-      setActiveCell({ rowIdx: rows.length, colId: columns[0].id });
-    }
-  };
+          // Clone to prevent mutating internal FortuneSheet objects
+          const sheetClone: Sheet = JSON.parse(JSON.stringify(sheet));
 
-  const confirmDeleteRow = () => {
-    if (deletingRowIdx === null || rows.length <= 1) return;
-    const nextRows = rows.filter((_, idx) => idx !== deletingRowIdx);
-    onChange({ columns, rows: nextRows });
-    if (activeCell?.rowIdx === deletingRowIdx) setActiveCell(null);
-  };
+          // Ensure celldata is attached for safe re-hydration
+          if (
+            (!sheetClone.celldata || sheetClone.celldata.length === 0) &&
+            Array.isArray(sheetClone.data)
+          ) {
+            sheetClone.celldata = matrixToCelldata(sheetClone.data as any[][]);
+          }
+          return sheetClone as unknown as SheetData;
+        },
+        getAllSheets: () => {
+          if (workbookRef.current?.getAllSheets) {
+            const all = workbookRef.current.getAllSheets();
+            return all.map((s) => {
+              const clone: Sheet = JSON.parse(JSON.stringify(s));
+              if (
+                (!clone.celldata || clone.celldata.length === 0) &&
+                Array.isArray(clone.data)
+              ) {
+                clone.celldata = matrixToCelldata(clone.data as any[][]);
+              }
+              return clone;
+            });
+          }
+          return [latestSheetRef.current];
+        },
+      }),
+      [data, sheetName]
+    );
 
-  const handleAddColumn = () => {
-    counterRef.current += 1;
-    const newColId = `col_${columns.length + 1}_${counterRef.current}`;
-    const newColName = `Kolom ${columns.length + 1}`;
-    const nextCols: SheetColumn[] = [...columns, { id: newColId, name: newColName }];
-    const nextRows = rows.map((row) => ({ ...row, [newColId]: "" }));
-    onChange({ columns: nextCols, rows: nextRows });
-    setEditingColId(newColId);
-    setColNameDraft(newColName);
-  };
+    // Silent ref-only tracker: FortuneSheet fires onChange on init, scroll, selection,
+    // and internal canvas ops — NOT only on user edits. We NEVER call back to the
+    // parent from here. Data is read on-demand via the imperative handle above.
+    const handleWorkbookChange = useCallback(
+      (newSheets: Sheet[]) => {
+        if (!newSheets || newSheets.length === 0) return;
+        latestSheetRef.current = newSheets[0];
+      },
+      []
+    );
 
-  const handleSaveColName = () => {
-    if (!editingColId) return;
-    const trimmed = colNameDraft.trim() || "Kolom";
-    const nextCols = columns.map((c) => (c.id === editingColId ? { ...c, name: trimmed } : c));
-    onChange({ columns: nextCols, rows });
-    setEditingColId(null);
-    setColNameDraft("");
-  };
-
-  const confirmDeleteColumn = () => {
-    if (!deletingCol || columns.length <= 1) return;
-    const colId = deletingCol.id;
-    const nextCols = columns.filter((c) => c.id !== colId);
-    const nextRows = rows.map((row) => {
-      const copy = { ...row };
-      delete copy[colId];
-      return copy;
-    });
-    onChange({ columns: nextCols, rows: nextRows });
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent, rowIdx: number, colIdx: number) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      if (e.shiftKey) {
-        if (colIdx > 0) setActiveCell({ rowIdx, colId: columns[colIdx - 1].id });
-        else if (rowIdx > 0) setActiveCell({ rowIdx: rowIdx - 1, colId: columns[columns.length - 1].id });
-      } else {
-        if (colIdx < columns.length - 1) setActiveCell({ rowIdx, colId: columns[colIdx + 1].id });
-        else if (rowIdx < rows.length - 1) setActiveCell({ rowIdx: rowIdx + 1, colId: columns[0].id });
-        else handleAddRow();
-      }
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (rowIdx < rows.length - 1) setActiveCell({ rowIdx: rowIdx + 1, colId: columns[colIdx].id });
-      else handleAddRow();
-    } else if (e.key === "Escape") {
-      setActiveCell(null);
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="font-semibold uppercase tracking-wider">{columns.length} Kolom • {rows.length} Baris</span>
-          <span>•</span>
-          <span>Navigasi: <kbd className="px-1 py-0.5 rounded bg-muted font-mono text-[10px]">Enter</kbd> / <kbd className="px-1 py-0.5 rounded bg-muted font-mono text-[10px]">Tab</kbd></span>
+    if (!mounted) {
+      return (
+        <div className="w-full h-[620px] sm:h-[680px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
+          <Loader2 className="w-7 h-7 animate-spin text-[#007aff]" />
+          <span className="text-xs font-semibold tracking-tight">Memuat Lembar Kerja Excel...</span>
         </div>
-        {!readOnly && (
+      );
+    }
+
+    return (
+      <div className="w-full space-y-2">
+        {/* Helper Tips & Instructions */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground px-1">
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAddColumn}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-card hover:bg-muted text-foreground border border-border text-xs font-medium cursor-pointer transition-colors"
-            >
-              <Plus className="w-3 h-3 text-[#007aff]" />
-              <span>Tambah Kolom</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleAddRow}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#007aff] hover:bg-[#0071eb] text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              <span>Tambah Baris</span>
-            </button>
+            <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+              <span className="w-2 h-2 rounded-full bg-[#30d158] animate-pulse" />
+              Mode Excel Aktif
+            </span>
+            <span>•</span>
+            <span>Klik ganda untuk mengedit sel</span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">
+              Pilih sel lalu gunakan toolbar untuk <b>Tebal (Bold)</b>, <b>Warna Sel</b>, <b>Ukuran Font</b>, dan <b>Merge Cells</b>
+            </span>
           </div>
-        )}
-      </div>
+          <div className="text-[10px] font-mono text-muted-foreground/80 hidden md:block">
+            Klik kanan untuk menu Baris &amp; Kolom
+          </div>
+        </div>
 
-      <div className="apple-card overflow-hidden border border-border shadow-xs bg-card">
-        <div className="overflow-x-auto max-h-[580px] overflow-y-auto">
-          <table className="w-full border-collapse text-xs select-text">
-            <thead>
-              <tr className="bg-muted/70 sticky top-0 z-10 border-b border-border divide-x divide-border">
-                <th className="w-10 px-2 py-2 text-center font-bold text-muted-foreground text-[10px] bg-muted/90 select-none">#</th>
-                {columns.map((col) => (
-                  <th key={col.id} className="min-w-[140px] px-2.5 py-2 text-left font-semibold text-foreground group relative select-none">
-                    {editingColId === col.id ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          ref={colInputRef}
-                          type="text"
-                          value={colNameDraft}
-                          onChange={(e) => setColNameDraft(e.target.value)}
-                          onBlur={handleSaveColName}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveColName();
-                            if (e.key === "Escape") setEditingColId(null);
-                          }}
-                          className="w-full px-1.5 py-0.5 text-xs bg-background border border-[#007aff] rounded outline-none font-semibold text-foreground"
-                        />
-                        <button type="button" onClick={handleSaveColName} className="p-1 hover:text-emerald-500 text-muted-foreground">
-                          <Check className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span
-                          onDoubleClick={() => { if (!readOnly) { setEditingColId(col.id); setColNameDraft(col.name); } }}
-                          className="truncate cursor-pointer hover:text-[#007aff]"
-                          title="Klik ganda untuk ubah nama kolom"
-                        >
-                          {col.name}
-                        </span>
-                        {!readOnly && (
-                          <div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => { setEditingColId(col.id); setColNameDraft(col.name); }}
-                              className="p-0.5 text-muted-foreground hover:text-foreground"
-                              title="Ubah nama kolom"
-                            >
-                              <Edit2 className="w-2.5 h-2.5" />
-                            </button>
-                            {columns.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => setDeletingCol(col)}
-                                className="p-0.5 text-muted-foreground hover:text-rose-500 ml-0.5 cursor-pointer"
-                                title="Hapus kolom"
-                              >
-                                <Trash2 className="w-2.5 h-2.5" />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {rows.map((row, rowIdx) => (
-                <tr key={row.id || `r-${rowIdx}`} className="hover:bg-muted/30 divide-x divide-border transition-colors group">
-                  <td className="w-10 px-1 py-1.5 text-center font-mono text-[10px] text-muted-foreground bg-muted/40 group-hover:bg-muted/60 relative select-none">
-                    <span className="group-hover:hidden">{rowIdx + 1}</span>
-                    {!readOnly && rows.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setDeletingRowIdx(rowIdx)}
-                        className="hidden group-hover:inline-flex items-center justify-center text-muted-foreground hover:text-rose-500 cursor-pointer w-full"
-                        title="Hapus baris"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
-                  </td>
-                  {columns.map((col, colIdx) => {
-                    const isCellActive = activeCell?.rowIdx === rowIdx && activeCell?.colId === col.id;
-                    const cellValue = row[col.id] !== undefined && row[col.id] !== null ? String(row[col.id]) : "";
-                    return (
-                      <td
-                        key={col.id}
-                        onClick={() => { if (!readOnly) setActiveCell({ rowIdx, colId: col.id }); }}
-                        className={`p-0 relative cursor-text min-w-[140px] ${
-                          isCellActive ? "ring-2 ring-inset ring-[#007aff] z-2 bg-blue-50/20 dark:bg-blue-950/20" : ""
-                        }`}
-                      >
-                        {isCellActive && !readOnly ? (
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            value={cellValue}
-                            onChange={(e) => handleCellChange(rowIdx, col.id, e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, rowIdx, colIdx)}
-                            onBlur={() => setActiveCell(null)}
-                            className="w-full h-full px-2.5 py-1.5 text-xs bg-transparent border-none outline-none font-normal text-foreground focus:ring-0"
-                          />
-                        ) : (
-                          <div className="px-2.5 py-1.5 min-h-[30px] text-xs text-foreground whitespace-pre-wrap break-words">
-                            {cellValue || <span className="text-muted-foreground/20 italic">-</span>}
-                          </div>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Rich FortuneSheet Canvas Container */}
+        <div className="w-full h-[620px] sm:h-[680px] rounded-2xl border border-border bg-card shadow-xs overflow-hidden relative fortune-sheet-wrapper">
+          <Workbook
+            key={initialSheets[0]?.id || sheetName}
+            ref={workbookRef}
+            data={initialSheets}
+            onChange={handleWorkbookChange}
+            allowEdit={!readOnly}
+            showSheetTabs={false}
+            showToolbar={true}
+            showFormulaBar={true}
+            lang="en"
+          />
         </div>
       </div>
-
-      <ConfirmModal
-        isOpen={!!deletingCol}
-        title="Konfirmasi Hapus Kolom"
-        itemName={deletingCol?.name}
-        message={deletingCol ? `Apakah Anda yakin ingin menghapus kolom "${deletingCol.name}"? Semua data dalam kolom ini akan dihapus permanen.` : undefined}
-        onConfirm={confirmDeleteColumn}
-        onClose={() => setDeletingCol(null)}
-      />
-
-      <ConfirmModal
-        isOpen={deletingRowIdx !== null}
-        title="Konfirmasi Hapus Baris"
-        itemName={deletingRowIdx !== null ? `Baris ${deletingRowIdx + 1}` : undefined}
-        message={deletingRowIdx !== null ? `Apakah Anda yakin ingin menghapus baris ke-${deletingRowIdx + 1}? Semua data pada baris ini akan dihapus.` : undefined}
-        onConfirm={confirmDeleteRow}
-        onClose={() => setDeletingRowIdx(null)}
-      />
-    </div>
-  );
-}
+    );
+  }
+);

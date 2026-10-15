@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition } from "react";
-import { ChevronDown, Plus, Check, Loader2, AlertCircle, RotateCcw, Trash2, Edit2 } from "lucide-react";
-import { DynamicSheetGrid } from "./dynamic-sheet-grid";
+import { ChevronDown, Plus, Check, Loader2, AlertCircle, RotateCcw, Trash2, Edit2, Save } from "lucide-react";
+import {
+  DynamicSheetGrid,
+  type DynamicSheetGridHandle,
+} from "./dynamic-sheet-grid";
 import { saveEventSheet, deleteEventSheet, resetSheetToMaster } from "@/app/(dashboard)/events/sheet-actions";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
@@ -26,14 +29,15 @@ export function EventSpreadsheetTabs({
     initialSheets[0]?.sheet_name || "CHECKLIST"
   );
   const [openMenuSheet, setOpenMenuSheet] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "error">("saved");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "saving" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [deletingSheetName, setDeletingSheetName] = useState<string | null>(null);
   const [resettingSheetName, setResettingSheetName] = useState<string | null>(null);
+  const [gridRevision, setGridRevision] = useState<number>(0);
   const [, startTransition] = useTransition();
 
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<DynamicSheetGridHandle | null>(null);
 
   useEffect(() => {
     onSheetsChange?.(sheets);
@@ -54,36 +58,58 @@ export function EventSpreadsheetTabs({
 
   const activeSheet = sheets.find((s) => s.sheet_name === activeTabName) || sheets[0];
 
-  const handleSheetDataChange = (updatedData: SheetData) => {
+  const handleTabClick = (nextSheetName: string) => {
+    if (nextSheetName === activeTabName) return;
+    // Commit any pending (unsaved) grid data into in-memory sheets before switching tabs
+    if (activeSheet && gridRef.current) {
+      const pendingData = gridRef.current.getData();
+      setSheets((prev) =>
+        prev.map((s) =>
+          s.sheet_name === activeSheet.sheet_name ? { ...s, data: pendingData } : s
+        )
+      );
+    }
+    setActiveTabName(nextSheetName);
+  };
+
+  // Manual save: reads the current spreadsheet state from the ref and persists it ONCE.
+  // This is the ONLY path that triggers a network request for sheet data.
+  const handleManualSave = () => {
     if (!activeSheet) return;
-    const nextSheets = sheets.map((s) =>
-      s.sheet_name === activeSheet.sheet_name ? { ...s, data: updatedData } : s
-    );
-    setSheets(nextSheets);
+    const currentData = gridRef.current?.getData() || activeSheet.data;
+
     setSaveStatus("saving");
-
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-
-    debounceTimerRef.current = setTimeout(() => {
-      startTransition(async () => {
-        try {
-          const res = await saveEventSheet(
-            eventId,
-            activeSheet.sheet_name,
-            updatedData,
-            activeSheet.order_index
+    startTransition(async () => {
+      try {
+        const res = await saveEventSheet(
+          eventId,
+          activeSheet.sheet_name,
+          currentData,
+          activeSheet.order_index
+        );
+        if (res.success) {
+          setSheets((prev) =>
+            prev.map((s) =>
+              s.sheet_name === activeSheet.sheet_name ? { ...s, data: currentData } : s
+            )
           );
-          if (res.success) setSaveStatus("saved");
-          else {
-            setSaveStatus("error");
-            setStatusMessage(res.error || "Gagal menyimpan");
+          setSaveStatus("saved");
+          if (typeof window !== "undefined") {
+            const merged = sheets.map((s) =>
+              s.sheet_name === activeSheet.sheet_name ? { ...s, data: currentData } : s
+            );
+            window.dispatchEvent(new CustomEvent("xeno_sheets_updated", { detail: merged }));
           }
-        } catch {
+          setTimeout(() => setSaveStatus("idle"), 2500);
+        } else {
           setSaveStatus("error");
-          setStatusMessage("Gagal menghubungi server");
+          setStatusMessage(res.error || "Gagal menyimpan");
         }
-      });
-    }, 600);
+      } catch {
+        setSaveStatus("error");
+        setStatusMessage("Gagal menghubungi server");
+      }
+    });
   };
 
   const handleAddNewSheet = () => {
@@ -154,7 +180,9 @@ export function EventSpreadsheetTabs({
       setSheets((prev) =>
         prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: res.data! } : s))
       );
+      setGridRevision((v) => v + 1);
       setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2500);
     } else {
       // Fallback to static template
       const tpl = INITIAL_EVENT_SHEETS.find((t) => t.name.toLowerCase() === sheetName.toLowerCase());
@@ -162,8 +190,10 @@ export function EventSpreadsheetTabs({
         setSheets((prev) =>
           prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: tpl.data } : s))
         );
+        setGridRevision((v) => v + 1);
         await saveEventSheet(eventId, sheetName, tpl.data);
         setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2500);
       } else {
         setSaveStatus("error");
         setStatusMessage(res.error || "Gagal mereset");
@@ -174,9 +204,10 @@ export function EventSpreadsheetTabs({
 
   return (
     <div className="space-y-4">
-      {/* Horizontally scrollable Tab Bar matching reference image */}
-      <div className="relative border-y border-border bg-muted/40 dark:bg-zinc-900/40">
-        <div className="flex items-center overflow-x-auto scrollbar-none py-1 px-1">
+      {/* Tab Bar with pinned Save button */}
+      <div className="flex items-center justify-between border-y border-border bg-muted/40 dark:bg-zinc-900/40">
+        {/* Horizontally scrollable Sheet Tabs */}
+        <div className="flex items-center overflow-x-auto scrollbar-none py-1 px-1 min-w-0 flex-1">
           {sheets.map((sheet) => {
             const isActive = sheet.sheet_name === activeTabName;
             const isMenuOpen = openMenuSheet === sheet.sheet_name;
@@ -192,7 +223,7 @@ export function EventSpreadsheetTabs({
                 >
                   <button
                     type="button"
-                    onClick={() => setActiveTabName(sheet.sheet_name)}
+                    onClick={() => handleTabClick(sheet.sheet_name)}
                     className="cursor-pointer tracking-tight whitespace-nowrap text-left"
                   >
                     {sheet.sheet_name}
@@ -266,37 +297,47 @@ export function EventSpreadsheetTabs({
               <Plus className="w-4 h-4" />
             </button>
           )}
+        </div>
 
-          {/* Autosave Status Indicator */}
-          <div className="ml-auto pl-3 pr-2 flex items-center gap-1.5 text-[11px] shrink-0">
-            {saveStatus === "saving" && (
-              <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
-                <Loader2 className="w-3 h-3 animate-spin text-[#007aff]" />
-                <span>Menyimpan...</span>
-              </span>
-            )}
-            {saveStatus === "saved" && (
-              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                <Check className="w-3 h-3" />
-                <span>Tersimpan</span>
-              </span>
-            )}
-            {saveStatus === "error" && (
-              <span className="inline-flex items-center gap-1 text-rose-500 font-medium" title={statusMessage}>
-                <AlertCircle className="w-3 h-3" />
-                <span>Gagal simpan</span>
-              </span>
-            )}
-          </div>
+        {/* Pinned Manual Save Button & Status Indicator */}
+        <div className="flex items-center gap-2 shrink-0 px-3 py-1 border-l border-border/80 bg-background/50">
+          {canManage && (
+            <button
+              type="button"
+              onClick={handleManualSave}
+              disabled={saveStatus === "saving"}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#007aff] hover:bg-[#0066d6] text-white text-[11px] font-semibold transition-all cursor-pointer active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed shadow-xs"
+            >
+              {saveStatus === "saving" ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Save className="w-3 h-3" />
+              )}
+              <span>{saveStatus === "saving" ? "Menyimpan..." : "Simpan Perubahan"}</span>
+            </button>
+          )}
+          {saveStatus === "saved" && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+              <Check className="w-3 h-3" />
+              <span>Tersimpan</span>
+            </span>
+          )}
+          {saveStatus === "error" && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-rose-500 font-medium" title={statusMessage}>
+              <AlertCircle className="w-3 h-3" />
+              <span>Gagal simpan</span>
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Dynamic Spreadsheet Data Grid */}
+      {/* Dynamic Spreadsheet Data Grid — NO onChange prop, manual save only */}
       {activeSheet && (
         <DynamicSheetGrid
-          key={activeSheet.sheet_name}
+          ref={gridRef}
+          key={`${activeSheet.sheet_name}_rev${gridRevision}`}
+          sheetName={activeSheet.sheet_name}
           data={activeSheet.data}
-          onChange={handleSheetDataChange}
           readOnly={!canManage}
         />
       )}

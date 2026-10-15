@@ -46,10 +46,11 @@ export async function saveMasterTemplate(
       return { error: "Nama template wajib diisi." };
     }
 
-    const sanitizedData: SheetData = {
-      columns: Array.isArray(jsonbStructure?.columns) ? jsonbStructure.columns : [],
-      rows: Array.isArray(jsonbStructure?.rows) ? jsonbStructure.rows : [],
-    };
+    // Ensure valid JSON payload structure (preserves rich FortuneSheet state with cell metadata, styles, and merges)
+    const sanitizedData: SheetData =
+      jsonbStructure && typeof jsonbStructure === "object"
+        ? jsonbStructure
+        : { columns: [], rows: [] };
 
     const supabase = await createClient();
     const now = new Date().toISOString();

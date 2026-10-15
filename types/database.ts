@@ -219,19 +219,27 @@ export interface SheetRow {
   [columnId: string]: string | number | boolean | null | undefined;
 }
 
-/** Spreadsheet grid payload stored inside event_sheets.data JSONB */
+/** Spreadsheet grid payload stored inside event_sheets.data JSONB (supports rich Excel-like FortuneSheet state or legacy grid format) */
 export interface SheetData {
-  columns: SheetColumn[];
-  rows: SheetRow[];
+  columns?: SheetColumn[];
+  rows?: SheetRow[];
+  name?: string;
+  id?: string;
+  celldata?: any[];
+  data?: any[][];
+  config?: any;
+  row?: number;
+  column?: number;
+  [key: string]: any;
 }
 
 /** Flexible event spreadsheet tab record */
-export interface EventSheet {
+export interface EventSheet<T = SheetData> {
   id: string;
   event_id: string;
   sheet_name: string;
   order_index: number;
-  data: SheetData;
+  data: T;
   created_at: string;
   updated_at: string;
 }

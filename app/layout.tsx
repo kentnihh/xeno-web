@@ -21,7 +21,6 @@ export const metadata: Metadata = {
     apple: "/logo-xeno.png",
   },
 };
-export const runtime = "edge";
 
 
 export default function RootLayout({

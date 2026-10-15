@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { FileSpreadsheet, Loader2 } from "lucide-react";
+import { sheetToAoaAndMerges } from "@/lib/spreadsheet-adapter";
 import type { EventSheet } from "@/types/database";
 
 interface ExportExcelButtonProps {
@@ -58,27 +59,15 @@ export function ExportExcelButton({
         }
         usedNames.add(finalName.toLowerCase());
 
-        const cols = sheet.data?.columns || [];
-        const rows = sheet.data?.rows || [];
+        const { aoa, merges, colWidths } = sheetToAoaAndMerges(sheet.data);
+        const worksheet = XLSX.utils.aoa_to_sheet(aoa);
 
-        const headers = cols.map((c) => c.name || "Kolom");
-        const dataRows = rows.map((r) =>
-          cols.map((c) => (r[c.id] !== undefined && r[c.id] !== null ? String(r[c.id]) : ""))
-        );
-
-        const sheetData = [headers, ...dataRows];
-        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-
-        // Auto-size column widths
-        const colWidths = headers.map((header, colIdx) => {
-          let maxLen = header.length;
-          for (const row of dataRows) {
-            const cellLen = (row[colIdx] || "").length;
-            if (cellLen > maxLen) maxLen = cellLen;
-          }
-          return { wch: Math.min(Math.max(maxLen + 4, 12), 45) };
-        });
-        worksheet["!cols"] = colWidths;
+        if (merges.length > 0) {
+          worksheet["!merges"] = merges;
+        }
+        if (colWidths.length > 0) {
+          worksheet["!cols"] = colWidths;
+        }
 
         XLSX.utils.book_append_sheet(workbook, worksheet, finalName);
       }

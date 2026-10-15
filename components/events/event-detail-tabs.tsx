@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, FolderOpen } from "lucide-react";
+import { Layers, FolderOpen, FileSpreadsheet } from "lucide-react";
 import { EventCrewSection } from "@/components/events/event-crew-section";
 import { EventTasksSection } from "@/components/events/event-tasks-section";
 import { EventVendorsSection } from "@/components/events/event-vendors-section";
 import { EventDocumentsSection } from "@/components/events/event-documents-section";
-import type { Event, EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument } from "@/types/database";
+import { EventSpreadsheetTabs } from "@/components/events/spreadsheet/event-spreadsheet-tabs";
+import type { Event, EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument, EventSheet } from "@/types/database";
 
 export function EventDetailTabs({
   event,
@@ -15,6 +16,7 @@ export function EventDetailTabs({
   allProfiles,
   eventVendors,
   allVendors,
+  sheets = [],
   documents = [],
   canManage = true,
   canManageDocuments,
@@ -26,15 +28,20 @@ export function EventDetailTabs({
   allProfiles: Profile[];
   eventVendors: EventVendor[];
   allVendors: Vendor[];
+  sheets?: EventSheet[];
   expenses?: EventExpense[];
   documents?: EventDocument[];
   canManage?: boolean;
   canManageFinance?: boolean; // ponytail: kept for backward compatibility with RBAC test assertions
   canManageDocuments?: boolean;
-  initialTab?: "operations" | "documents" | string;
+  initialTab?: "operations" | "documents" | "lembar-kerja" | string;
 }) {
-  const [activeTab, setActiveTab] = useState<"operations" | "documents">(
-    initialTab === "documents" ? "documents" : "operations"
+  const [activeTab, setActiveTab] = useState<"operations" | "documents" | "lembar-kerja">(
+    initialTab === "documents"
+      ? "documents"
+      : initialTab === "lembar-kerja" || initialTab === "spreadsheets" || initialTab === "sheets"
+      ? "lembar-kerja"
+      : "operations"
   );
   const manageOps = canManage;
   const manageDocs = canManageDocuments ?? canManage;
@@ -74,6 +81,22 @@ export function EventDetailTabs({
             {documents.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("lembar-kerja")}
+          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${
+            activeTab === "lembar-kerja"
+              ? "border-[#007aff] text-foreground font-bold"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          <span>Lembar Kerja</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground font-medium">
+            {sheets.length}
+          </span>
+        </button>
       </div>
 
       {/* Tab Panels */}
@@ -108,6 +131,16 @@ export function EventDetailTabs({
           initialDocuments={documents}
           canManage={manageDocs}
         />
+      )}
+
+      {activeTab === "lembar-kerja" && (
+        <div className="space-y-4">
+          <EventSpreadsheetTabs
+            eventId={event.id}
+            initialSheets={sheets}
+            canManage={manageOps}
+          />
+        </div>
       )}
     </div>
   );

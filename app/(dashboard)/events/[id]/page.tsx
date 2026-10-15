@@ -9,7 +9,6 @@ import { DeleteConfirmButton } from "@/components/ui/confirm-modal";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
 import { EventStatusSelect } from "@/components/events/event-status-select";
 import { EventActionButtons } from "@/components/events/event-action-buttons";
-import { EventSpreadsheetTabs } from "@/components/events/spreadsheet/event-spreadsheet-tabs";
 import type { EventStatus, EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument } from "@/types/database";
 
 const FALLBACK_EVENT = {
@@ -38,6 +37,10 @@ export default async function EventDetailPage({
   const initialTab =
     resolvedSearchParams?.tab === "documents"
       ? "documents"
+      : resolvedSearchParams?.tab === "lembar-kerja" ||
+        resolvedSearchParams?.tab === "spreadsheets" ||
+        resolvedSearchParams?.tab === "sheets"
+      ? "lembar-kerja"
       : "operations";
 
   const [canEditEvent, canDeleteEvent, canManageFinance, canManageDocs] = await Promise.all([
@@ -154,20 +157,13 @@ export default async function EventDetailPage({
         </div>
       </div>
 
-      {/* Dynamic Spreadsheet UI (Horizontal Tabs & Inline Data Grid) */}
-      <section className="space-y-3">
-        <EventSpreadsheetTabs
-          eventId={event.id}
-          initialSheets={sheets}
-          canManage={canEditEvent}
-        />
-      </section>
-
-      {/* Additional Event Modules: Operasional, Dokumen */}
-      <section className="pt-6 border-t border-border">
+      {/* Event Modules & Administration Tabs (Operasional, Dokumen, Lembar Kerja) */}
+      <section className="pt-2 border-t border-border">
         <div className="mb-4">
           <h2 className="text-sm font-bold text-foreground">Modul & Administrasi Acara</h2>
-          <p className="text-xs text-muted-foreground">Manajemen kru internal, vendor pihak ketiga, dan dokumen lampiran.</p>
+          <p className="text-xs text-muted-foreground">
+            Manajemen kru operasional, vendor pihak ketiga, berkas dokumen, dan lembar kerja spreadsheet.
+          </p>
         </div>
         <EventDetailTabs
           event={event}
@@ -176,6 +172,7 @@ export default async function EventDetailPage({
           allProfiles={allProfiles}
           eventVendors={eventVendors}
           allVendors={allVendors}
+          sheets={sheets}
           expenses={expenses}
           documents={documents}
           canManage={canEditEvent}

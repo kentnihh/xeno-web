@@ -13,7 +13,10 @@ import {
   AlertCircle,
   HelpCircle,
 } from "lucide-react";
-import { DynamicSheetGrid } from "@/components/events/spreadsheet/dynamic-sheet-grid";
+import {
+  DynamicSheetGrid,
+  type DynamicSheetGridHandle,
+} from "@/components/events/spreadsheet/dynamic-sheet-grid";
 import {
   saveMasterTemplate,
   createMasterTemplate,
@@ -37,55 +40,47 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [gridRevision, setGridRevision] = useState<number>(0);
 
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const gridRef = useRef<DynamicSheetGridHandle | null>(null);
 
   const activeTemplate = useMemo(
     () => templates.find((t) => t.id === activeTemplateId) || templates[0],
     [templates, activeTemplateId]
   );
 
-  const handleDataChange = (updatedData: SheetData) => {
-    if (!activeTemplate) return;
-
-    const nextTemplates = templates.map((t) =>
-      t.id === activeTemplate.id ? { ...t, jsonb_structure: updatedData } : t
-    );
-    setTemplates(nextTemplates);
-    setSaveStatus("saving");
-
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-
-    debounceTimerRef.current = setTimeout(() => {
-      startTransition(async () => {
-        const res = await saveMasterTemplate(
-          activeTemplate.id,
-          activeTemplate.sheet_name,
-          updatedData,
-          activeTemplate.order_index
-        );
-        if (res.success) {
-          setSaveStatus("saved");
-          setTimeout(() => setSaveStatus("idle"), 2500);
-        } else {
-          setSaveStatus("error");
-          setStatusMessage(res.error || "Gagal menyimpan template");
-        }
-      });
-    }, 800);
+  const handleSelectTemplate = (nextId: string) => {
+    if (nextId === activeTemplateId) return;
+    // Commit any pending (unsaved) grid data into in-memory templates before switching tabs
+    if (activeTemplate && gridRef.current) {
+      const pendingData = gridRef.current.getData();
+      setTemplates((prev) =>
+        prev.map((t) => (t.id === activeTemplate.id ? { ...t, jsonb_structure: pendingData } : t))
+      );
+    }
+    setActiveTemplateId(nextId);
   };
 
+  // Manual save: reads the current spreadsheet state from the ref and persists it ONCE.
+  // This is the ONLY path that triggers a network request for template data.
   const handleManualSave = () => {
     if (!activeTemplate) return;
+    const currentData = gridRef.current?.getData() || activeTemplate.jsonb_structure;
+
     setSaveStatus("saving");
     startTransition(async () => {
       const res = await saveMasterTemplate(
         activeTemplate.id,
         activeTemplate.sheet_name,
-        activeTemplate.jsonb_structure,
+        currentData,
         activeTemplate.order_index
       );
       if (res.success) {
+        setTemplates((prev) =>
+          prev.map((t) =>
+            t.id === activeTemplate.id ? { ...t, jsonb_structure: currentData } : t
+          )
+        );
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2500);
       } else {
@@ -251,7 +246,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
               <button
                 key={tpl.id}
                 type="button"
-                onClick={() => setActiveTemplateId(tpl.id)}
+                onClick={() => handleSelectTemplate(tpl.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer shrink-0 ${
                   isActive
                     ? "bg-[#007aff] text-white shadow-xs"
@@ -328,11 +323,12 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
             </div>
           </div>
 
-          {/* Grid Editor for Master Template */}
+          {/* Grid Editor for Master Template — NO onChange prop, manual save only */}
           <DynamicSheetGrid
-            key={activeTemplate.id}
+            ref={gridRef}
+            key={`${activeTemplate.id}_${activeTemplate.sheet_name}_rev${gridRevision}`}
+            sheetName={activeTemplate.sheet_name}
             data={activeTemplate.jsonb_structure}
-            onChange={handleDataChange}
           />
         </div>
       )}

@@ -1,8 +1,13 @@
-import type { SheetData, EventSheet } from "@/types/database";
+import type { SheetData, EventSheet, SheetColumn, SheetRow } from "@/types/database";
+
+export interface LegacyDefaultSheetData extends SheetData {
+  columns: SheetColumn[];
+  rows: SheetRow[];
+}
 
 export interface DefaultSheetTemplate {
   name: string;
-  data: SheetData;
+  data: LegacyDefaultSheetData;
 }
 
 export const INITIAL_EVENT_SHEETS: DefaultSheetTemplate[] = [
@@ -190,7 +195,7 @@ export const INITIAL_EVENT_SHEETS: DefaultSheetTemplate[] = [
 ];
 
 /** Build default EventSheet records for a specific eventId */
-export function buildDefaultEventSheets(eventId: string): EventSheet[] {
+export function buildDefaultEventSheets(eventId: string): EventSheet<LegacyDefaultSheetData>[] {
   const now = new Date().toISOString();
   return INITIAL_EVENT_SHEETS.map((item, index) => ({
     id: `sheet-${index + 1}-${eventId}`,

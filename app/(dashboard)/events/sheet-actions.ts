@@ -98,11 +98,11 @@ export async function saveEventSheet(
       return { success: false, error: "eventId dan sheetName wajib diisi." };
     }
 
-    // Ensure valid JSON payload structure
-    const sanitizedData: SheetData = {
-      columns: Array.isArray(sheetData?.columns) ? sheetData.columns : [],
-      rows: Array.isArray(sheetData?.rows) ? sheetData.rows : [],
-    };
+    // Ensure valid JSON payload structure (preserves rich FortuneSheet state with cell metadata, styles, and merges)
+    const sanitizedData: SheetData =
+      sheetData && typeof sheetData === "object"
+        ? sheetData
+        : { columns: [], rows: [] };
 
     const supabase = await createClient();
     const now = new Date().toISOString();

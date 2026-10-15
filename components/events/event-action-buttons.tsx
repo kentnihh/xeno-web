@@ -14,6 +14,14 @@ const ExportExcelButton = dynamic(
   { ssr: false }
 );
 
+const ExportSpreadsheetPdfButton = dynamic(
+  () =>
+    import("@/components/events/spreadsheet/export-spreadsheet-pdf-button").then(
+      (m) => m.ExportSpreadsheetPdfButton
+    ),
+  { ssr: false }
+);
+
 interface EventActionButtonsProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   event: AppEvent | any;
@@ -35,6 +43,7 @@ export function EventActionButtons({
   return (
     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
       <ExportExcelButton eventTitle={event.title} sheets={sheets} />
+      <ExportSpreadsheetPdfButton eventTitle={event.title} sheets={sheets} />
       {canEdit && <EditEventButton event={event} />}
       <ExportPdfButton
         event={event}
