@@ -342,6 +342,54 @@ const roleModalCode = fs.readFileSync(roleModalPath, "utf-8");
 assert(roleModalCode.includes("input type=\"hidden\" name=\"id\""), "RoleModal must include hidden id input when isEdit");
 assert(roleModalCode.includes("formData.set(\"id\", role.id)"), "RoleModal handleSubmit must set id on formData when isEdit");
 
+// 17. Verify Fine-Grained RBAC Permission Guards Across Actions and UI
+const docActionsPath = path.resolve(process.cwd(), "app/(dashboard)/events/document-actions.ts");
+const docActionsCode = fs.readFileSync(docActionsPath, "utf-8");
+assert(docActionsCode.includes("requirePermission(\"documents.manage\")"), "bulkDeleteEventDocuments must guard with documents.manage");
+
+const expActionsPath = path.resolve(process.cwd(), "app/(dashboard)/events/expense-actions.ts");
+const expActionsCode = fs.readFileSync(expActionsPath, "utf-8");
+assert(expActionsCode.includes("requirePermission(\"finances.manage\")"), "Expense actions must guard with finances.manage");
+
+const sheetActionsPath = path.resolve(process.cwd(), "app/(dashboard)/events/sheet-actions.ts");
+const sheetActionsCode = fs.readFileSync(sheetActionsPath, "utf-8");
+assert(sheetActionsCode.includes("requirePermission(\"events.edit\")"), "Sheet actions must guard with events.edit");
+
+const clientActionsPath = path.resolve(process.cwd(), "app/(dashboard)/clients/actions.ts");
+const clientActionsCode = fs.readFileSync(clientActionsPath, "utf-8");
+assert(clientActionsCode.includes("requirePermission(\"clients.create\")"), "createClientAction must guard with clients.create");
+assert(clientActionsCode.includes("requirePermission(\"clients.delete\")"), "deleteClientAction must guard with clients.delete");
+
+const vendorActionsPath = path.resolve(process.cwd(), "app/(dashboard)/vendors/actions.ts");
+const vendorActionsCode = fs.readFileSync(vendorActionsPath, "utf-8");
+assert(vendorActionsCode.includes("requirePermission(\"vendors.create\")"), "createVendorAction must guard with vendors.create");
+assert(vendorActionsCode.includes("requirePermission(\"vendors.delete\")"), "deleteVendorAction must guard with vendors.delete");
+
+const teamActionsPath = path.resolve(process.cwd(), "app/(dashboard)/team/actions.ts");
+const teamActionsCode = fs.readFileSync(teamActionsPath, "utf-8");
+assert(teamActionsCode.includes("requirePermission(\"team.manage\")"), "Team actions must guard with team.manage");
+
+const eventTabsPath = path.resolve(process.cwd(), "components/events/event-detail-tabs.tsx");
+const eventTabsCode = fs.readFileSync(eventTabsPath, "utf-8");
+assert(eventTabsCode.includes("canManageFinance"), "EventDetailTabs must accept canManageFinance prop");
+assert(eventTabsCode.includes("canManageDocuments"), "EventDetailTabs must accept canManageDocuments prop");
+
+const eventActionButtonsPath = path.resolve(process.cwd(), "components/events/event-action-buttons.tsx");
+const eventActionButtonsCode = fs.readFileSync(eventActionButtonsPath, "utf-8");
+assert(eventActionButtonsCode.includes("canEdit"), "EventActionButtons must accept canEdit prop");
+
+// 18. Verify Role Modal Feedback & RBAC Server Action Error Handling
+const freshRbacCode = fs.readFileSync(rbacActionsPath, "utf-8");
+assert(freshRbacCode.includes("getRBACClient"), "RBAC actions must use getRBACClient to avoid silent RLS drops");
+assert(freshRbacCode.includes("revalidatePath(\"/settings/rbac\", \"page\")"), "revalidateRBAC must invalidate page cache");
+
+const freshRoleModalCode = fs.readFileSync(roleModalPath, "utf-8");
+assert(freshRoleModalCode.includes("onSuccess?: (message: string) => void"), "RoleModal must accept onSuccess callback prop");
+assert(freshRoleModalCode.includes("onSuccess?.("), "RoleModal must invoke onSuccess callback on completion");
+
+const dialogHandlerPath = path.resolve(process.cwd(), "components/users/users-dialog-handler.tsx");
+const dialogHandlerCode = fs.readFileSync(dialogHandlerPath, "utf-8");
+assert(dialogHandlerCode.includes("<RoleModal") && dialogHandlerCode.includes("onSuccess={onSuccess}"), "UsersDialogHandler must forward onSuccess to RoleModal");
 
 
 console.log("Self-check passed successfully.");

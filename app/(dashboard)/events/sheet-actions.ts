@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireAuth, requirePermission } from "@/lib/auth";
 import { buildDefaultEventSheets, INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import type { EventSheet, SheetData, MasterTemplate } from "@/types/database";
 
@@ -13,6 +14,7 @@ import type { EventSheet, SheetData, MasterTemplate } from "@/types/database";
  */
 export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
   try {
+    await requireAuth();
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("event_sheets")
@@ -90,6 +92,8 @@ export async function saveEventSheet(
   orderIndex: number = 0
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requirePermission("events.edit");
+
     if (!eventId || !sheetName) {
       return { success: false, error: "eventId dan sheetName wajib diisi." };
     }
@@ -140,6 +144,8 @@ export async function deleteEventSheet(
   sheetName: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await requirePermission("events.edit");
+
     const supabase = await createClient();
     const { error } = await supabase
       .from("event_sheets")
@@ -161,8 +167,6 @@ export async function deleteEventSheet(
   }
 }
 
-
-
 /**
  * Reset a spreadsheet tab back to its master template definition.
  */
@@ -171,6 +175,8 @@ export async function resetSheetToMaster(
   sheetName: string
 ): Promise<{ success: boolean; data?: SheetData; error?: string }> {
   try {
+    await requirePermission("events.edit");
+
     const supabase = await createClient();
     const { data: tpl } = await supabase
       .from("master_templates")

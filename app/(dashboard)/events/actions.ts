@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireAuth, requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import {
   createEventSchema,
   updateEventSchema,
@@ -21,7 +21,7 @@ import type { MasterTemplate } from "@/types/database";
  * @param formData - FormData with title, venue, start_date, end_date, budget, description, client_id
  */
 export async function createEvent(formData: FormData): Promise<void> {
-  await requireAuth();
+  await requirePermission("events.create");
   const supabase = await createClient();
 
   const rawExpenses = formData.get("expenses");
@@ -138,7 +138,7 @@ export async function updateEventStatus(
   status: EventStatus
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requirePermission("events.edit");
 
     if (!eventId || typeof eventId !== "string") {
       return { success: false, error: "ID acara tidak valid." };
@@ -213,7 +213,7 @@ export async function updateEventStatus(
  */
 export async function updateEvent(formData: FormData): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requirePermission("events.edit");
     const supabase = await createClient();
 
     const rawId = formData.get("id");
@@ -280,7 +280,7 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
  * Inserts a new operational task associated with an event.
  */
 export async function createEventTask(formData: FormData): Promise<{ success: boolean; error?: string; task?: EventTask }> {
-  await requireAuth();
+  await requirePermission("events.edit");
   const supabase = await createClient();
   const eventId = formData.get("event_id") as string;
   const title = (formData.get("title") as string)?.trim();
@@ -332,7 +332,7 @@ export async function addEventTask(formData: FormData): Promise<void> {
  * Updates an existing operational task.
  */
 export async function updateEventTask(formData: FormData): Promise<{ success: boolean; error?: string; task?: EventTask }> {
-  await requireAuth();
+  await requirePermission("events.edit");
   const supabase = await createClient();
   const taskId = formData.get("task_id") as string;
   const eventId = formData.get("event_id") as string;
@@ -376,7 +376,7 @@ export async function updateEventTask(formData: FormData): Promise<{ success: bo
  * Toggles a crew task between 'done' and 'todo'.
  */
 export async function toggleTaskStatus(taskId: string, currentStatus: string, eventId: string): Promise<{ success: boolean; error?: string }> {
-  await requireAuth();
+  await requirePermission("events.edit");
   const supabase = await createClient();
   const nextStatus = currentStatus === "done" ? "todo" : "done";
   const { error } = await supabase
@@ -397,7 +397,7 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string, ev
  * Deletes an event and cascades tasks/vendors. Admin only.
  */
 export async function deleteEvent(eventId: string): Promise<void> {
-  await requireAdmin();
+  await requirePermission("events.delete");
   const supabase = await createClient();
   const { error } = await supabase.from("events").delete().eq("id", eventId);
   if (error) {
@@ -412,7 +412,7 @@ export async function deleteEvent(eventId: string): Promise<void> {
  * Deletes a task from an event.
  */
 export async function deleteEventTask(taskId: string, eventId: string): Promise<{ success: boolean; error?: string }> {
-  await requireAuth();
+  await requirePermission("events.edit");
   const supabase = await createClient();
   const { error } = await supabase.from("event_tasks").delete().eq("id", taskId).eq("event_id", eventId);
   if (error) {
@@ -427,7 +427,7 @@ export async function deleteEventTask(taskId: string, eventId: string): Promise<
 export async function assignCrewToEvent(
   input: FormData | { eventId: string; profileId: string; roleInEvent?: string; notes?: string | null }
 ): Promise<{ success: boolean; error?: string }> {
-  await requireAuth();
+  await requirePermission("events.edit");
 
   let rawData: { event_id: unknown; profile_id: unknown; role_in_event?: unknown; notes?: unknown };
   if (input instanceof FormData) {
@@ -478,7 +478,7 @@ export async function removeCrewFromEvent(
   crewId: string,
   eventId: string
 ): Promise<{ success: boolean; error?: string }> {
-  await requireAuth();
+  await requirePermission("events.edit");
 
   const parsed = removeCrewSchema.safeParse({ crew_id: crewId, event_id: eventId });
   if (!parsed.success) {
@@ -505,7 +505,7 @@ export async function updateCrewRole(
   eventId: string,
   roleInEvent: string
 ): Promise<{ success: boolean; error?: string }> {
-  await requireAuth();
+  await requirePermission("events.edit");
 
   const parsed = updateCrewRoleSchema.safeParse({
     crew_id: crewId,
@@ -539,7 +539,7 @@ export const removeEventCrew = removeCrewFromEvent;
  * Assigns an existing vendor to an event.
  */
 export async function assignEventVendor(formData: FormData): Promise<{ success: boolean; error?: string; eventVendor?: EventVendor }> {
-  await requireAuth();
+  await requirePermission("events.edit");
   const supabase = await createClient();
   const eventId = formData.get("event_id") as string;
   const vendorId = formData.get("vendor_id") as string;
@@ -582,7 +582,7 @@ export async function assignEventVendor(formData: FormData): Promise<{ success: 
  * Creates a new vendor in the vendors database and immediately links it to the event.
  */
 export async function createAndAssignVendor(formData: FormData): Promise<{ success: boolean; error?: string; eventVendor?: EventVendor }> {
-  await requireAuth();
+  await requirePermission("events.edit");
   const supabase = await createClient();
   const eventId = formData.get("event_id") as string;
 
@@ -653,7 +653,7 @@ export async function createAndAssignVendor(formData: FormData): Promise<{ succe
  * Updates an event vendor's service details, cost, status, or notes.
  */
 export async function updateEventVendor(formData: FormData): Promise<{ success: boolean; error?: string; eventVendor?: EventVendor }> {
-  await requireAuth();
+  await requirePermission("events.edit");
   const supabase = await createClient();
   const eventVendorId = formData.get("id") as string;
   const eventId = formData.get("event_id") as string;
@@ -693,7 +693,7 @@ export async function updateEventVendor(formData: FormData): Promise<{ success: 
  * Removes a vendor assignment from an event.
  */
 export async function removeEventVendor(eventVendorId: string, eventId: string): Promise<{ success: boolean; error?: string }> {
-  await requireAuth();
+  await requirePermission("events.edit");
   const supabase = await createClient();
   const { error } = await supabase.from("event_vendors").delete().eq("id", eventVendorId).eq("event_id", eventId);
 

@@ -10,10 +10,12 @@ export function UserModal({
   user,
   roles,
   onClose,
+  onSuccess,
 }: {
   user: UserWithRBAC | null;
   roles: Role[];
   onClose: () => void;
+  onSuccess?: (message: string) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -35,11 +37,21 @@ export function UserModal({
     }
 
     startTransition(async () => {
-      const res = isEdit ? await updateUser(formData) : await createUser(formData);
-      if (res.error) {
-        setError(res.error);
-      } else {
-        onClose();
+      try {
+        const res = isEdit ? await updateUser(formData) : await createUser(formData);
+        if (res.error) {
+          setError(res.error);
+        } else {
+          const fullName = (formData.get("fullName") as string) || user?.full_name || "Staf";
+          onSuccess?.(
+            isEdit
+              ? `Data staf "${fullName}" berhasil diperbarui.`
+              : `Staf baru "${fullName}" berhasil didaftarkan.`
+          );
+          onClose();
+        }
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Terjadi kesalahan saat menyimpan data staf.");
       }
     });
   }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/auth";
 import { formatIDR, formatDate, sortEventsUpcomingFirst, sortTasksByPriority } from "@/lib/utils";
 import { CalendarDays, Coins, Plus, MapPin, ChevronRight, CheckCircle2 } from "lucide-react";
 import { MonthlyCalendar } from "@/components/dashboard/monthly-calendar";
@@ -78,6 +79,8 @@ export default async function DashboardPage() {
   const tasksList = rawTasks && rawTasks.length > 0 ? rawTasks : FALLBACK_TASKS;
   const tasks = sortTasksByPriority(tasksList);
 
+  const canCreateEvent = await hasPermission("events.create");
+
   const totalBudget = events.reduce((acc, ev) => acc + Number(ev.budget || 0), 0);
   const pendingTasksCount = tasks.filter((t) => t.status !== "done").length;
 
@@ -92,13 +95,15 @@ export default async function DashboardPage() {
             Ringkasan acara, kru, dan vendor Xeno Entertainment
           </p>
         </div>
-        <Link
-          href="/events/new"
-          className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-fit shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Buat Acara</span>
-        </Link>
+        {canCreateEvent && (
+          <Link
+            href="/events/new"
+            className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-fit shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Buat Acara</span>
+          </Link>
+        )}
       </div>
 
       {/* Global Cmd+K Event Search */}

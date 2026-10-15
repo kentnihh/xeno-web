@@ -11,11 +11,13 @@ export function RoleModal({
   allPermissions,
   assignedPermissionIds = [],
   onClose,
+  onSuccess,
 }: {
   role: Role | null;
   allPermissions: Permission[];
   assignedPermissionIds?: string[];
   onClose: () => void;
+  onSuccess?: (message: string) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -39,11 +41,21 @@ export function RoleModal({
     selectedPerms.forEach((pId) => formData.append("permissionIds", pId));
 
     startTransition(async () => {
-      const res = isEdit ? await updateRole(formData) : await createRole(formData);
-      if (res.error) {
-        setError(res.error);
-      } else {
-        onClose();
+      try {
+        const res = isEdit ? await updateRole(formData) : await createRole(formData);
+        if (res.error) {
+          setError(res.error);
+        } else {
+          const roleName = (formData.get("name") as string) || role?.name || "Peran";
+          onSuccess?.(
+            isEdit
+              ? `Peran "${roleName}" berhasil diperbarui.`
+              : `Peran "${roleName}" berhasil dibuat.`
+          );
+          onClose();
+        }
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Terjadi kesalahan saat memproses peran.");
       }
     });
   }

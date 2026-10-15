@@ -81,7 +81,12 @@ values
   ('events:delete', 'Hapus Data Acara', 'Menghapus arsip event dari sistem operasional', 'events'),
   ('clients:manage', 'Kelola Database Klien', 'Mengelola kontak prinsipal dan PIC korporasi', 'clients'),
   ('vendors:manage', 'Kelola Database Vendor', 'Mengelola direktori mitra audio, lighting, catering, dan panggung', 'vendors'),
-  ('tasks:manage', 'Kelola Tugas & Checklist Kru', 'Membuat dan memperbarui status checklist teknis kru', 'tasks')
+  ('tasks:manage', 'Kelola Tugas & Checklist Kru', 'Membuat dan memperbarui status checklist teknis kru', 'tasks'),
+  ('team:manage', 'Kelola Tim & Kru', 'Mengelola penugasan anggota tim dan peran kru', 'team'),
+  ('rbac:manage', 'Kelola Peran & Hak Akses Sistem', 'Konfigurasi role dan permission pengguna', 'users'),
+  ('templates:manage', 'Kelola Template Acara', 'Mengelola master spreadsheet dan template rundown', 'templates'),
+  ('finances:manage', 'Kelola Keuangan Acara', 'Mencatat dan memantau anggaran serta rincian biaya', 'finances'),
+  ('documents:manage', 'Kelola Berkas & Dokumen Acara', 'Mengunggah dan mengelola dokumen teknis acara', 'documents')
 on conflict (id) do update set
   name = excluded.name,
   description = excluded.description,
@@ -101,7 +106,10 @@ values
   ('manager', 'events:update'),
   ('manager', 'clients:manage'),
   ('manager', 'vendors:manage'),
-  ('manager', 'tasks:manage')
+  ('manager', 'tasks:manage'),
+  ('manager', 'team:manage'),
+  ('manager', 'finances:manage'),
+  ('manager', 'documents:manage')
 on conflict (role_id, permission_id) do nothing;
 
 -- Staff gets read and task permissions

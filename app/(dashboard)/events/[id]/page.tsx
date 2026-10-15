@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatIDR, formatDate } from "@/lib/utils";
 import { deleteEvent } from "../actions";
 import { getEventSheets } from "../sheet-actions";
-import { isAdmin } from "@/lib/auth";
+import { hasPermission } from "@/lib/auth";
 import { ArrowLeft, Calendar, MapPin, Coins, Trash2 } from "lucide-react";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
 import { EventStatusSelect } from "@/components/events/event-status-select";
@@ -41,7 +41,12 @@ export default async function EventDetailPage({
       ? "finance"
       : "operations";
 
-  const isUserAdmin = await isAdmin();
+  const [canEditEvent, canDeleteEvent, canManageFinance, canManageDocs] = await Promise.all([
+    hasPermission("events.edit"),
+    hasPermission("events.delete"),
+    hasPermission("finances.manage"),
+    hasPermission("documents.manage"),
+  ]);
   const supabase = await createClient();
 
   const [
@@ -101,9 +106,10 @@ export default async function EventDetailPage({
             crew={crew}
             tasks={tasks}
             expenses={expenses}
+            canEdit={canEditEvent}
           />
 
-          {isUserAdmin && (
+          {canDeleteEvent && (
             <form action={async () => { "use server"; await deleteEvent(event.id); }}>
               <button
                 type="submit"
@@ -120,7 +126,7 @@ export default async function EventDetailPage({
       <div className="apple-card p-5 grid grid-cols-2 md:grid-cols-4 gap-4 border border-border shadow-xs">
         <div>
           <div className="text-xs font-medium text-muted-foreground mb-1">Status</div>
-          <EventStatusSelect eventId={event.id} initialStatus={event.status} />
+          <EventStatusSelect eventId={event.id} initialStatus={event.status} disabled={!canEditEvent} />
         </div>
         <div>
           <div className="text-xs font-medium text-muted-foreground">Venue</div>
@@ -150,7 +156,7 @@ export default async function EventDetailPage({
         <EventSpreadsheetTabs
           eventId={event.id}
           initialSheets={sheets}
-          canManage={true}
+          canManage={canEditEvent}
         />
       </section>
 
@@ -169,7 +175,9 @@ export default async function EventDetailPage({
           allVendors={allVendors}
           expenses={expenses}
           documents={documents}
-          canManage={true}
+          canManage={canEditEvent}
+          canManageFinance={canManageFinance}
+          canManageDocuments={canManageDocs}
           initialTab={initialTab}
         />
       </section>

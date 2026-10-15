@@ -1,9 +1,15 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { hasPermission } from "@/lib/auth";
 import { createEvent } from "../actions";
 import { ArrowLeft, MapPin, DollarSign, FileText } from "lucide-react";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 
-export default function NewEventPage() {
+export default async function NewEventPage() {
+  const canCreate = await hasPermission("events.create");
+  if (!canCreate) {
+    redirect("/events");
+  }
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3">

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/auth";
 import { EditEventForm } from "@/components/events/edit-event-form";
 import type { EventStatus } from "@/types/database";
 
@@ -20,6 +21,10 @@ export default async function EditEventPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const canEdit = await hasPermission("events.edit");
+  if (!canEdit) {
+    redirect(`/events/${id}`);
+  }
   const supabase = await createClient();
 
   const { data: rawEvent } = await supabase

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import type { MasterTemplate, SheetData } from "@/types/database";
 
@@ -40,7 +40,7 @@ export async function saveMasterTemplate(
   orderIndex: number = 0
 ): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("templates.manage");
 
     if (!sheetName || !sheetName.trim()) {
       return { error: "Nama template wajib diisi." };
@@ -88,7 +88,7 @@ export async function createMasterTemplate(
   orderIndex: number = 0
 ): Promise<ActionResult<MasterTemplate>> {
   try {
-    await requireAdmin();
+    await requirePermission("templates.manage");
 
     if (!sheetName || !sheetName.trim()) {
       return { error: "Nama template wajib diisi." };
@@ -126,7 +126,7 @@ export async function createMasterTemplate(
  */
 export async function deleteMasterTemplate(id: string): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("templates.manage");
 
     const supabase = await createClient();
     const { error } = await supabase.from("master_templates").delete().eq("id", id);
@@ -147,7 +147,7 @@ export async function deleteMasterTemplate(id: string): Promise<ActionResult> {
  */
 export async function resetAllMasterTemplates(): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("templates.manage");
 
     const supabase = await createClient();
 

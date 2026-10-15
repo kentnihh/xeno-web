@@ -38,10 +38,10 @@ export function UsersDialogHandler({
   if (!dialog) return null;
 
   if (dialog.type === "create_user") {
-    return <UserModal user={null} roles={roles} onClose={onClose} />;
+    return <UserModal user={null} roles={roles} onClose={onClose} onSuccess={onSuccess} />;
   }
   if (dialog.type === "edit_user") {
-    return <UserModal user={dialog.user} roles={roles} onClose={onClose} />;
+    return <UserModal user={dialog.user} roles={roles} onClose={onClose} onSuccess={onSuccess} />;
   }
   if (dialog.type === "reset_password") {
     return <ResetPasswordModal user={dialog.user} onClose={onClose} onSuccess={onSuccess} />;
@@ -54,13 +54,14 @@ export function UsersDialogHandler({
         onConfirm={async () => {
           const res = await deleteUser(dialog.user.id);
           if (res.error) throw new Error(res.error);
+          onSuccess?.(`Staf "${dialog.user.full_name}" berhasil dihapus.`);
         }}
         onClose={onClose}
       />
     );
   }
   if (dialog.type === "create_role") {
-    return <RoleModal role={null} allPermissions={permissions} onClose={onClose} />;
+    return <RoleModal role={null} allPermissions={permissions} onClose={onClose} onSuccess={onSuccess} />;
   }
   if (dialog.type === "edit_role") {
     return (
@@ -69,6 +70,7 @@ export function UsersDialogHandler({
         allPermissions={permissions}
         assignedPermissionIds={rolePermissionsMap[dialog.role.id] || []}
         onClose={onClose}
+        onSuccess={onSuccess}
       />
     );
   }
@@ -80,13 +82,14 @@ export function UsersDialogHandler({
         onConfirm={async () => {
           const res = await deleteRole(dialog.role.id);
           if (res.error) throw new Error(res.error);
+          onSuccess?.(`Peran "${dialog.role.name}" berhasil dihapus.`);
         }}
         onClose={onClose}
       />
     );
   }
   if (dialog.type === "create_perm") {
-    return <PermissionModal onClose={onClose} />;
+    return <PermissionModal onClose={onClose} onSuccess={onSuccess} />;
   }
   if (dialog.type === "delete_perm") {
     return (
@@ -96,6 +99,7 @@ export function UsersDialogHandler({
         onConfirm={async () => {
           const res = await deletePermission(dialog.perm.id);
           if (res.error) throw new Error(res.error);
+          onSuccess?.(`Izin "${dialog.perm.name}" berhasil dihapus.`);
         }}
         onClose={onClose}
       />

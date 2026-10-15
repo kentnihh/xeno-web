@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
-import { isAdmin } from "@/lib/auth";
-import { updateMemberRoleAction, deleteMemberAction } from "./actions";
-import { Mail, Trash2, ShieldCheck, Shield } from "lucide-react";
+import { hasPermission } from "@/lib/auth";
+import { TeamMemberActions } from "@/components/team/team-member-actions";
+import { Mail, ShieldCheck, Shield } from "lucide-react";
 import type { UserRole } from "@/types/database";
 
 const FALLBACK_TEAM = [
@@ -10,8 +10,9 @@ const FALLBACK_TEAM = [
 ];
 
 export default async function TeamPage() {
-  const isUserAdmin = await isAdmin();
+  const canManageTeam = await hasPermission("team.manage");
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   const { data: rawProfiles } = await supabase.from("profiles").select("*").order("full_name");
 
   const team = (rawProfiles && rawProfiles.length > 0) ? rawProfiles : FALLBACK_TEAM;
@@ -50,36 +51,13 @@ export default async function TeamPage() {
                 </div>
               </div>
 
-              {isUserAdmin && (
-                <div className="flex items-center gap-2">
-                  <form action={async (formData: FormData) => {
-                    "use server";
-                    const newRole = formData.get("role") as UserRole;
-                    await updateMemberRoleAction(member.id, newRole);
-                  }}>
-                    <select
-                      name="role"
-                      defaultValue={member.role}
-                      className="apple-input text-[11px] uppercase font-bold px-2.5 py-1 bg-muted text-foreground border-border cursor-pointer"
-                    >
-                      <option value="staff" className="bg-card text-foreground">Staff</option>
-                      <option value="admin" className="bg-card text-foreground">Admin</option>
-                    </select>
-                  </form>
-
-                  <form action={async () => {
-                    "use server";
-                    await deleteMemberAction(member.id);
-                  }}>
-                    <button
-                      type="submit"
-                      className="text-muted-foreground hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                      title="Hapus Akun Staf"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </form>
-                </div>
+              {canManageTeam && (
+                <TeamMemberActions
+                  memberId={member.id}
+                  memberName={member.full_name}
+                  currentRole={member.role}
+                  isSelf={user?.id === member.id}
+                />
               )}
             </div>
 

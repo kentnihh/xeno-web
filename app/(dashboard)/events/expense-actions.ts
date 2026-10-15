@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireAuth } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { eventExpenseSchema } from "@/lib/validations/event";
 import type { EventExpense, ExpenseStatus } from "@/types/database";
 
@@ -11,7 +11,7 @@ import type { EventExpense, ExpenseStatus } from "@/types/database";
  */
 export async function createEventExpense(formData: FormData): Promise<{ success: boolean; error?: string; expense?: EventExpense }> {
   try {
-    await requireAuth();
+    await requirePermission("finances.manage");
     const supabase = await createClient();
     const eventId = (formData.get("event_id") as string)?.trim();
     const amount = formData.get("amount");
@@ -65,7 +65,7 @@ export async function createEventExpense(formData: FormData): Promise<{ success:
  */
 export async function updateEventExpense(formData: FormData): Promise<{ success: boolean; error?: string; expense?: EventExpense }> {
   try {
-    await requireAuth();
+    await requirePermission("finances.manage");
     const supabase = await createClient();
     const id = (formData.get("id") as string)?.trim();
     const eventId = (formData.get("event_id") as string)?.trim();
@@ -122,7 +122,7 @@ export async function updateEventExpense(formData: FormData): Promise<{ success:
  */
 export async function deleteEventExpense(expenseId: string, eventId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAuth();
+    await requirePermission("finances.manage");
     const supabase = await createClient();
     const { error } = await supabase
       .from("event_expenses")
@@ -153,7 +153,7 @@ export async function toggleExpenseStatus(
   currentStatus: ExpenseStatus
 ): Promise<{ success: boolean; error?: string; nextStatus?: ExpenseStatus }> {
   try {
-    await requireAuth();
+    await requirePermission("finances.manage");
     const supabase = await createClient();
     const nextStatus: ExpenseStatus = currentStatus === "Paid" ? "Unpaid" : "Paid";
 

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { isAdmin } from "@/lib/auth";
+import { hasPermission } from "@/lib/auth";
 import { createClientAction, deleteClientAction } from "./actions";
 import { Users, Phone, Mail, MapPin, Trash2, Plus } from "lucide-react";
 
@@ -23,7 +23,10 @@ const FALLBACK_CLIENTS = [
 ];
 
 export default async function ClientsPage() {
-  const isUserAdmin = await isAdmin();
+  const [canCreateClient, canDeleteClient] = await Promise.all([
+    hasPermission("clients.create"),
+    hasPermission("clients.delete"),
+  ]);
   const supabase = await createClient();
   const { data: rawClients } = await supabase.from("clients").select("*").order("name");
 
@@ -39,22 +42,30 @@ export default async function ClientsPage() {
       </div>
 
       {/* Add Client Form */}
-      <form action={createClientAction} className="apple-card p-5 space-y-4 border border-border shadow-xs">
-        <h3 className="text-xs font-bold text-[#007aff] uppercase tracking-wider flex items-center gap-1.5">
-          <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Tambah Klien Baru
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <input name="name" required placeholder="Nama Klien *" className="apple-input px-3.5 py-2 text-xs" />
-          <input name="company" placeholder="Perusahaan" className="apple-input px-3.5 py-2 text-xs" />
-          <input name="phone" required placeholder="Nomor Telepon *" className="apple-input px-3.5 py-2 text-xs" />
-          <input name="email" type="email" placeholder="Email" className="apple-input px-3.5 py-2 text-xs" />
-        </div>
-        <div className="flex justify-end pt-1">
-          <button type="submit" className="apple-btn-primary px-4 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30">
-            Simpan Klien
-          </button>
-        </div>
-      </form>
+      {canCreateClient && (
+        <form
+          action={async (formData: FormData) => {
+            "use server";
+            await createClientAction(formData);
+          }}
+          className="apple-card p-5 space-y-4 border border-border shadow-xs"
+        >
+          <h3 className="text-xs font-bold text-[#007aff] uppercase tracking-wider flex items-center gap-1.5">
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Tambah Klien Baru
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <input name="name" required placeholder="Nama Klien *" className="apple-input px-3.5 py-2 text-xs" />
+            <input name="company" placeholder="Perusahaan" className="apple-input px-3.5 py-2 text-xs" />
+            <input name="phone" required placeholder="Nomor Telepon *" className="apple-input px-3.5 py-2 text-xs" />
+            <input name="email" type="email" placeholder="Email" className="apple-input px-3.5 py-2 text-xs" />
+          </div>
+          <div className="flex justify-end pt-1">
+            <button type="submit" className="apple-btn-primary px-4 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30">
+              Simpan Klien
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {clients.map((client) => (
@@ -70,7 +81,7 @@ export default async function ClientsPage() {
                 </div>
               </div>
 
-              {isUserAdmin && (
+              {canDeleteClient && (
                 <form action={async () => { "use server"; await deleteClientAction(client.id); }}>
                   <button
                     type="submit"

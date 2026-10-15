@@ -14,10 +14,15 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true);
     setError(null);
-    const formData = new FormData(event.currentTarget);
-    const res = await login(formData);
-    if (res?.error) {
-      setError(res.error);
+    try {
+      const formData = new FormData(event.currentTarget);
+      const res = await login(formData);
+      if (res?.error) {
+        setError(res.error);
+        setLoading(false);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan sistem saat login.");
       setLoading(false);
     }
   }

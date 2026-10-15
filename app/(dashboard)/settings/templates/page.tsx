@@ -1,42 +1,16 @@
-import Link from "next/link";
-import { ShieldAlert, FileSpreadsheet } from "lucide-react";
+import { redirect } from "next/navigation";
+import { FileSpreadsheet } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { isAdmin } from "@/lib/auth";
+import { isAdmin, hasPermission } from "@/lib/auth";
 import { MasterTemplatesManager } from "@/components/settings/master-templates-manager";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import type { MasterTemplate } from "@/types/database";
 
 export default async function MasterTemplatesSettingsPage() {
-  const isUserAdmin = await isAdmin();
+  const canAccess = (await isAdmin()) || (await hasPermission("templates.manage"));
 
-  if (!isUserAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-        <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-          <ShieldAlert className="w-7 h-7" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-white">Akses Ditolak: Khusus Administrator</h2>
-          <p className="text-xs text-slate-400 max-w-md mt-1">
-            Halaman pengaturan master templates hanya dapat diakses oleh staf dengan peran Admin.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Link
-            href="/login"
-            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors"
-          >
-            Masuk sebagai Admin
-          </Link>
-          <Link
-            href="/dashboard"
-            className="px-4 py-2 rounded-lg border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-semibold transition-colors"
-          >
-            Kembali ke Dashboard
-          </Link>
-        </div>
-      </div>
-    );
+  if (!canAccess) {
+    redirect("/dashboard");
   }
 
   const supabase = await createClient();

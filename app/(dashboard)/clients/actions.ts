@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { requireAuth, requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 
 const createClientSchema = z.object({
   name: z.string().trim().min(1, "Nama klien wajib diisi"),
@@ -19,37 +19,69 @@ const createClientSchema = z.object({
   address: z.string().trim().optional().transform((v) => v || null),
 });
 
-export async function createClientAction(formData: FormData): Promise<void> {
-  await requireAuth();
+export async function createClientAction(formData: FormData): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requirePermission("clients.create");
 
-  const validated = createClientSchema.parse({
-    name: formData.get("name"),
-    company: formData.get("company"),
-    phone: formData.get("phone"),
-    email: formData.get("email"),
-    address: formData.get("address"),
-  });
+    const raw = {
+      name: formData.get("name"),
+      company: formData.get("company"),
+      phone: formData.get("phone"),
+      email: formData.get("email"),
+      address: formData.get("address"),
+    };
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("clients").insert(validated);
+    const parsed = createClientSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message || "Data klien tidak valid." };
+    }
 
-  if (error) {
-    throw new Error(error.message);
+    const supabase = await createClient();
+    const { error } = await supabase.from("clients").insert(parsed.data);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/clients");
+    revalidatePath("/events");
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal menambahkan klien baru.",
+    };
   }
-
-  revalidatePath("/clients");
 }
 
-export async function deleteClientAction(clientId: string): Promise<void> {
-  await requireAdmin();
+export async function deleteClientAction(clientId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requirePermission("clients.delete");
 
-  const validId = z.string().min(1, "ID klien wajib diisi").parse(clientId);
-  const supabase = await createClient();
-  const { error } = await supabase.from("clients").delete().eq("id", validId);
+    const parsedId = z.string().min(1, "ID klien wajib diisi").safeParse(clientId);
+    if (!parsedId.success) {
+      return { success: false, error: parsedId.error.issues[0]?.message || "ID klien tidak valid." };
+    }
 
-  if (error) {
-    throw new Error(error.message);
+    const validId = parsedId.data;
+    const supabase = await createClient();
+
+    // Safely unlink events associated with this client to prevent foreign key errors
+    await supabase.from("events").update({ client_id: null }).eq("client_id", validId);
+
+    const { error } = await supabase.from("clients").delete().eq("id", validId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/clients");
+    revalidatePath("/events");
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal menghapus klien.",
+    };
   }
-
-  revalidatePath("/clients");
 }

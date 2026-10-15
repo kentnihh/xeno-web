@@ -14,21 +14,30 @@ export interface AuthActionResult {
  * @param formData - Form data containing `email` and `password`
  */
 export async function login(formData: FormData): Promise<AuthActionResult | void> {
-  const supabase = await createClient();
-
-  const email = formData.get("email") as string;
+  const email = (formData.get("email") as string)?.trim();
   const password = formData.get("password") as string;
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    return { error: error.message };
+  if (!email || !password) {
+    return { error: "Email dan kata sandi wajib diisi." };
   }
 
-  revalidatePath("/", "layout");
+  try {
+    const supabase = await createClient();
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    revalidatePath("/", "layout");
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : "Terjadi kesalahan sistem saat proses login." };
+  }
+
   redirect("/dashboard");
 }
 
@@ -37,8 +46,14 @@ export async function login(formData: FormData): Promise<AuthActionResult | void
  * Redirects user to `/login`.
  */
 export async function logout(): Promise<void> {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  try {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+    revalidatePath("/", "layout");
+  } catch (err: unknown) {
+    console.error("[logout] Error signing out:", err);
+  }
+
   redirect("/login");
 }
 

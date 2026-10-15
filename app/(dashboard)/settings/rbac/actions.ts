@@ -3,20 +3,29 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
+import { FALLBACK_PERMISSIONS } from "@/lib/rbac-fallbacks";
 
 type ActionResult = { success?: boolean; error?: string };
 
 function revalidateRBAC() {
   revalidatePath("/settings/rbac");
+  revalidatePath("/settings/rbac", "page");
   revalidatePath("/users");
   revalidatePath("/team");
+}
+
+async function getRBACClient() {
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return createAdminClient();
+  }
+  return await createClient();
 }
 
 /** Create user in Supabase Auth, profiles, and user_roles */
 export async function createUser(formData: FormData): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("users.manage");
 
     const fullName = (formData.get("fullName") as string)?.trim();
     const email = (formData.get("email") as string)?.trim().toLowerCase();
@@ -86,7 +95,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
 /** Update user profile and assigned role */
 export async function updateUser(formData: FormData): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("users.manage");
 
     const id = formData.get("id") as string;
     const fullName = (formData.get("fullName") as string)?.trim();
@@ -95,7 +104,7 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
 
     if (!id || !fullName) return { error: "ID dan nama lengkap wajib diisi." };
 
-    const supabase = await createClient();
+    const supabase = await getRBACClient();
     const { error: profileError } = await supabase
       .from("profiles")
       .update({ full_name: fullName, phone, role: roleId as "admin" | "manager" | "staff" })
@@ -103,8 +112,11 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
 
     if (profileError) return { error: profileError.message };
 
-    await supabase.from("user_roles").delete().eq("user_id", id);
-    await supabase.from("user_roles").insert({ user_id: id, role_id: roleId });
+    const { error: delError } = await supabase.from("user_roles").delete().eq("user_id", id);
+    if (delError) return { error: delError.message };
+
+    const { error: insError } = await supabase.from("user_roles").insert({ user_id: id, role_id: roleId });
+    if (insError) return { error: insError.message };
 
     revalidateRBAC();
     return { success: true };
@@ -116,7 +128,7 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
 /** Reset user password via Supabase Admin API */
 export async function resetUserPassword(formData: FormData): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("users.manage");
 
     const userId = (formData.get("userId") as string)?.trim();
     const newPassword = formData.get("newPassword") as string;
@@ -153,7 +165,7 @@ export async function resetUserPassword(formData: FormData): Promise<ActionResul
 /** Delete user from Supabase Auth and profiles */
 export async function deleteUser(userId: string): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("users.manage");
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -176,7 +188,7 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
 /** Create new RBAC role with permissions */
 export async function createRole(formData: FormData): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("rbac.manage");
 
     const id = (formData.get("id") as string)?.trim().toLowerCase();
     const name = (formData.get("name") as string)?.trim();
@@ -185,18 +197,43 @@ export async function createRole(formData: FormData): Promise<ActionResult> {
 
     if (!id || !name) return { error: "Kode role dan nama role wajib diisi." };
 
-    const supabase = await createClient();
+    const supabase = await getRBACClient();
     const { error: roleError } = await supabase.from("roles").insert({ id, name, description });
-    if (roleError) return { error: roleError.message };
+    if (roleError) {
+      console.error("[createRole] Failed to insert role:", roleError);
+      return { error: roleError.message };
+    }
 
     if (permissionIds.length > 0) {
+      const { data: existingPerms } = await supabase.from("permissions").select("id");
+      const existingPermIds = new Set((existingPerms || []).map((p) => p.id));
+      const missingPerms = FALLBACK_PERMISSIONS.filter(
+        (fp) => !existingPermIds.has(fp.id) && permissionIds.includes(fp.id)
+      );
+      if (missingPerms.length > 0) {
+        await supabase.from("permissions").upsert(
+          missingPerms.map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            module: p.module,
+          })),
+          { onConflict: "id" }
+        );
+      }
+
       const records = permissionIds.map((pId) => ({ role_id: id, permission_id: pId }));
-      await supabase.from("role_permissions").insert(records);
+      const { error: permError } = await supabase.from("role_permissions").insert(records);
+      if (permError) {
+        console.error("[createRole] Failed to insert role_permissions:", permError);
+        return { error: `Gagal menyimpan izin peran: ${permError.message}` };
+      }
     }
 
     revalidateRBAC();
     return { success: true };
   } catch (err: unknown) {
+    console.error("[createRole] Unexpected error:", err);
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan sistem." };
   }
 }
@@ -204,7 +241,7 @@ export async function createRole(formData: FormData): Promise<ActionResult> {
 /** Update RBAC role details and associated permissions */
 export async function updateRole(formData: FormData): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("rbac.manage");
 
     const id = (formData.get("id") as string)?.trim().toLowerCase();
     const name = (formData.get("name") as string)?.trim();
@@ -213,22 +250,80 @@ export async function updateRole(formData: FormData): Promise<ActionResult> {
 
     if (!id || !name) return { error: "ID dan nama role wajib diisi." };
 
-    const supabase = await createClient();
-    const { error: roleError } = await supabase
-      .from("roles")
-      .update({ name, description })
-      .eq("id", id);
-    if (roleError) return { error: roleError.message };
+    const supabase = await getRBACClient();
 
-    await supabase.from("role_permissions").delete().eq("role_id", id);
+    // 1. Ensure the role exists in the database
+    const { data: existingRole, error: checkError } = await supabase
+      .from("roles")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error("[updateRole] Failed to check role existence:", checkError);
+      return { error: `Gagal memeriksa peran: ${checkError.message}` };
+    }
+
+    if (!existingRole) {
+      const { error: insRoleError } = await supabase
+        .from("roles")
+        .insert({ id, name, description });
+      if (insRoleError) {
+        console.error("[updateRole] Failed to insert missing role:", insRoleError);
+        return { error: `Gagal membuat peran: ${insRoleError.message}` };
+      }
+    } else {
+      const { error: roleError } = await supabase
+        .from("roles")
+        .update({ name, description })
+        .eq("id", id);
+      if (roleError) {
+        console.error("[updateRole] Failed to update role:", roleError);
+        return { error: `Gagal memperbarui peran: ${roleError.message}` };
+      }
+    }
+
+    // 2. Clear old role_permissions
+    const { error: delError } = await supabase
+      .from("role_permissions")
+      .delete()
+      .eq("role_id", id);
+    if (delError) {
+      console.error("[updateRole] Failed to clear role permissions:", delError);
+      return { error: `Gagal memperbarui izin peran: ${delError.message}` };
+    }
+
+    // 3. Insert new role_permissions if any
     if (permissionIds.length > 0) {
+      const { data: existingPerms } = await supabase.from("permissions").select("id");
+      const existingPermIds = new Set((existingPerms || []).map((p) => p.id));
+      const missingPerms = FALLBACK_PERMISSIONS.filter(
+        (fp) => !existingPermIds.has(fp.id) && permissionIds.includes(fp.id)
+      );
+      if (missingPerms.length > 0) {
+        await supabase.from("permissions").upsert(
+          missingPerms.map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            module: p.module,
+          })),
+          { onConflict: "id" }
+        );
+      }
+
       const records = permissionIds.map((pId) => ({ role_id: id, permission_id: pId }));
-      await supabase.from("role_permissions").insert(records);
+      const { error: insPermError } = await supabase.from("role_permissions").insert(records);
+      if (insPermError) {
+        console.error("[updateRole] Failed to insert role permissions:", insPermError);
+        return { error: `Gagal menyimpan izin peran: ${insPermError.message}` };
+      }
     }
 
     revalidateRBAC();
     return { success: true };
   } catch (err: unknown) {
+    console.error("[updateRole] Unexpected error:", err);
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan sistem." };
   }
 }
@@ -236,20 +331,24 @@ export async function updateRole(formData: FormData): Promise<ActionResult> {
 /** Delete custom RBAC role */
 export async function deleteRole(roleId: string): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("rbac.manage");
 
     const protectedRoles = ["admin", "staff", "manager"];
     if (protectedRoles.includes(roleId.toLowerCase())) {
       return { error: `Peran bawaan sistem '${roleId}' tidak dapat dihapus.` };
     }
 
-    const supabase = await createClient();
+    const supabase = await getRBACClient();
     const { error } = await supabase.from("roles").delete().eq("id", roleId);
-    if (error) return { error: error.message };
+    if (error) {
+      console.error("[deleteRole] Failed to delete role:", error);
+      return { error: error.message };
+    }
 
     revalidateRBAC();
     return { success: true };
   } catch (err: unknown) {
+    console.error("[deleteRole] Unexpected error:", err);
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan sistem." };
   }
 }
@@ -257,7 +356,7 @@ export async function deleteRole(roleId: string): Promise<ActionResult> {
 /** Create granular permission definition */
 export async function createPermission(formData: FormData): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("rbac.manage");
 
     const id = (formData.get("id") as string)?.trim().toLowerCase();
     const name = (formData.get("name") as string)?.trim();
@@ -268,13 +367,17 @@ export async function createPermission(formData: FormData): Promise<ActionResult
       return { error: "ID, nama, dan modul permission wajib diisi." };
     }
 
-    const supabase = await createClient();
+    const supabase = await getRBACClient();
     const { error } = await supabase.from("permissions").insert({ id, name, module: permModule, description });
-    if (error) return { error: error.message };
+    if (error) {
+      console.error("[createPermission] Failed to insert permission:", error);
+      return { error: error.message };
+    }
 
     revalidateRBAC();
     return { success: true };
   } catch (err: unknown) {
+    console.error("[createPermission] Unexpected error:", err);
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan sistem." };
   }
 }
@@ -282,15 +385,19 @@ export async function createPermission(formData: FormData): Promise<ActionResult
 /** Delete custom permission definition */
 export async function deletePermission(permId: string): Promise<ActionResult> {
   try {
-    await requireAdmin();
+    await requirePermission("rbac.manage");
 
-    const supabase = await createClient();
+    const supabase = await getRBACClient();
     const { error } = await supabase.from("permissions").delete().eq("id", permId);
-    if (error) return { error: error.message };
+    if (error) {
+      console.error("[deletePermission] Failed to delete permission:", error);
+      return { error: error.message };
+    }
 
     revalidateRBAC();
     return { success: true };
   } catch (err: unknown) {
+    console.error("[deletePermission] Unexpected error:", err);
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan sistem." };
   }
 }

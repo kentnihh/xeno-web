@@ -15,6 +15,11 @@ export const FALLBACK_PERMISSIONS: Permission[] = [
   { id: "clients:manage", name: "Kelola Database Klien", description: "Mengelola kontak klien Xeno", module: "clients", created_at: "2026-01-01T00:00:00Z" },
   { id: "vendors:manage", name: "Kelola Database Vendor", description: "Mengelola vendor mitra", module: "vendors", created_at: "2026-01-01T00:00:00Z" },
   { id: "tasks:manage", name: "Kelola Tugas & Checklist Kru", description: "Membuat checklist teknis", module: "tasks", created_at: "2026-01-01T00:00:00Z" },
+  { id: "team:manage", name: "Kelola Tim & Kru", description: "Mengelola penugasan anggota tim dan peran kru", module: "team", created_at: "2026-01-01T00:00:00Z" },
+  { id: "rbac:manage", name: "Kelola Peran & Hak Akses Sistem", description: "Konfigurasi role dan permission pengguna", module: "users", created_at: "2026-01-01T00:00:00Z" },
+  { id: "templates:manage", name: "Kelola Template Acara", description: "Mengelola master spreadsheet dan template rundown", module: "templates", created_at: "2026-01-01T00:00:00Z" },
+  { id: "finances:manage", name: "Kelola Keuangan Acara", description: "Mencatat dan memantau anggaran serta rincian biaya", module: "finances", created_at: "2026-01-01T00:00:00Z" },
+  { id: "documents:manage", name: "Kelola Berkas & Dokumen Acara", description: "Mengunggah dan mengelola dokumen teknis acara", module: "documents", created_at: "2026-01-01T00:00:00Z" },
 ];
 
 export const FALLBACK_ROLE_PERMS: RolePermission[] = [
@@ -25,6 +30,9 @@ export const FALLBACK_ROLE_PERMS: RolePermission[] = [
   { id: "mgr-4", role_id: "manager", permission_id: "clients:manage", created_at: "2026-01-01T00:00:00Z" },
   { id: "mgr-5", role_id: "manager", permission_id: "vendors:manage", created_at: "2026-01-01T00:00:00Z" },
   { id: "mgr-6", role_id: "manager", permission_id: "tasks:manage", created_at: "2026-01-01T00:00:00Z" },
+  { id: "mgr-7", role_id: "manager", permission_id: "team:manage", created_at: "2026-01-01T00:00:00Z" },
+  { id: "mgr-8", role_id: "manager", permission_id: "finances:manage", created_at: "2026-01-01T00:00:00Z" },
+  { id: "mgr-9", role_id: "manager", permission_id: "documents:manage", created_at: "2026-01-01T00:00:00Z" },
   { id: "stf-1", role_id: "staff", permission_id: "events:read", created_at: "2026-01-01T00:00:00Z" },
   { id: "stf-2", role_id: "staff", permission_id: "tasks:manage", created_at: "2026-01-01T00:00:00Z" },
 ];

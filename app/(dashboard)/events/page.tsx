@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/auth";
 import { formatIDR, formatDate, sortEventsUpcomingFirst } from "@/lib/utils";
 import {
   CalendarDays,
@@ -76,6 +77,11 @@ export default async function EventsPage({
   const statusFilter = resolved?.status || "active";
   const viewMode = resolved?.view === "calendar" ? "calendar" : "list";
 
+  const [canCreateEvent, canEditEvent] = await Promise.all([
+    hasPermission("events.create"),
+    hasPermission("events.edit"),
+  ]);
+
   const supabase = await createClient();
 
   let query = supabase
@@ -132,13 +138,15 @@ export default async function EventsPage({
             Kelola seluruh portofolio produksi dan jadwal panggung Xeno Entertainment.
           </p>
         </div>
-        <Link
-          href="/events/new"
-          className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-fit shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Buat Acara Baru</span>
-        </Link>
+        {canCreateEvent && (
+          <Link
+            href="/events/new"
+            className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-fit shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Buat Acara Baru</span>
+          </Link>
+        )}
       </div>
 
       {/* Controls Bar: Cmd+K Search + View Switcher */}
@@ -253,9 +261,11 @@ export default async function EventsPage({
                         {event.budget != null ? formatIDR(event.budget) : "-"}
                       </div>
                     </div>
-                    <div className="flex items-center">
-                      <EditEventButton event={event} variant="icon" />
-                    </div>
+                    {canEditEvent && (
+                      <div className="flex items-center">
+                        <EditEventButton event={event} variant="icon" />
+                      </div>
+                    )}
                     <ChevronRight className="w-5 h-5 text-muted-foreground/60 group-hover:text-[#007aff] group-hover:translate-x-1 transition-all" />
                   </div>
                 </Link>

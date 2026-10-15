@@ -21,6 +21,7 @@ interface EventActionButtonsProps {
   crew: EventCrew[];
   tasks: EventTask[];
   expenses: EventExpense[];
+  canEdit?: boolean;
 }
 
 export function EventActionButtons({
@@ -29,11 +30,12 @@ export function EventActionButtons({
   crew,
   tasks,
   expenses,
+  canEdit = true,
 }: EventActionButtonsProps) {
   return (
     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
       <ExportExcelButton eventTitle={event.title} sheets={sheets} />
-      <EditEventButton event={event} />
+      {canEdit && <EditEventButton event={event} />}
       <ExportPdfButton
         event={event}
         crew={crew}

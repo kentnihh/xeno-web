@@ -19,6 +19,8 @@ export function EventDetailTabs({
   expenses,
   documents = [],
   canManage = true,
+  canManageFinance,
+  canManageDocuments,
   initialTab = "operations",
 }: {
   event: Event;
@@ -30,9 +32,14 @@ export function EventDetailTabs({
   expenses: EventExpense[];
   documents?: EventDocument[];
   canManage?: boolean;
+  canManageFinance?: boolean;
+  canManageDocuments?: boolean;
   initialTab?: "operations" | "finance" | "documents";
 }) {
   const [activeTab, setActiveTab] = useState<"operations" | "finance" | "documents">(initialTab);
+  const manageOps = canManage;
+  const manageFinance = canManageFinance ?? canManage;
+  const manageDocs = canManageDocuments ?? canManage;
 
   return (
     <div className="space-y-6">
@@ -94,20 +101,20 @@ export function EventDetailTabs({
             eventId={event.id}
             initialCrew={crew}
             allProfiles={allProfiles}
-            canManage={canManage}
+            canManage={manageOps}
           />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <EventTasksSection
               eventId={event.id}
               initialTasks={tasks}
               crewProfiles={allProfiles}
-              canManage={canManage}
+              canManage={manageOps}
             />
             <EventVendorsSection
               eventId={event.id}
               initialEventVendors={eventVendors}
               allVendors={allVendors}
-              canManage={canManage}
+              canManage={manageOps}
             />
           </div>
         </div>
@@ -117,7 +124,7 @@ export function EventDetailTabs({
         <EventFinanceSection
           event={event}
           initialExpenses={expenses}
-          canManage={canManage}
+          canManage={manageFinance}
         />
       )}
 
@@ -125,7 +132,7 @@ export function EventDetailTabs({
         <EventDocumentsSection
           eventId={event.id}
           initialDocuments={documents}
-          canManage={canManage}
+          canManage={manageDocs}
         />
       )}
     </div>

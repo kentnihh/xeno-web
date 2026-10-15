@@ -1,6 +1,46 @@
 import { createClient } from "./supabase/server";
-import { Profile } from "@/types/database";
+import type { Profile } from "@/types/database";
 import type { User } from "@supabase/supabase-js";
+import {
+  FALLBACK_USERS,
+  FALLBACK_PERMISSIONS,
+  FALLBACK_ROLE_PERMS,
+} from "@/lib/rbac-fallbacks";
+
+/**
+ * Normalizes permission strings between dot and colon notation,
+ * mapping synonymous keys like events.edit <-> events:update.
+ */
+function getPermissionAliases(perm: string): string[] {
+  const normalized = perm.trim().toLowerCase();
+  const colonForm = normalized.replace(/\./g, ":");
+  const dotForm = normalized.replace(/:/g, ".");
+  const set = new Set([normalized, colonForm, dotForm]);
+
+  if (
+    ["events.edit", "events:edit", "events.update", "events:update"].includes(normalized) ||
+    ["events.edit", "events:edit", "events.update", "events:update"].includes(colonForm)
+  ) {
+    set.add("events.edit");
+    set.add("events:edit");
+    set.add("events.update");
+    set.add("events:update");
+  }
+
+  if (
+    ["users.manage", "users:manage", "team.manage", "team:manage", "rbac.manage", "rbac:manage"].includes(normalized) ||
+    ["users.manage", "users:manage", "team.manage", "team:manage", "rbac.manage", "rbac:manage"].includes(colonForm)
+  ) {
+    set.add("users:manage");
+    set.add("users.manage");
+    set.add("team:manage");
+    set.add("team.manage");
+    set.add("rbac:manage");
+    set.add("rbac.manage");
+  }
+
+  return Array.from(set);
+}
 
 /**
  * Guards server actions — throws if no authenticated user.
@@ -45,56 +85,171 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   return profile as Profile | null;
 }
 
-export async function isAdmin(): Promise<boolean> {
+/**
+ * Retrieves all assigned role IDs for the user (or current user if userId omitted).
+ */
+export async function getUserRoles(userId?: string): Promise<string[]> {
+  let targetId = userId;
+  let profileRole: string | null = null;
+
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
+
+  if (!targetId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return [];
+    targetId = user.id;
+  }
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
-    .eq("id", user.id)
+    .eq("id", targetId)
     .maybeSingle();
 
-  if (profile?.role === "admin") return true;
+  if (profile?.role) {
+    profileRole = profile.role;
+  }
 
-  const { data: userRole } = await supabase
-    .from("user_roles")
-    .select("role_id")
-    .eq("user_id", user.id)
-    .eq("role_id", "admin")
-    .maybeSingle();
+  const roles = new Set<string>();
+  if (profileRole) {
+    roles.add(profileRole.toLowerCase());
+  }
 
-  return Boolean(userRole);
+  try {
+    const { data: userRoles, error } = await supabase
+      .from("user_roles")
+      .select("role_id")
+      .eq("user_id", targetId);
+
+    if (!error && userRoles) {
+      userRoles.forEach((r) => {
+        if (r.role_id) roles.add(r.role_id.toLowerCase());
+      });
+    }
+  } catch (err) {
+    console.warn("getUserRoles error:", err);
+  }
+
+  if (roles.size === 0) {
+    const fallbackUser = FALLBACK_USERS.find((u) => u.id === targetId);
+    if (fallbackUser?.role) {
+      roles.add(fallbackUser.role.toLowerCase());
+    }
+  }
+
+  return Array.from(roles);
 }
 
-export async function hasPermission(permissionId: string): Promise<boolean> {
-  const admin = await isAdmin();
-  if (admin) return true;
+/**
+ * Checks if a user has the administrator role.
+ */
+export async function isAdmin(userId?: string): Promise<boolean> {
+  const roles = await getUserRoles(userId);
+  return roles.includes("admin");
+}
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
+/**
+ * Retrieves all permission keys assigned to the user across all their roles.
+ */
+export async function getUserPermissions(userId?: string): Promise<string[]> {
+  const roles = await getUserRoles(userId);
+  if (roles.length === 0) return [];
 
-  const { data: userRoles } = await supabase
-    .from("user_roles")
-    .select("role_id")
-    .eq("user_id", user.id);
+  // Admin holds all permissions
+  if (roles.includes("admin")) {
+    try {
+      const supabase = await createClient();
+      const { data } = await supabase.from("permissions").select("id");
+      if (data && data.length > 0) {
+        const set = new Set<string>(data.map((p) => p.id));
+        FALLBACK_PERMISSIONS.forEach((p) => set.add(p.id));
+        return Array.from(set);
+      }
+    } catch {
+      // Fallback
+    }
+    return FALLBACK_PERMISSIONS.map((p) => p.id);
+  }
 
-  if (!userRoles || userRoles.length === 0) return false;
-  const roleIds = userRoles.map((r) => r.role_id);
+  const perms = new Set<string>();
 
-  const { data: rolePerm } = await supabase
-    .from("role_permissions")
-    .select("id")
-    .in("role_id", roleIds)
-    .eq("permission_id", permissionId)
-    .limit(1);
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("role_permissions")
+      .select("permission_id")
+      .in("role_id", roles);
 
-  return Boolean(rolePerm && rolePerm.length > 0);
+    if (!error && data && data.length > 0) {
+      data.forEach((r) => {
+        if (r.permission_id) perms.add(r.permission_id);
+      });
+    }
+  } catch (err) {
+    console.warn("getUserPermissions error:", err);
+  }
+
+  if (perms.size === 0) {
+    roles.forEach((r) => {
+      const fallbackList = FALLBACK_ROLE_PERMS.filter((rp) => rp.role_id === r);
+      fallbackList.forEach((rp) => perms.add(rp.permission_id));
+    });
+  }
+
+  return Array.from(perms);
+}
+
+/**
+ * Evaluates whether the user holds a specific permission or its canonical alias.
+ */
+export async function hasPermission(
+  permission: string,
+  userId?: string
+): Promise<boolean> {
+  const roles = await getUserRoles(userId);
+  if (roles.includes("admin")) return true;
+
+  const userPerms = await getUserPermissions(userId);
+  if (userPerms.length === 0) return false;
+
+  const aliases = getPermissionAliases(permission);
+  return aliases.some((a) => userPerms.includes(a));
+}
+
+/**
+ * Enforces that user has at least one of the specified roles; throws Error if not.
+ */
+export async function requireRole(
+  role: string | string[],
+  userId?: string
+): Promise<User> {
+  const user = await requireAuth();
+  const roles = await getUserRoles(userId || user.id);
+  const targetRoles = Array.isArray(role)
+    ? role.map((r) => r.toLowerCase())
+    : [role.toLowerCase()];
+
+  if (roles.includes("admin") || targetRoles.some((r) => roles.includes(r))) {
+    return user;
+  }
+
+  throw new Error("Akses ditolak: Peran tidak mencukupi.");
+}
+
+/**
+ * Enforces that user holds a specific permission; throws Error if not.
+ */
+export async function requirePermission(
+  permission: string,
+  userId?: string
+): Promise<User> {
+  const user = await requireAuth();
+  const allowed = await hasPermission(permission, userId || user.id);
+  if (!allowed) {
+    throw new Error(`Akses ditolak: Izin '${permission}' diperlukan.`);
+  }
+  return user;
 }
 

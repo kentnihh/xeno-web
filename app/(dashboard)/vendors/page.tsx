@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { isAdmin } from "@/lib/auth";
+import { hasPermission } from "@/lib/auth";
 import { createVendorAction, deleteVendorAction } from "./actions";
 import { Briefcase, Phone, Mail, User, Trash2, Plus } from "lucide-react";
 
@@ -34,7 +34,10 @@ const FALLBACK_VENDORS = [
 ];
 
 export default async function VendorsPage() {
-  const isUserAdmin = await isAdmin();
+  const [canCreateVendor, canDeleteVendor] = await Promise.all([
+    hasPermission("vendors.create"),
+    hasPermission("vendors.delete"),
+  ]);
   const supabase = await createClient();
   const { data: rawVendors } = await supabase.from("vendors").select("*").order("name");
 
@@ -50,26 +53,34 @@ export default async function VendorsPage() {
       </div>
 
       {/* Add Vendor Form */}
-      <form action={createVendorAction} className="apple-card p-5 space-y-4 border border-border shadow-xs">
-        <h3 className="text-xs font-bold text-[#007aff] uppercase tracking-wider flex items-center gap-1.5">
-          <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Tambah Vendor Baru
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input name="name" required placeholder="Nama Vendor *" className="apple-input px-3.5 py-2 text-xs" />
-          <input name="category" required placeholder="Kategori (Lighting, Sound, dll) *" className="apple-input px-3.5 py-2 text-xs" />
-          <input name="pic_name" required placeholder="Nama PIC *" className="apple-input px-3.5 py-2 text-xs" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input name="phone" required placeholder="Nomor Telepon PIC *" className="apple-input px-3.5 py-2 text-xs" />
-          <input name="email" type="email" placeholder="Email" className="apple-input px-3.5 py-2 text-xs" />
-          <input name="notes" placeholder="Catatan spesifikasi/alat" className="apple-input px-3.5 py-2 text-xs" />
-        </div>
-        <div className="flex justify-end pt-1">
-          <button type="submit" className="apple-btn-primary px-4 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30">
-            Simpan Vendor
-          </button>
-        </div>
-      </form>
+      {canCreateVendor && (
+        <form
+          action={async (formData: FormData) => {
+            "use server";
+            await createVendorAction(formData);
+          }}
+          className="apple-card p-5 space-y-4 border border-border shadow-xs"
+        >
+          <h3 className="text-xs font-bold text-[#007aff] uppercase tracking-wider flex items-center gap-1.5">
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Tambah Vendor Baru
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input name="name" required placeholder="Nama Vendor *" className="apple-input px-3.5 py-2 text-xs" />
+            <input name="category" required placeholder="Kategori (Lighting, Sound, dll) *" className="apple-input px-3.5 py-2 text-xs" />
+            <input name="pic_name" required placeholder="Nama PIC *" className="apple-input px-3.5 py-2 text-xs" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input name="phone" required placeholder="Nomor Telepon PIC *" className="apple-input px-3.5 py-2 text-xs" />
+            <input name="email" type="email" placeholder="Email" className="apple-input px-3.5 py-2 text-xs" />
+            <input name="notes" placeholder="Catatan spesifikasi/alat" className="apple-input px-3.5 py-2 text-xs" />
+          </div>
+          <div className="flex justify-end pt-1">
+            <button type="submit" className="apple-btn-primary px-4 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30">
+              Simpan Vendor
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {vendors.map((v) => (
@@ -85,7 +96,7 @@ export default async function VendorsPage() {
                 </div>
               </div>
 
-              {isUserAdmin && (
+              {canDeleteVendor && (
                 <form action={async () => { "use server"; await deleteVendorAction(v.id); }}>
                   <button
                     type="submit"

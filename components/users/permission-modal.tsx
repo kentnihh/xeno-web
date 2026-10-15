@@ -5,7 +5,13 @@ import { Loader2 } from "lucide-react";
 import { createPermission } from "@/app/(dashboard)/users/actions";
 import { ModalShell } from "./modal-shell";
 
-export function PermissionModal({ onClose }: { onClose: () => void }) {
+export function PermissionModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess?: (message: string) => void;
+}) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -15,11 +21,17 @@ export function PermissionModal({ onClose }: { onClose: () => void }) {
     const formData = new FormData(event.currentTarget);
 
     startTransition(async () => {
-      const res = await createPermission(formData);
-      if (res.error) {
-        setError(res.error);
-      } else {
-        onClose();
+      try {
+        const res = await createPermission(formData);
+        if (res.error) {
+          setError(res.error);
+        } else {
+          const permName = (formData.get("name") as string) || "Izin";
+          onSuccess?.(`Izin "${permName}" berhasil dibuat.`);
+          onClose();
+        }
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Terjadi kesalahan saat membuat izin.");
       }
     });
   }
