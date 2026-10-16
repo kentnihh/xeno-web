@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -14,6 +16,7 @@ export const metadata: Metadata = {
   description: "Sistem Manajemen Acara dan Kru Xeno Entertainment",
   icons: {
     icon: [
+      { url: "/icon.png" },
       { url: "/logo-xeno.png" },
       { url: "/favicon.ico" },
     ],

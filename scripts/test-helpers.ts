@@ -444,7 +444,7 @@ const rootLayoutPath = path.resolve(process.cwd(), "app/layout.tsx");
 const rootLayoutCode = fs.readFileSync(rootLayoutPath, "utf-8");
 assert(rootLayoutCode.includes("/logo-xeno.png"), "Root layout metadata must configure logo-xeno.png as icon");
 assert(fs.existsSync(path.resolve(process.cwd(), "public/logo-xeno.png")), "public/logo-xeno.png must exist");
-assert(fs.existsSync(path.resolve(process.cwd(), "app/icon.png")), "app/icon.png must exist for browser favicon");
+assert(fs.existsSync(path.resolve(process.cwd(), "public/icon.png")) || fs.existsSync(path.resolve(process.cwd(), "app/icon.png")), "icon.png must exist for browser favicon");
 assert(fs.existsSync(path.resolve(process.cwd(), "app/favicon.ico")), "app/favicon.ico must exist");
 
 // 21. Verify Confirmation Modal Safeguard for Destructive Actions
