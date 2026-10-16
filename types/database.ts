@@ -92,6 +92,7 @@ export interface Event {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  gcal_event_id?: string | null;
   client?: Client | null;
 }
 

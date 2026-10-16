@@ -1,40 +1,11 @@
 import assert from "assert";
-import crypto from "crypto";
 import fs from "fs";
-import { google } from "googleapis";
+import { SignJWT, importPKCS8 } from "jose";
 
-console.log("=== Running Google Calendar Sync Integration Tests ===\n");
+console.log("=== Running Edge-Compatible Google Calendar Sync Tests ===\n");
 
-// Test 1: RFC 2938 Base32hex ID generation
-console.log("Test 1: Validating Base32hex Event ID format for Google Calendar");
-function toGCalEventId(eventId: string): string {
-  const clean = eventId.toLowerCase().replace(/[^0-9a-v]/g, "");
-  if (clean.length >= 5 && clean.length <= 1000) {
-    return `ev${clean}`.slice(0, 1024);
-  }
-  const hash = crypto.createHash("md5").update(eventId).digest("hex");
-  return `ev${hash}`;
-}
-
-const gcalIdRegex = /^[0-9a-v]{5,1024}$/;
-const testIds = [
-  "66666666-6666-6666-6666-666666666666",
-  "77777777-7777-7777-7777-777777777777",
-  "custom-event-12345",
-  "id_with_xyz_characters",
-];
-
-for (const id of testIds) {
-  const result = toGCalEventId(id);
-  assert(
-    gcalIdRegex.test(result),
-    `Generated ID "${result}" must match base32hex regex [0-9a-v]{5,1024}`
-  );
-  console.log(`  ✓ toGCalEventId("${id}") -> "${result}" (valid base32hex)`);
-}
-
-// Test 2: Missing environment variables check
-console.log("\nTest 2: Validating strict error throwing on missing environment variables");
+// Test 1: Missing environment variables check
+console.log("Test 1: Validating strict error throwing on missing environment variables");
 function validateEnvVars(email?: string, key?: string, calId?: string) {
   if (!email || !key || !calId) {
     const missing: string[] = [];
@@ -68,8 +39,8 @@ try {
 }
 assert(error2Caught, "Should throw error when GOOGLE_PRIVATE_KEY and GOOGLE_CALENDAR_ID are missing");
 
-// Test 3: Key formatting
-console.log("\nTest 3: Validating private key formatting (escaping \\n resolution)");
+// Test 2: Key formatting
+console.log("\nTest 2: Validating private key formatting (escaping \\n resolution)");
 const sampleRawKey =
   '"-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASC\\n-----END PRIVATE KEY-----\\n"';
 
@@ -88,8 +59,8 @@ assert(!formattedKey.startsWith('"'), "Formatted key must not retain outer quote
 console.log("  ✓ Private key formatting correctly converts \\n to newline and strips outer quotes");
 
 async function run() {
-  // Test 4: Live connection with .env.local if present
-  console.log("\nTest 4: Live validation of Google Calendar API credentials");
+  // Test 3: Live Edge-compatible JWT signing and OAuth2 token exchange with jose + fetch
+  console.log("\nTest 3: Live Edge-compatible JWT signing and REST API check with jose + fetch");
   if (fs.existsSync(".env.local")) {
     const content = fs.readFileSync(".env.local", "utf8");
     const emailMatch = content.match(/GOOGLE_SERVICE_ACCOUNT_EMAIL=["']?([^"'\r\n]+)["']?/);
@@ -107,22 +78,51 @@ async function run() {
       ) {
         rawKey = rawKey.slice(1, -1);
       }
-      const privateKey = rawKey.replace(/\\n/g, "\n");
+      const privateKeyStr = rawKey.replace(/\\n/g, "\n");
 
-      const auth = new google.auth.JWT({
-        email,
-        key: privateKey,
-        scopes: ["https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/calendar.events"],
+      // Sign with jose
+      const privateKey = await importPKCS8(privateKeyStr, "RS256");
+      const jwt = await new SignJWT({
+        iss: email,
+        scope: "https://www.googleapis.com/auth/calendar.events",
+        aud: "https://oauth2.googleapis.com/token",
+      })
+        .setProtectedHeader({ alg: "RS256" })
+        .setIssuedAt()
+        .setExpirationTime("1h")
+        .sign(privateKey);
+
+      assert(jwt && jwt.length > 50, "JWT must be properly signed string");
+      console.log("  ✓ jose SignJWT successfully generated signed RS256 token");
+
+      // Exchange token via fetch
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+          assertion: jwt,
+        }),
       });
 
-      const calendar = google.calendar({ version: "v3", auth });
+      assert(tokenRes.ok, `Token exchange failed with HTTP status ${tokenRes.status}`);
+      const tokenData = await tokenRes.json();
+      assert(tokenData.access_token, "Must receive valid access_token from Google OAuth2");
+      console.log("  ✓ Access token successfully received from Google OAuth2 endpoint");
 
-      // Validate access to the calendar
-      const calList = await calendar.events.list({
-        calendarId: calId,
-        maxResults: 1,
-      });
-      console.log(`  ✓ Successfully connected to Google Calendar API! Calendar items: ${calList.data.items?.length ?? 0}`);
+      // Fetch events via REST API
+      const calRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?maxResults=1`,
+        {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      assert(calRes.ok, `Calendar API call failed with HTTP status ${calRes.status}`);
+      const calData = await calRes.json();
+      console.log(`  ✓ Successfully connected to Google Calendar REST API! Events found: ${calData.items?.length ?? 0}`);
     } else {
       console.log("  ℹ Credentials not fully parsed from .env.local, skipping live network call");
     }
@@ -130,7 +130,7 @@ async function run() {
     console.log("  ℹ .env.local not found, skipping live network call");
   }
 
-  console.log("\n=== All Google Calendar Sync Tests PASSED! ===\n");
+  console.log("\n=== All Edge-Compatible Google Calendar Sync Tests PASSED! ===\n");
 }
 
 run().catch((err) => {

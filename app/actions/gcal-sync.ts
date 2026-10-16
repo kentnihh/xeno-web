@@ -1,7 +1,6 @@
 "use server";
 
-import crypto from "crypto";
-import { google } from "googleapis";
+import { SignJWT, importPKCS8 } from "jose";
 import { createClient } from "@/lib/supabase/server";
 
 export interface SyncGCalResponse {
@@ -13,27 +12,17 @@ export interface SyncGCalResponse {
 }
 
 /**
- * Converts any local event ID to a valid RFC 2938 base32hex ID (characters 0-9 and a-v).
+ * Validates Google Calendar credentials and exchanges a signed JWT for an OAuth2 access token.
+ * 100% Edge-compatible using standard fetch and the zero-dependency 'jose' library.
  */
-function toGCalEventId(eventId: string): string {
-  const clean = eventId.toLowerCase().replace(/[^0-9a-v]/g, "");
-  if (clean.length >= 5 && clean.length <= 1000) {
-    return `ev${clean}`.slice(0, 1024);
-  }
-  const hash = crypto.createHash("md5").update(eventId).digest("hex");
-  return `ev${hash}`;
-}
-
-/**
- * Validates Google Calendar credentials and initializes an authenticated JWT client.
- * Throws immediately if any of the 3 required environment variables are missing.
- */
-function getAuthenticatedCalendarClient() {
+async function getGoogleCalendarAccessToken(): Promise<{
+  accessToken: string;
+  calendarId: string;
+}> {
   const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const rawPrivateKey = process.env.GOOGLE_PRIVATE_KEY;
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
 
-  // Requirement 3: Error Handling - Check at the top and throw immediately if missing
   if (!serviceAccountEmail || !rawPrivateKey || !calendarId) {
     const missing: string[] = [];
     if (!serviceAccountEmail) missing.push("GOOGLE_SERVICE_ACCOUNT_EMAIL");
@@ -44,38 +33,57 @@ function getAuthenticatedCalendarClient() {
     );
   }
 
-  // Requirement 1: Auth Initialization & Key Formatting (CRITICAL FIX)
-  // Handle escaped newlines (\n) to avoid "PEM routine" crashes in Node.js/Next.js
-  let privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (privateKey) {
-    if (
-      (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
-      (privateKey.startsWith("'") && privateKey.endsWith("'"))
-    ) {
-      privateKey = privateKey.slice(1, -1);
-    }
-    privateKey = privateKey.replace(/\\n/g, "\n");
+  // Parse private key correctly and handle escaped newlines
+  let privateKeyStr = rawPrivateKey;
+  if (
+    (privateKeyStr.startsWith('"') && privateKeyStr.endsWith('"')) ||
+    (privateKeyStr.startsWith("'") && privateKeyStr.endsWith("'"))
+  ) {
+    privateKeyStr = privateKeyStr.slice(1, -1);
   }
+  privateKeyStr = privateKeyStr.replace(/\\n/g, "\n");
 
-  const auth = new google.auth.JWT({
-    email: serviceAccountEmail,
-    key: privateKey,
-    scopes: [
-      "https://www.googleapis.com/auth/calendar",
-      "https://www.googleapis.com/auth/calendar.events",
-    ],
+  const privateKey = await importPKCS8(privateKeyStr, "RS256");
+
+  const jwt = await new SignJWT({
+    iss: serviceAccountEmail,
+    scope: "https://www.googleapis.com/auth/calendar.events",
+    aud: "https://oauth2.googleapis.com/token",
+  })
+    .setProtectedHeader({ alg: "RS256" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(privateKey);
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }),
   });
 
-  const calendar = google.calendar({ version: "v3", auth });
-  return { calendar, calendarId: process.env.GOOGLE_CALENDAR_ID! };
+  if (!tokenRes.ok) {
+    const errBody = await tokenRes.text();
+    throw new Error(`Gagal autentikasi Google OAuth2 (${tokenRes.status}): ${errBody}`);
+  }
+
+  const tokenData = await tokenRes.json();
+  const { access_token } = tokenData;
+
+  if (!access_token) {
+    throw new Error("Akses token Google Calendar tidak ditemukan dalam respon OAuth2.");
+  }
+
+  return { accessToken: access_token, calendarId };
 }
 
 /**
- * Server Action: Syncs a single event to Google Calendar.
- * Calls calendar.events.insert (or calendar.events.update if already exists) using process.env.GOOGLE_CALENDAR_ID.
+ * Server Action: Syncs a single event to Google Calendar via REST API.
+ * Edge-compatible (fetch + jose).
  */
 export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGCalResponse> {
-  // Requirement 3: Explicit check at the top of Server Action
   if (
     !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
     !process.env.GOOGLE_PRIVATE_KEY ||
@@ -90,11 +98,11 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
     );
   }
 
-  const { calendar } = getAuthenticatedCalendarClient();
-
   if (!eventId) {
     throw new Error("Event ID wajib disertakan untuk sinkronisasi.");
   }
+
+  const { accessToken, calendarId } = await getGoogleCalendarAccessToken();
 
   // Fetch event details from database
   const supabase = await createClient();
@@ -114,6 +122,7 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
     status: "confirmed",
     pic: "Jonathan Admin",
     description: "Annual gala dinner Xeno production",
+    gcal_event_id: null,
   };
 
   const summary = event.title || "Acara Xeno Entertainment";
@@ -138,9 +147,7 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
     ? new Date(event.end_date).toISOString()
     : new Date(new Date(event.start_date).getTime() + 2 * 60 * 60 * 1000).toISOString();
 
-  const gcalEventId = toGCalEventId(eventId);
-
-  const requestBody = {
+  const eventPayload = {
     summary,
     description,
     location,
@@ -154,53 +161,60 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
     },
   };
 
-  let gcalEvent: any = null;
+  const baseCalendarUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  let gcalEventData: any = null;
 
-  // Check if event already exists on Google Calendar
-  try {
-    const existing = await calendar.events.get({
-      calendarId: process.env.GOOGLE_CALENDAR_ID!, // Requirement 2: Pass process.env.GOOGLE_CALENDAR_ID
-      eventId: gcalEventId,
-    });
-    if (existing.data && existing.data.status !== "cancelled") {
-      // Requirement 2: Call calendar.events.update with process.env.GOOGLE_CALENDAR_ID
-      const updateRes = await calendar.events.update({
-        calendarId: process.env.GOOGLE_CALENDAR_ID!,
-        eventId: gcalEventId,
-        requestBody,
-      });
-      gcalEvent = updateRes.data;
-    }
-  } catch (err: any) {
-    if (err?.code !== 404 && err?.status !== 404) {
-      console.warn("[GCal Sync] Existing event check notice:", err?.message || err);
+  // If already linked to a Google Calendar event ID, attempt PUT update first
+  if (event.gcal_event_id) {
+    try {
+      const updateRes = await fetch(
+        `${baseCalendarUrl}/${encodeURIComponent(event.gcal_event_id)}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(eventPayload),
+        }
+      );
+
+      if (updateRes.ok) {
+        gcalEventData = await updateRes.json();
+      }
+    } catch (putErr) {
+      console.warn("[GCal Sync] PUT update failed, fallback to POST insert:", putErr);
     }
   }
 
-  // If not found or not yet updated, insert new event
-  if (!gcalEvent) {
+  // If not previously linked or PUT failed/not found, perform POST insert
+  if (!gcalEventData) {
+    const insertRes = await fetch(baseCalendarUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(eventPayload),
+    });
+
+    if (!insertRes.ok) {
+      const errText = await insertRes.text();
+      throw new Error(`Google Calendar API error (${insertRes.status}): ${errText}`);
+    }
+
+    gcalEventData = await insertRes.json();
+  }
+
+  // Save the returned Google event ID back to Supabase
+  if (gcalEventData?.id && rawEvent?.id) {
     try {
-      // Requirement 2: Call calendar.events.insert with process.env.GOOGLE_CALENDAR_ID
-      const insertRes = await calendar.events.insert({
-        calendarId: process.env.GOOGLE_CALENDAR_ID!,
-        requestBody: {
-          ...requestBody,
-          id: gcalEventId,
-        },
-      });
-      gcalEvent = insertRes.data;
-    } catch (insertErr: any) {
-      // If 409 Conflict (ID already exists on Google), update instead
-      if (insertErr?.code === 409 || insertErr?.status === 409) {
-        const updateRes = await calendar.events.update({
-          calendarId: process.env.GOOGLE_CALENDAR_ID!,
-          eventId: gcalEventId,
-          requestBody,
-        });
-        gcalEvent = updateRes.data;
-      } else {
-        throw insertErr;
-      }
+      await supabase
+        .from("events")
+        .update({ gcal_event_id: gcalEventData.id })
+        .eq("id", rawEvent.id);
+    } catch (saveErr) {
+      console.warn("[GCal Sync] Could not save gcal_event_id to database:", saveErr);
     }
   }
 
@@ -208,16 +222,16 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
     success: true,
     message: `Acara "${event.title}" berhasil disinkronkan ke Google Calendar!`,
     eventId,
-    gcalEventId: gcalEvent?.id,
-    htmlLink: gcalEvent?.htmlLink,
+    gcalEventId: gcalEventData?.id,
+    htmlLink: gcalEventData?.htmlLink,
   };
 }
 
 /**
  * Server Action: Syncs all active & upcoming events to Google Calendar.
+ * Edge-compatible (fetch + jose).
  */
 export async function syncAllEventsToGoogleCalendar(): Promise<SyncGCalResponse> {
-  // Requirement 3: Explicit check at the top of Server Action
   if (
     !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
     !process.env.GOOGLE_PRIVATE_KEY ||
@@ -252,26 +266,31 @@ export async function syncAllEventsToGoogleCalendar(): Promise<SyncGCalResponse>
     .gte("start_date", todayStart.toISOString())
     .order("start_date", { ascending: true });
 
-  const eventsToSync = rawEvents && rawEvents.length > 0 ? rawEvents : [
-    {
-      id: "66666666-6666-6666-6666-666666666666",
-      title: "Sinar Jaya Annual Gala 2026",
-      start_date: "2026-10-20T11:00:00.000Z",
-      end_date: "2026-10-20T19:00:00.000Z",
-      venue: "Grand Ballroom Hotel Indonesia",
-      status: "confirmed",
-      pic: "Jonathan Admin",
-    },
-    {
-      id: "77777777-7777-7777-7777-777777777777",
-      title: "Jessica & Kevin Wedding Reception",
-      start_date: "2026-10-29T11:00:00.000Z",
-      end_date: "2026-10-29T17:00:00.000Z",
-      venue: "Plataran Dharmawangsa",
-      status: "planning",
-      pic: "Rian Kru Operasional",
-    },
-  ];
+  const eventsToSync =
+    rawEvents && rawEvents.length > 0
+      ? rawEvents
+      : [
+          {
+            id: "66666666-6666-6666-6666-666666666666",
+            title: "Sinar Jaya Annual Gala 2026",
+            start_date: "2026-10-20T11:00:00.000Z",
+            end_date: "2026-10-20T19:00:00.000Z",
+            venue: "Grand Ballroom Hotel Indonesia",
+            status: "confirmed",
+            pic: "Jonathan Admin",
+            gcal_event_id: null,
+          },
+          {
+            id: "77777777-7777-7777-7777-777777777777",
+            title: "Jessica & Kevin Wedding Reception",
+            start_date: "2026-10-29T11:00:00.000Z",
+            end_date: "2026-10-29T17:00:00.000Z",
+            venue: "Plataran Dharmawangsa",
+            status: "planning",
+            pic: "Rian Kru Operasional",
+            gcal_event_id: null,
+          },
+        ];
 
   let count = 0;
   for (const ev of eventsToSync) {
