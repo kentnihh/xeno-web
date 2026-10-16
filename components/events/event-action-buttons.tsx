@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { EditEventButton } from "@/components/events/edit-event-modal";
+import { SyncGCalButton } from "@/components/events/sync-gcal-button";
 import type { Event as AppEvent, EventCrew, EventTask, EventExpense, EventSheet } from "@/types/database";
 
 const ExportPdfButton = dynamic(
@@ -42,6 +43,7 @@ export function EventActionButtons({
 }: EventActionButtonsProps) {
   return (
     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+      <SyncGCalButton eventId={event.id} eventTitle={event.title} />
       <ExportExcelButton eventTitle={event.title} sheets={sheets} />
       <ExportSpreadsheetPdfButton eventTitle={event.title} sheets={sheets} />
       {canEdit && <EditEventButton event={event} />}

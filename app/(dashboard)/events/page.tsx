@@ -18,6 +18,7 @@ import {
   EventStatusBadge,
   EventCountdownBadge,
 } from "@/components/events/event-status-badge";
+import { SyncGCalButton } from "@/components/events/sync-gcal-button";
 import type { Event } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -55,10 +56,26 @@ const FALLBACK_EVENTS: Event[] = [
     updated_at: "2026-01-01T00:00:00Z",
     client: { id: "c-2", name: "Jessica Tan", company: "Tan & Partners", email: null, phone: "", address: null, notes: null, created_at: "" },
   },
+  {
+    id: "88888888-8888-8888-8888-888888888888",
+    title: "Jakarta Jazz Festival Production 2026",
+    start_date: "2026-09-15T09:00:00.000Z",
+    end_date: "2026-09-15T23:00:00.000Z",
+    venue: "Carnaval Circuit Ancol",
+    pic: "Budi Show Director",
+    status: "completed",
+    description: "Stage management and audio production",
+    client_id: "c-1",
+    created_by: null,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    client: { id: "c-1", name: "Rian Pratama", company: "PT Sinar Jaya Abadi", email: null, phone: "", address: null, notes: null, created_at: "" },
+  },
 ];
 
 const STATUS_FILTERS: { key: string; label: string }[] = [
-  { key: "active", label: "Aktif (Tanpa Selesai)" },
+  { key: "active", label: "Aktif" },
+  { key: "past", label: "Terlewat" },
   { key: "all", label: "Semua Status" },
   { key: "planning", label: "Planning" },
   { key: "confirmed", label: "Confirmed" },
@@ -76,6 +93,7 @@ export default async function EventsPage({
   const page = Math.max(1, parseInt(resolved?.page || "1", 10) || 1);
   const statusFilter = resolved?.status || "active";
   const viewMode = resolved?.view === "calendar" ? "calendar" : "list";
+  const isPastFilter = statusFilter === "past" || statusFilter === "terlewat";
 
   const [canCreateEvent, canEditEvent] = await Promise.all([
     hasPermission("events.create"),
@@ -84,13 +102,29 @@ export default async function EventsPage({
 
   const supabase = await createClient();
 
+  // Timezone-safe start of today (beginning of day at 00:00:00.000)
+  // Stripping the time so events happening today are considered "Aktif" and not "Terlewat"
+  const now = new Date();
+  const localTodayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const jakartaDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  const jakartaTodayStart = new Date(`${jakartaDate}T00:00:00+07:00`);
+  const todayStart = localTodayStart < jakartaTodayStart ? localTodayStart : jakartaTodayStart;
+  const todayStartISO = todayStart.toISOString();
+
   let query = supabase
     .from("events")
     .select("*, client:clients(*)", { count: "exact" })
-    .order("start_date", { ascending: true });
+    .order("start_date", { ascending: isPastFilter ? false : true });
 
-  if (statusFilter === "active") {
-    query = query.neq("status", "completed");
+  if (isPastFilter) {
+    query = query.lt("start_date", todayStartISO);
+  } else if (statusFilter === "active") {
+    query = query.neq("status", "completed").gte("start_date", todayStartISO);
   } else if (statusFilter !== "all") {
     query = query.eq("status", statusFilter);
   }
@@ -113,8 +147,17 @@ export default async function EventsPage({
     eventsList = rawEvents as Event[];
   } else {
     eventsList = FALLBACK_EVENTS.filter((ev) => {
-      if (statusFilter === "active") return ev.status !== "completed";
-      if (statusFilter !== "all") return ev.status === statusFilter;
+      const isPast = new Date(ev.start_date).getTime() < todayStart.getTime();
+
+      if (isPastFilter) {
+        return isPast;
+      }
+      if (statusFilter === "active") {
+        return ev.status !== "completed" && !isPast;
+      }
+      if (statusFilter !== "all") {
+        return ev.status === statusFilter;
+      }
       return true;
     });
   }
@@ -138,15 +181,18 @@ export default async function EventsPage({
             Kelola seluruh portofolio produksi dan jadwal panggung Xeno Entertainment.
           </p>
         </div>
-        {canCreateEvent && (
-          <Link
-            href="/events/new"
-            className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-fit shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Buat Acara Baru</span>
-          </Link>
-        )}
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          <SyncGCalButton />
+          {canCreateEvent && (
+            <Link
+              href="/events/new"
+              className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-fit shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Buat Acara Baru</span>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Controls Bar: Cmd+K Search + View Switcher */}
@@ -185,7 +231,9 @@ export default async function EventsPage({
       {/* Status Filter Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
         {STATUS_FILTERS.map((f) => {
-          const isActive = statusFilter === f.key;
+          const isActive =
+            statusFilter === f.key ||
+            (f.key === "past" && isPastFilter);
           return (
             <Link
               key={f.key}
@@ -215,7 +263,9 @@ export default async function EventsPage({
                   Tidak ada acara ditemukan
                 </p>
                 <p>
-                  Coba ubah filter status atau tambahkan acara baru ke portofolio.
+                  {isPastFilter
+                    ? "Tidak ada riwayat acara yang telah terlewat."
+                    : "Coba ubah filter status atau tambahkan acara baru ke portofolio."}
                 </p>
               </div>
             ) : (
