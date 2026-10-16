@@ -46,9 +46,10 @@ assert(FALLBACK_USERS.length >= 2, "Fallback users dataset must contain test use
 
 // 6. Verify Event Crew presets
 import { PRESET_ROLES } from "../components/events/assign-crew-modal";
-assert(PRESET_ROLES.includes("Stage Manager"), "Preset roles must include Stage Manager");
-assert(PRESET_ROLES.includes("Sound Engineer (FOH)"), "Preset roles must include Sound Engineer (FOH)");
-assert(PRESET_ROLES.length >= 5, "Preset roles should cover core event roles");
+assert((PRESET_ROLES as readonly string[]).includes("LO"), "Preset roles must include LO");
+assert((PRESET_ROLES as readonly string[]).includes("Sound Operator"), "Preset roles must include Sound Operator");
+assert((PRESET_ROLES as readonly string[]).includes("Event Manager"), "Preset roles must include Event Manager");
+assert(PRESET_ROLES.length === 13, "Preset roles must contain exactly 13 operational roles");
 
 
 // 7. Verify Event Budget Validation Schema (optional, nullable, > 0)

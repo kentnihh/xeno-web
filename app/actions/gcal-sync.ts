@@ -1,7 +1,7 @@
 "use server";
 
 import { SignJWT, importPKCS8 } from "jose";
-import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export interface SyncGCalResponse {
   success: boolean;
@@ -9,6 +9,18 @@ export interface SyncGCalResponse {
   eventId?: string;
   gcalEventId?: string;
   htmlLink?: string;
+}
+
+/**
+ * Creates a Supabase client with admin/service role access when available,
+ * ensuring database state (such as gcal_event_id updates) is never blocked by RLS policies.
+ */
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createSupabaseClient(url, key);
 }
 
 /**
@@ -106,7 +118,8 @@ async function getGoogleCalendarAccessToken(): Promise<{
 
 /**
  * Server Action: Syncs a single event to Google Calendar via REST API.
- * Edge-compatible (fetch + jose).
+ * Idempotent: checks for event.gcal_event_id and issues PUT (update) or POST (create & save ID).
+ * Handles 404 on PUT by resetting gcal_event_id and recreating with POST.
  */
 export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGCalResponse> {
   if (
@@ -128,9 +141,9 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
   }
 
   const { accessToken, calendarId } = await getGoogleCalendarAccessToken();
+  const supabase = getSupabaseClient();
 
   // Fetch event details from database
-  const supabase = await createClient();
   const { data: rawEvent } = await supabase
     .from("events")
     .select("*, client:clients(*)")
@@ -184,7 +197,7 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
   const baseCalendarUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
   let gcalEventData: any = null;
 
-  // If already linked to a Google Calendar event ID, attempt PUT update first
+  // Step 2 & 3: Check if event.gcal_event_id EXISTS
   if (event.gcal_event_id) {
     try {
       const updateRes = await fetch(
@@ -201,13 +214,31 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
 
       if (updateRes.ok) {
         gcalEventData = await updateRes.json();
+      } else if (updateRes.status === 404) {
+        // Step 3: Handle 404 (event manually deleted on Google Calendar)
+        console.warn(
+          `[GCal Sync] Event ${event.gcal_event_id} was deleted on Google Calendar (404). Clearing ID and recreating...`
+        );
+        if (rawEvent?.id) {
+          await supabase
+            .from("events")
+            .update({ gcal_event_id: null })
+            .eq("id", rawEvent.id);
+        }
+      } else {
+        const errText = await updateRes.text();
+        throw new Error(`Google Calendar PUT update failed (${updateRes.status}): ${errText}`);
       }
-    } catch (putErr) {
-      console.warn("[GCal Sync] PUT update failed, fallback to POST insert:", putErr);
+    } catch (putErr: any) {
+      if (putErr?.message?.includes("404") || !gcalEventData) {
+        // Fallback to POST will trigger below
+      } else {
+        throw putErr;
+      }
     }
   }
 
-  // If not previously linked or PUT failed/not found, perform POST insert
+  // If it DOES NOT EXIST (or was reset due to 404 on Google Calendar)
   if (!gcalEventData) {
     const insertRes = await fetch(baseCalendarUrl, {
       method: "POST",
@@ -224,17 +255,23 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
     }
 
     gcalEventData = await insertRes.json();
-  }
 
-  // Save the returned Google event ID back to Supabase
-  if (gcalEventData?.id && rawEvent?.id) {
-    try {
-      await supabase
+    // CRITICAL STEP: Extract the id from Google API response and immediately save to Supabase
+    if (gcalEventData?.id && rawEvent?.id) {
+      const { error: dbUpdateError } = await supabase
         .from("events")
         .update({ gcal_event_id: gcalEventData.id })
         .eq("id", rawEvent.id);
-    } catch (saveErr) {
-      console.warn("[GCal Sync] Could not save gcal_event_id to database:", saveErr);
+
+      if (dbUpdateError) {
+        console.error(
+          `[GCal Sync] Failed to save gcal_event_id to Supabase for event ${rawEvent.id}:`,
+          dbUpdateError
+        );
+        throw new Error(
+          `Gagal menyimpan ID Google Calendar ke database: ${dbUpdateError.message}`
+        );
+      }
     }
   }
 
@@ -266,7 +303,7 @@ export async function syncAllEventsToGoogleCalendar(): Promise<SyncGCalResponse>
     );
   }
 
-  const supabase = await createClient();
+  const supabase = getSupabaseClient();
 
   const now = new Date();
   const localTodayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
@@ -322,4 +359,14 @@ export async function syncAllEventsToGoogleCalendar(): Promise<SyncGCalResponse>
     success: true,
     message: `${count} acara aktif berhasil disinkronkan ke Google Calendar!`,
   };
+}
+
+/**
+ * Server Action alias: Syncs either a specific event (if eventId provided) or all upcoming events.
+ */
+export async function syncUpcomingEventsToCalendar(eventId?: string): Promise<SyncGCalResponse> {
+  if (eventId) {
+    return syncEventToGoogleCalendar(eventId);
+  }
+  return syncAllEventsToGoogleCalendar();
 }

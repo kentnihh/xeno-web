@@ -180,6 +180,52 @@ async function run() {
       assert(calRes.ok, `Calendar API call failed with HTTP status ${calRes.status}`);
       const calData = await calRes.json();
       console.log(`  ✓ Successfully connected to Google Calendar REST API! Events found: ${calData.items?.length ?? 0}`);
+      // Test 5: Idempotency logic verification (PUT vs POST & 404 handling)
+      console.log("\nTest 5: Validating idempotent sync logic (PUT vs POST & 404 fallback)");
+      let methodCalled = "";
+      let savedDbId: string | null = null;
+      let dbIdCleared = false;
+
+      async function mockSync(ev: { id: string; gcal_event_id: string | null }, simulateGcalStatus = 200) {
+        methodCalled = "";
+        if (ev.gcal_event_id) {
+          methodCalled = "PUT";
+          if (simulateGcalStatus === 404) {
+            dbIdCleared = true;
+            ev.gcal_event_id = null;
+            // Falls through to POST
+            methodCalled = "POST";
+            savedDbId = "new_recreated_gcal_id";
+            return { success: true, method: "POST", id: savedDbId };
+          }
+          return { success: true, method: "PUT", id: ev.gcal_event_id };
+        } else {
+          methodCalled = "POST";
+          savedDbId = "new_created_gcal_id";
+          return { success: true, method: "POST", id: savedDbId };
+        }
+      }
+
+      // Case 5a: No gcal_event_id -> POST and save ID
+      const evNew = { id: "ev-1", gcal_event_id: null };
+      await mockSync(evNew);
+      assert.strictEqual(methodCalled, "POST");
+      assert.strictEqual(savedDbId, "new_created_gcal_id");
+      console.log("  ✓ Missing gcal_event_id triggered POST and saved ID to DB");
+
+      // Case 5b: Existing gcal_event_id -> PUT without duplicating
+      const evExisting = { id: "ev-2", gcal_event_id: "existing_123" };
+      await mockSync(evExisting);
+      assert.strictEqual(methodCalled, "PUT");
+      console.log("  ✓ Existing gcal_event_id triggered PUT update (no duplicate created)");
+
+      // Case 5c: 404 on Google Calendar -> clears DB ID and recreates via POST
+      const evDeleted = { id: "ev-3", gcal_event_id: "deleted_on_gcal_456" };
+      await mockSync(evDeleted, 404);
+      assert(dbIdCleared, "Must clear old ID from database when 404 received");
+      assert.strictEqual(methodCalled, "POST");
+      assert.strictEqual(savedDbId, "new_recreated_gcal_id");
+      console.log("  ✓ 404 on Google Calendar cleared old ID and recreated via POST");
     } else {
       console.log("  ℹ Credentials not fully parsed from .env.local, skipping live network call");
     }

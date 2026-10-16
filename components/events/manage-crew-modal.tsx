@@ -15,6 +15,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { PRESET_ROLES } from "./assign-crew-modal";
+import { Combobox } from "@/components/ui/combobox";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { EventCrew, Profile } from "@/types/database";
 
@@ -104,7 +105,7 @@ export function ManageCrewModal({
     setErrorMsg(null);
     setSuccessMsg(null);
     setEditingCrewId(m.id);
-    if (PRESET_ROLES.includes(m.role_in_event)) {
+    if ((PRESET_ROLES as readonly string[]).includes(m.role_in_event)) {
       setEditingRoleChoice(m.role_in_event);
       setEditingCustomRole("");
     } else {
@@ -429,25 +430,16 @@ export function ManageCrewModal({
                 <label className="text-xs font-semibold text-foreground block mb-1">
                   Peran di Acara
                 </label>
-                <select
+                <Combobox
+                  options={PRESET_ROLES.map((r) => ({ value: r, label: r }))}
                   value={newRole}
-                  onChange={(e) => setNewRole(e.target.value)}
-                  className="apple-input w-full px-3 py-2 text-xs"
-                >
-                  {PRESET_ROLES.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                  <option value="Custom">Peran Kustom...</option>
-                </select>
-                {newRole === "Custom" && (
-                  <input
-                    type="text"
-                    value={customNewRole}
-                    onChange={(e) => setCustomNewRole(e.target.value)}
-                    placeholder="Ketik nama peran kustom..."
-                    className="apple-input w-full px-3 py-1.5 text-xs mt-2"
-                  />
-                )}
+                  onChange={(val) => setNewRole(val)}
+                  allowCustom={true}
+                  customOptionPrefix="Gunakan peran kustom:"
+                  placeholder="Cari atau pilih peran di acara..."
+                  searchPlaceholder="Ketik peran..."
+                  emptyText="Peran tidak ditemukan dalam daftar standar."
+                />
               </div>
 
               <div>

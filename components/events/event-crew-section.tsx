@@ -89,7 +89,7 @@ export function EventCrewSection({
             className="apple-btn-primary px-3.5 py-1.5 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Tugaskan Kru</span>
+            <span>Tambah Kru</span>
           </button>
         )}
       </div>

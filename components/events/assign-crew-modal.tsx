@@ -3,18 +3,24 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Sparkles, X, Loader2 } from "lucide-react";
+import { Combobox } from "@/components/ui/combobox";
 import type { Profile } from "@/types/database";
 
 export const PRESET_ROLES = [
-  "Stage Manager",
-  "Sound Engineer (FOH)",
-  "Lighting Operator",
-  "Show Director",
-  "Visual / VJ",
-  "Production Runner",
-  "Hospitality & LO",
-  "Stage Hand",
-];
+  "LO",
+  "LO Family",
+  "Food and Beverage",
+  "Front Desk",
+  "Multi Media",
+  "Lightning Operator",
+  "Sound Operator",
+  "Event",
+  "Social Media",
+  "VIP manager",
+  "Guest Manager",
+  "Event Manager",
+  "Technical Manager",
+] as const;
 
 export function AssignCrewModal({
   isOpen,
@@ -30,14 +36,19 @@ export function AssignCrewModal({
   isPending: boolean;
 }) {
   const [profileId, setProfileId] = useState(availableProfiles[0]?.id || "");
-  const [role, setRole] = useState(PRESET_ROLES[0]);
-  const [custom, setCustom] = useState("");
+  const [role, setRole] = useState<string>(PRESET_ROLES[0]);
   const [notes, setNotes] = useState("");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (availableProfiles.length > 0 && (!profileId || !availableProfiles.some(p => p.id === profileId))) {
+      setProfileId(availableProfiles[0].id);
+    }
+  }, [availableProfiles, profileId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -50,14 +61,24 @@ export function AssignCrewModal({
 
   if (!isOpen) return null;
 
-  const effectiveRole = role === "Custom" ? custom.trim() : role;
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const pid = profileId || availableProfiles[0]?.id;
-    if (!pid || !effectiveRole) return;
-    onSubmit(pid, effectiveRole, notes);
+    if (!pid || !role.trim()) return;
+    onSubmit(pid, role.trim(), notes);
   };
+
+  const staffOptions = availableProfiles.map((p) => ({
+    value: p.id,
+    label: p.full_name || "Tanpa Nama",
+    badge: p.role?.toUpperCase(),
+    subLabel: p.email || undefined,
+  }));
+
+  const roleOptions = PRESET_ROLES.map((r) => ({
+    value: r,
+    label: r,
+  }));
 
   const content = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
@@ -65,7 +86,7 @@ export function AssignCrewModal({
         <div className="flex items-center justify-between pb-3 border-b border-border">
           <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
             <Sparkles className="w-4 h-4 text-[#007aff]" />
-            <span>Tugaskan Kru ke Acara</span>
+            <span>Tambahkan Kru</span>
           </div>
           <button
             onClick={onClose}
@@ -77,7 +98,7 @@ export function AssignCrewModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-foreground block mb-1.5">
+            <label className="text-xs font-semibold text-foreground block mb-1.5">
               Pilih Staf Kru
             </label>
             {availableProfiles.length === 0 ? (
@@ -85,43 +106,31 @@ export function AssignCrewModal({
                 Semua anggota staf telah ditugaskan.
               </div>
             ) : (
-              <select
-                value={profileId || availableProfiles[0]?.id}
-                onChange={(e) => setProfileId(e.target.value)}
-                className="apple-input w-full px-3.5 py-2 text-sm bg-muted text-foreground border-border cursor-pointer"
-              >
-                {availableProfiles.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-card text-foreground">
-                    {p.full_name} ({p.role.toUpperCase()})
-                  </option>
-                ))}
-              </select>
+              <Combobox
+                options={staffOptions}
+                value={profileId || availableProfiles[0]?.id || ""}
+                onChange={(val) => setProfileId(val)}
+                placeholder="Pilih staf kru..."
+                searchPlaceholder="Ketik nama atau jabatan staf..."
+                emptyText="Tidak ada staf yang sesuai."
+              />
             )}
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground block mb-1.5">
+            <label className="text-xs font-semibold text-foreground block mb-1.5">
               Peran di Acara
             </label>
-            <select
+            <Combobox
+              options={roleOptions}
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="apple-input w-full px-3.5 py-2 text-sm bg-muted text-foreground border-border cursor-pointer mb-2"
-            >
-              {PRESET_ROLES.map((r) => (
-                <option key={r} value={r} className="bg-card text-foreground">{r}</option>
-              ))}
-              <option value="Custom" className="bg-card text-foreground">Peran Lainnya...</option>
-            </select>
-            {role === "Custom" && (
-              <input
-                required
-                placeholder="Nama peran teknis..."
-                value={custom}
-                onChange={(e) => setCustom(e.target.value)}
-                className="apple-input w-full px-3.5 py-2 text-sm"
-              />
-            )}
+              onChange={(val) => setRole(val)}
+              allowCustom={true}
+              customOptionPrefix="Gunakan peran kustom:"
+              placeholder="Cari atau pilih peran di acara..."
+              searchPlaceholder="Ketik peran (contoh: Sound, LO, Manager)..."
+              emptyText="Peran tidak ditemukan dalam daftar standar."
+            />
           </div>
 
           <div>

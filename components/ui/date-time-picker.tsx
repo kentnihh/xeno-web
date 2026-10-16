@@ -7,6 +7,8 @@ interface Props {
   name: string;
   label?: string;
   defaultValue?: string;
+  value?: Date | string;
+  onChange?: (date: Date) => void;
   required?: boolean;
   withTime?: boolean;
 }
@@ -14,8 +16,22 @@ interface Props {
 const M = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
 const D = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
-export function DateTimePicker({ name, label, defaultValue, required = false, withTime = true }: Props) {
-  const init = defaultValue ? new Date(defaultValue) : new Date();
+export function DateTimePicker({
+  name,
+  label,
+  defaultValue,
+  value,
+  onChange,
+  required = false,
+  withTime = true,
+}: Props) {
+  const initialDate = value
+    ? new Date(value)
+    : defaultValue
+    ? new Date(defaultValue)
+    : new Date();
+  const init = !isNaN(initialDate.getTime()) ? initialDate : new Date();
+
   const [val, setVal] = useState<Date>(init);
   const [open, setOpen] = useState(false);
   const [m, setM] = useState(init.getMonth());
@@ -23,6 +39,20 @@ export function DateTimePicker({ name, label, defaultValue, required = false, wi
   const [h, setH] = useState(String(init.getHours()).padStart(2, "0"));
   const [min, setMin] = useState(String(Math.floor(init.getMinutes() / 15) * 15).padStart(2, "0"));
   const ref = useRef<HTMLDivElement>(null);
+
+  // Sync state when controlled value prop changes
+  useEffect(() => {
+    if (value !== undefined) {
+      const nextDate = new Date(value);
+      if (!isNaN(nextDate.getTime())) {
+        setVal(nextDate);
+        setM(nextDate.getMonth());
+        setY(nextDate.getFullYear());
+        setH(String(nextDate.getHours()).padStart(2, "0"));
+        setMin(String(Math.floor(nextDate.getMinutes() / 15) * 15).padStart(2, "0"));
+      }
+    }
+  }, [value]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -38,6 +68,7 @@ export function DateTimePicker({ name, label, defaultValue, required = false, wi
       next.setSeconds(0);
     }
     setVal(next);
+    onChange?.(next);
   };
 
   const firstDay = new Date(y, m, 1).getDay();

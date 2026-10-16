@@ -6,6 +6,7 @@ import { Pencil, Loader2, MapPin, User, FileText, Activity } from "lucide-react"
 import { ModalShell } from "@/components/users/modal-shell";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { updateEvent } from "@/app/(dashboard)/events/actions";
+import { PostSubmitSyncModal } from "@/components/events/post-submit-sync-modal";
 import type { Event } from "@/types/database";
 
 export interface EditEventModalProps {
@@ -18,14 +19,39 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
-  if (!isOpen) return null;
+  if (!isOpen && !showSyncModal) return null;
+
+  if (showSyncModal) {
+    return (
+      <PostSubmitSyncModal
+        isOpen={showSyncModal}
+        eventId={event.id}
+        defaultRedirectUrl={typeof window !== "undefined" ? window.location.pathname : `/events/${event.id}`}
+        onClose={() => {
+          setShowSyncModal(false);
+          onClose();
+        }}
+      />
+    );
+  }
 
   const defaultEndDate =
     event.end_date ||
     (event.start_date
-      ? new Date(new Date(event.start_date).getTime() + 8 * 3600000).toISOString()
+      ? new Date(new Date(event.start_date).getTime() + 1 * 3600000).toISOString()
       : new Date().toISOString());
+
+  const [startDate, setStartDate] = useState<Date>(
+    event.start_date ? new Date(event.start_date) : new Date()
+  );
+  const [endDate, setEndDate] = useState<Date>(new Date(defaultEndDate));
+
+  const handleStartDateChange = (newStart: Date) => {
+    setStartDate(newStart);
+    setEndDate(new Date(newStart.getTime() + 1 * 3600000));
+  };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -33,15 +59,13 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
     const fd = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      // ponytail: client optimistic update skipped; server revalidation provides source of truth
+      // client optimistic update skipped; server revalidation provides source of truth
       const res = await updateEvent(fd);
       if (!res.success) {
         setErrorMsg(res.error || "Gagal memperbarui acara.");
       } else {
-        onClose();
-        startTransition(() => {
-          router.refresh();
-        });
+        // Prevent immediate redirect / close: trigger post-submit sync modal
+        setShowSyncModal(true);
       }
     });
   };
@@ -89,8 +113,22 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <DateTimePicker name="start_date" label="Mulai" defaultValue={event.start_date} required withTime />
-          <DateTimePicker name="end_date" label="Selesai" defaultValue={defaultEndDate} required withTime />
+          <DateTimePicker
+            name="start_date"
+            label="Mulai"
+            value={startDate}
+            onChange={handleStartDateChange}
+            required
+            withTime
+          />
+          <DateTimePicker
+            name="end_date"
+            label="Selesai"
+            value={endDate}
+            onChange={setEndDate}
+            required
+            withTime
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -95,13 +95,31 @@ export const eventDocumentSchema = z.object({
 
 export type EventDocumentInput = z.infer<typeof eventDocumentSchema>;
 
+export const EVENT_CREW_ROLES = [
+  "LO",
+  "LO Family",
+  "Food and Beverage",
+  "Front Desk",
+  "Multi Media",
+  "Lightning Operator",
+  "Sound Operator",
+  "Event",
+  "Social Media",
+  "VIP manager",
+  "Guest Manager",
+  "Event Manager",
+  "Technical Manager",
+] as const;
+
+export type EventCrewRole = (typeof EVENT_CREW_ROLES)[number];
+
 /**
  * Zod validation schema for Assigning Crew to Event.
  */
 export const assignCrewSchema = z.object({
   event_id: z.string().min(1, "ID acara wajib diisi"),
   profile_id: z.string().min(1, "Anggota staf kru wajib dipilih"),
-  role_in_event: z.string().trim().min(1, "Peran di acara wajib diisi").default("Kru Lapangan"),
+  role_in_event: z.string().trim().min(1, "Peran di acara wajib diisi").default("LO"),
   notes: z.string().trim().nullable().optional(),
 });
 

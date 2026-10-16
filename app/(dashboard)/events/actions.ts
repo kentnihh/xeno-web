@@ -20,9 +20,12 @@ import type { MasterTemplate } from "@/types/database";
  * Creates a new event in the database from form data and redirects to event detail page.
  * @param formData - FormData with title, venue, start_date, end_date, pic, client_id, use_template, description
  */
-export async function createEvent(formData: FormData): Promise<void> {
-  await requirePermission("events.create");
-  const supabase = await createClient();
+export async function createEvent(
+  formData: FormData
+): Promise<{ success: boolean; eventId?: string; error?: string }> {
+  try {
+    await requirePermission("events.create");
+    const supabase = await createClient();
 
   const rawExpenses = formData.get("expenses");
   const rawDocuments = formData.get("documents");
@@ -151,10 +154,17 @@ export async function createEvent(formData: FormData): Promise<void> {
   }
 
 
-  // Invalidate event listings and redirect to new event view
+  // Invalidate event listings and return new event ID
   revalidatePath("/events");
   revalidatePath("/");
-  redirect(`/events/${data.id}`);
+    return { success: true, eventId: data.id };
+  } catch (err: unknown) {
+    console.error("[createEvent] Error creating event:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal membuat acara baru.",
+    };
+  }
 }
 
 export async function updateEventStatus(
@@ -235,7 +245,7 @@ export async function updateEventStatus(
  * ponytail: nested relations update handled separately via respective sub-actions.
  * @param formData - FormData containing id, title, venue, start_date, end_date, pic, client_id, status, description
  */
-export async function updateEvent(formData: FormData): Promise<{ success: boolean; error?: string }> {
+export async function updateEvent(formData: FormData): Promise<{ success: boolean; eventId?: string; error?: string }> {
   try {
     await requirePermission("events.edit");
     const supabase = await createClient();
@@ -291,7 +301,7 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
     revalidatePath("/dashboard");
     revalidatePath("/");
 
-    return { success: true };
+    return { success: true, eventId: validated.id };
   } catch (err: unknown) {
     if (err && typeof err === "object" && "issues" in err && Array.isArray((err as { issues: unknown[] }).issues)) {
       return { success: false, error: (err as { issues: { message?: string }[] }).issues[0]?.message || "Validasi data gagal" };
