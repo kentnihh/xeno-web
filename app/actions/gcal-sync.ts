@@ -12,6 +12,31 @@ export interface SyncGCalResponse {
 }
 
 /**
+ * Safely parses and validates event start and end dates.
+ * If end_date is null, missing, or <= start_date, dynamically calculates a fallback end time (+2 hours).
+ */
+function resolveEventDates(
+  rawStartDate?: string | null,
+  rawEndDate?: string | null
+): {
+  safeStartDate: Date;
+  safeEndDate: Date;
+} {
+  let safeStartDate = rawStartDate ? new Date(rawStartDate) : new Date();
+  if (isNaN(safeStartDate.getTime())) {
+    safeStartDate = new Date();
+  }
+
+  let safeEndDate = rawEndDate ? new Date(rawEndDate) : null;
+  if (!safeEndDate || isNaN(safeEndDate.getTime()) || safeEndDate.getTime() <= safeStartDate.getTime()) {
+    // Dynamic fallback: add 2 hours to safeStartDate to guarantee a valid positive duration
+    safeEndDate = new Date(safeStartDate.getTime() + 2 * 60 * 60 * 1000);
+  }
+
+  return { safeStartDate, safeEndDate };
+}
+
+/**
  * Validates Google Calendar credentials and exchanges a signed JWT for an OAuth2 access token.
  * 100% Edge-compatible using standard fetch and the zero-dependency 'jose' library.
  */
@@ -142,22 +167,17 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
     .filter(Boolean)
     .join("\n");
 
-  const startTime = new Date(event.start_date).toISOString();
-  const endTime = event.end_date
-    ? new Date(event.end_date).toISOString()
-    : new Date(new Date(event.start_date).getTime() + 2 * 60 * 60 * 1000).toISOString();
+  const { safeStartDate, safeEndDate } = resolveEventDates(event.start_date, event.end_date);
 
   const eventPayload = {
     summary,
     description,
     location,
     start: {
-      dateTime: startTime,
-      timeZone: "Asia/Jakarta",
+      dateTime: safeStartDate.toISOString(),
     },
     end: {
-      dateTime: endTime,
-      timeZone: "Asia/Jakarta",
+      dateTime: safeEndDate.toISOString(),
     },
   };
 
