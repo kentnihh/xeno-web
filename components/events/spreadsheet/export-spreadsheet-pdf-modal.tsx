@@ -40,13 +40,13 @@ export function ExportSpreadsheetPdfModal({
     setMounted(true);
   }, []);
 
-  // When modal opens, default all sheets to selected
+  // When modal opens, start with completely empty selection (no checkboxes selected by default)
   useEffect(() => {
     if (isOpen) {
-      setSelectedSheetNames(sheets.map((s) => s.sheet_name));
+      setSelectedSheetNames([]);
       setError(null);
     }
-  }, [isOpen, sheets]);
+  }, [isOpen]);
 
   // Handle ESC key and backdrop body scroll lock
   useEffect(() => {
@@ -177,20 +177,44 @@ export function ExportSpreadsheetPdfModal({
             </div>
           )}
 
-          {/* Select All Toggle Bar */}
-          <div className="flex items-center justify-between px-1">
+          {/* Select All ("Pilih Semua") Checkbox Bar */}
+          <div className="flex items-center justify-between px-1 py-1 border-b border-border/70 pb-2.5">
             <button
               type="button"
               id="select-all-sheets-btn"
               onClick={toggleSelectAll}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-foreground hover:text-[#007aff] transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2.5 text-xs font-bold text-foreground hover:text-[#007aff] transition-colors cursor-pointer select-none group"
+              role="checkbox"
+              aria-checked={allSelected}
+              aria-label="Pilih Semua (Select All)"
             >
-              {allSelected ? (
-                <CheckSquare className="w-4 h-4 text-[#007aff]" />
-              ) : (
-                <Square className="w-4 h-4 text-muted-foreground" />
-              )}
-              <span>{allSelected ? "Batalkan Semua Pilihan" : "Pilih Semua Sheet"}</span>
+              <input
+                type="checkbox"
+                id="select-all-sheets-checkbox"
+                checked={allSelected}
+                readOnly
+                tabIndex={-1}
+                className="sr-only"
+                aria-hidden="true"
+              />
+              <div
+                className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors border ${
+                  allSelected
+                    ? "bg-[#007aff] border-[#007aff] text-white"
+                    : selectedSheetNames.length > 0
+                    ? "bg-[#007aff]/15 border-[#007aff] text-[#007aff]"
+                    : "border-muted-foreground/40 bg-card text-transparent group-hover:border-[#007aff]/60"
+                }`}
+              >
+                {allSelected ? (
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                ) : selectedSheetNames.length > 0 ? (
+                  <span className="w-2 h-0.5 bg-[#007aff] rounded-full inline-block" />
+                ) : null}
+              </div>
+              <span className="font-semibold text-foreground group-hover:text-[#007aff]">
+                Pilih Semua
+              </span>
             </button>
             <span className="text-[11px] text-muted-foreground font-medium">
               {selectedSheetNames.length} dari {sheets.length} dipilih

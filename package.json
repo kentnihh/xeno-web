@@ -10,7 +10,7 @@
     "build:next": "next build",
     "preview": "wrangler pages dev .vercel/output/static",
     "start": "next start",
-    "test": "npx tsx scripts/test-helpers.ts && npx tsx scripts/test_confirm_modal.ts && npx tsx scripts/test_fortune_spreadsheet.ts && npx tsx scripts/test_pdf_export.ts",
+    "test": "npx tsx scripts/test-helpers.ts && npx tsx scripts/test_confirm_modal.ts && npx tsx scripts/test_fortune_spreadsheet.ts && npx tsx scripts/test_pdf_export.ts && npx tsx scripts/test_dashboard_active_events.ts && npx tsx scripts/test_pdf_modal_and_styling.ts",
     "check:db": "npx tsx scripts/check-connection.ts",
     "seed": "npx tsx scripts/seed-database.ts",
     "seed:py": "python3 scripts/seed_database.py",

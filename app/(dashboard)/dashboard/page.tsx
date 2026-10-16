@@ -15,6 +15,7 @@ const FALLBACK_EVENTS = [
     id: "66666666-6666-6666-6666-666666666666",
     title: "Sinar Jaya Annual Gala 2026",
     start_date: "2026-10-20T11:00:00.000Z",
+    end_date: "2026-10-20T19:00:00.000Z",
     venue: "Grand Ballroom Hotel Indonesia",
     status: "confirmed",
   },
@@ -22,6 +23,7 @@ const FALLBACK_EVENTS = [
     id: "77777777-7777-7777-7777-777777777777",
     title: "Jessica & Kevin Wedding Reception",
     start_date: "2026-10-29T11:00:00.000Z",
+    end_date: "2026-10-29T17:00:00.000Z",
     venue: "Plataran Dharmawangsa",
     status: "planning",
   },
@@ -63,9 +65,24 @@ const FALLBACK_TASKS = [
 export default async function DashboardPage() {
   const supabase = await createClient();
 
+  // Timezone-safe start of today (beginning of day at 00:00:00.000)
+  // Ensures events happening today are included and not prematurely excluded as past events.
+  const now = new Date();
+  const localTodayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const jakartaDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  const jakartaTodayStart = new Date(`${jakartaDate}T00:00:00+07:00`);
+  const todayStart = localTodayStart < jakartaTodayStart ? localTodayStart : jakartaTodayStart;
+
   const { data: rawEvents } = await supabase
     .from("events")
     .select("*, client:clients(*)")
+    .neq("status", "completed")
+    .gte("start_date", todayStart.toISOString())
     .order("start_date", { ascending: true });
 
   const { data: rawTasks } = await supabase

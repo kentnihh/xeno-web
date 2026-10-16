@@ -88,12 +88,15 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       body,
       theme: "grid",
       headStyles: {
-        fillColor: [17, 24, 39], // Rich dark slate
-        textColor: [255, 255, 255],
+        fillColor: [30, 41, 59], // Dark slate (#1e293b)
+        textColor: [255, 255, 255], // High-contrast crisp white
         fontStyle: "bold",
         fontSize: 8,
-        cellPadding: 2.5,
+        cellPadding: 2.8,
         halign: "left",
+        valign: "middle",
+        lineWidth: 0.15,
+        lineColor: [51, 65, 85],
       },
       bodyStyles: {
         textColor: [31, 41, 55],
@@ -110,6 +113,14 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
         right: marginX,
         top: 24,
         bottom: 18,
+      },
+      didParseCell: (data) => {
+        // Strictly force high-contrast dark slate header style and override any weird JSONB formatting
+        if (data.section === "head") {
+          data.cell.styles.fillColor = [30, 41, 59];
+          data.cell.styles.textColor = [255, 255, 255];
+          data.cell.styles.fontStyle = "bold";
+        }
       },
       didDrawPage: (data) => {
         // If autotable splits a single sheet into multiple pages, draw a running header on pages > 1
@@ -394,14 +405,14 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
       const mergeInfo = mergeLookup.get(coordKey);
       const cellStyles: Record<string, any> = {};
 
-      // Parse background color
-      if (rawCell?.bg) {
+      // Parse background color (only for body cells; header row is strictly styled by headStyles)
+      if (!isHeaderRow && rawCell?.bg) {
         const rgb = hexToRgb(rawCell.bg);
         if (rgb) cellStyles.fillColor = rgb;
       }
 
-      // Parse text color
-      if (rawCell?.fc) {
+      // Parse text color (only for body cells; header row is strictly styled by headStyles)
+      if (!isHeaderRow && rawCell?.fc) {
         const rgb = hexToRgb(rawCell.fc);
         if (rgb) cellStyles.textColor = rgb;
       }
