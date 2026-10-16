@@ -113,9 +113,9 @@ const matrixOnlySheet = {
 };
 const rehydrated = convertToFortuneSheet(matrixOnlySheet, "CHECKLIST");
 assert(rehydrated.celldata && rehydrated.celldata.length === 3, "Matrix must be converted to celldata");
-assert.strictEqual(rehydrated.celldata[0].v.v, "Item 1");
-assert.strictEqual(rehydrated.celldata[1].v.v, "Done");
-assert.strictEqual(rehydrated.celldata[2].v.v, "Note A");
+assert.strictEqual(rehydrated.celldata[0]?.v?.v, "Item 1");
+assert.strictEqual(rehydrated.celldata[1]?.v?.v, "Done");
+assert.strictEqual(rehydrated.celldata[2]?.v?.v, "Note A");
 console.log("✓ 2D matrix data safely reconstructed into celldata for flawless canvas remounting");
 
 // 6. Test fallback to default template when empty
