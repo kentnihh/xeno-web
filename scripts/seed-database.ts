@@ -112,7 +112,7 @@ const ROLE_PERMISSIONS_MAPPING: Record<string, string[]> = {
   staff: ["events:read", "tasks:manage"],
 };
 
-// 10 Master Templates
+// 9 Master Templates
 const MASTER_TEMPLATES_DATA = [
   {
     sheet_name: "CHECKLIST",
@@ -283,25 +283,6 @@ const MASTER_TEMPLATES_DATA = [
         { id: "row_1", col_1: "Room 1201", col_2: "Presidential Suite", col_3: "Pengantin", col_4: "14:00 (Hari H-1)", col_5: "12:00 (Hari H+1)", col_6: "2 Kartu Aktif" },
         { id: "row_2", col_1: "Room 1105", col_2: "Deluxe Suite", col_3: "Orang Tua Pria", col_4: "14:00 (Hari H-1)", col_5: "12:00 (Hari H+1)", col_6: "2 Kartu Aktif" },
         { id: "row_3", col_1: "Room 1106", col_2: "Deluxe Suite", col_3: "Orang Tua Wanita", col_4: "14:00 (Hari H-1)", col_5: "12:00 (Hari H+1)", col_6: "2 Kartu Aktif" },
-      ],
-    },
-  },
-  {
-    sheet_name: "Family Data",
-    order_index: 9,
-    jsonb_structure: {
-      columns: [
-        { id: "col_1", name: "No" },
-        { id: "col_2", name: "Nama Lengkap" },
-        { id: "col_3", name: "Pihak Keluarga" },
-        { id: "col_4", name: "Hubungan" },
-        { id: "col_5", name: "Ukuran Busana" },
-        { id: "col_6", name: "No WhatsApp" },
-      ],
-      rows: [
-        { id: "row_1", col_1: "1", col_2: "Bpk. Hendra Gunawan", col_3: "Groom", col_4: "Ayah Kandung", col_5: "Beskap L", col_6: "0811-222-333" },
-        { id: "row_2", col_1: "2", col_2: "Ibu Megawati", col_3: "Groom", col_4: "Ibu Kandung", col_5: "Kebaya M", col_6: "0811-444-555" },
-        { id: "row_3", col_1: "3", col_2: "Bpk. Sutrisno", col_3: "Bride", col_4: "Ayah Kandung", col_5: "Beskap XL", col_6: "0812-777-888" },
       ],
     },
   },

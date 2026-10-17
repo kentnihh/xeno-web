@@ -12,14 +12,17 @@ import {
   FileSpreadsheet,
   Columns,
   Rows,
+  Users,
 } from "lucide-react";
-import type { EventSheet } from "@/types/database";
+import type { EventSheet, EventPublicForm } from "@/types/database";
 
 export interface ExportSpreadsheetPdfModalProps {
   isOpen: boolean;
   onClose: () => void;
   eventTitle: string;
   sheets: EventSheet[];
+  eventId?: string;
+  publicForm?: EventPublicForm | null;
   onSuccess?: (message: string) => void;
 }
 
@@ -28,9 +31,12 @@ export function ExportSpreadsheetPdfModal({
   onClose,
   eventTitle,
   sheets,
+  eventId,
+  publicForm,
   onSuccess,
 }: ExportSpreadsheetPdfModalProps) {
   const [selectedSheetNames, setSelectedSheetNames] = useState<string[]>([]);
+  const [includeFamilyData, setIncludeFamilyData] = useState(false);
   const [orientation, setOrientation] = useState<"landscape" | "portrait">("landscape");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +50,7 @@ export function ExportSpreadsheetPdfModal({
   useEffect(() => {
     if (isOpen) {
       setSelectedSheetNames([]);
+      setIncludeFamilyData(false);
       setError(null);
     }
   }, [isOpen]);
@@ -89,8 +96,10 @@ export function ExportSpreadsheetPdfModal({
     );
   };
 
+  const totalSelectedCount = selectedSheetNames.length + (includeFamilyData ? 1 : 0);
+
   const handleDownload = async () => {
-    if (selectedSheetNames.length === 0 || isGenerating) return;
+    if (totalSelectedCount === 0 || isGenerating) return;
 
     setIsGenerating(true);
     setError(null);
@@ -100,12 +109,30 @@ export function ExportSpreadsheetPdfModal({
         selectedSheetNames.includes(s.sheet_name)
       );
 
+      // If user selected Family Data, ensure we have the latest data from event_public_forms
+      let familyFormData: EventPublicForm | null = publicForm || null;
+      if (includeFamilyData && eventId) {
+        try {
+          const { getOrCreateEventPublicForm } = await import(
+            "@/app/(dashboard)/events/public-form-actions"
+          );
+          const fetched = await getOrCreateEventPublicForm(eventId);
+          if (fetched) {
+            familyFormData = fetched;
+          }
+        } catch (fetchErr) {
+          console.warn("[ExportPdf] Could not refresh public form data, falling back to cached:", fetchErr);
+        }
+      }
+
       const { downloadSpreadsheetPdf } = await import("@/lib/pdf/spreadsheet-pdf");
 
       const { fileName } = await downloadSpreadsheetPdf({
         eventTitle,
         sheets: selectedSheets,
         orientation,
+        includeFamilyData,
+        familyData: familyFormData,
       });
 
       onSuccess?.(`Dokumen "${fileName}" berhasil diunduh!`);
@@ -277,6 +304,89 @@ export function ExportSpreadsheetPdfModal({
             })}
           </div>
 
+          {/* Distinct, separate checkbox at the bottom of the sheet list for Data Keluarga (Formulir Publik) */}
+          <div className="pt-2">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-px bg-border flex-1" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                Formulir Publik Tambahan
+              </span>
+              <div className="h-px bg-border flex-1" />
+            </div>
+
+            <div
+              id="checkbox-family-data"
+              role="checkbox"
+              aria-checked={includeFamilyData}
+              tabIndex={0}
+              onClick={() => setIncludeFamilyData((prev) => !prev)}
+              onKeyDown={(e) => {
+                if (e.key === " " || e.key === "Enter") {
+                  e.preventDefault();
+                  setIncludeFamilyData((prev) => !prev);
+                }
+              }}
+              className={`flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none group ${
+                includeFamilyData
+                  ? "bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/40 text-foreground shadow-2xs"
+                  : "bg-muted/30 border-border/80 hover:bg-muted/60 text-muted-foreground"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="family-data-checkbox-input"
+                  checked={includeFamilyData}
+                  readOnly
+                  tabIndex={-1}
+                  className="sr-only"
+                  aria-hidden="true"
+                />
+                <div
+                  className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors border ${
+                    includeFamilyData
+                      ? "bg-rose-600 border-rose-600 text-white"
+                      : "border-muted-foreground/40 bg-card group-hover:border-rose-500/60"
+                  }`}
+                >
+                  {includeFamilyData && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      includeFamilyData
+                        ? "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-foreground block group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                      Data Keluarga (Formulir Publik)
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block">
+                      Daftar keluarga & perwakilan foto dari formulir online klien
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-[11px]">
+                <span
+                  className={`px-2 py-0.5 rounded-full border font-medium ${
+                    includeFamilyData
+                      ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                      : "bg-card border-border text-muted-foreground"
+                  }`}
+                >
+                  Formulir Publik
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Page Orientation Selector */}
           <div className="pt-2 border-t border-border">
             <label className="text-xs font-bold text-foreground block mb-2">
@@ -339,7 +449,7 @@ export function ExportSpreadsheetPdfModal({
             type="button"
             id="download-spreadsheet-pdf-btn"
             onClick={handleDownload}
-            disabled={selectedSheetNames.length === 0 || isGenerating}
+            disabled={totalSelectedCount === 0 || isGenerating}
             className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
@@ -350,7 +460,7 @@ export function ExportSpreadsheetPdfModal({
             <span>
               {isGenerating
                 ? "Menyiapkan PDF..."
-                : `Download PDF (${selectedSheetNames.length})`}
+                : `Download PDF (${totalSelectedCount})`}
             </span>
           </button>
         </div>

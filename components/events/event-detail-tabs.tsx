@@ -1,13 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, FolderOpen, FileSpreadsheet } from "lucide-react";
+import { Layers, FolderOpen, FileSpreadsheet, Users } from "lucide-react";
 import { EventCrewSection } from "@/components/events/event-crew-section";
 import { EventTasksSection } from "@/components/events/event-tasks-section";
 import { EventVendorsSection } from "@/components/events/event-vendors-section";
 import { EventDocumentsSection } from "@/components/events/event-documents-section";
 import { EventSpreadsheetTabs } from "@/components/events/spreadsheet/event-spreadsheet-tabs";
-import type { Event, EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument, EventSheet } from "@/types/database";
+import { EventFamilyDataSection } from "@/components/events/event-family-data-section";
+import type {
+  Event,
+  EventCrew,
+  Profile,
+  EventTask,
+  EventVendor,
+  Vendor,
+  EventExpense,
+  EventDocument,
+  EventSheet,
+  EventPublicForm,
+} from "@/types/database";
 
 export function EventDetailTabs({
   event,
@@ -18,6 +30,7 @@ export function EventDetailTabs({
   allVendors,
   sheets = [],
   documents = [],
+  publicForm = null,
   canManage = true,
   canManageDocuments,
   initialTab = "operations",
@@ -31,21 +44,34 @@ export function EventDetailTabs({
   sheets?: EventSheet[];
   expenses?: EventExpense[];
   documents?: EventDocument[];
+  publicForm?: EventPublicForm | null;
   canManage?: boolean;
   canManageFinance?: boolean; // ponytail: kept for backward compatibility with RBAC test assertions
   canManageDocuments?: boolean;
-  initialTab?: "operations" | "documents" | "lembar-kerja" | string;
+  initialTab?: "operations" | "documents" | "lembar-kerja" | "data-keluarga" | string;
 }) {
-  const [activeTab, setActiveTab] = useState<"operations" | "documents" | "lembar-kerja">(
+  const [activeTab, setActiveTab] = useState<"operations" | "documents" | "lembar-kerja" | "data-keluarga">(
     initialTab === "documents"
       ? "documents"
       : initialTab === "lembar-kerja" || initialTab === "spreadsheets" || initialTab === "sheets"
       ? "lembar-kerja"
+      : initialTab === "data-keluarga" || initialTab === "family" || initialTab === "keluarga"
+      ? "data-keluarga"
       : "operations"
   );
   const [currentCrew, setCurrentCrew] = useState<EventCrew[]>(crew);
   const manageOps = canManage;
   const manageDocs = canManageDocuments ?? canManage;
+
+  // Calculate family members count
+  let familyCount = 0;
+  if (publicForm?.form_data) {
+    Object.values(publicForm.form_data).forEach((members) => {
+      if (Array.isArray(members)) {
+        familyCount += members.length;
+      }
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -98,6 +124,25 @@ export function EventDetailTabs({
             {sheets.length}
           </span>
         </button>
+
+        {/* Dedicated "Data Keluarga" Tab next to "Lembar Kerja" */}
+        <button
+          type="button"
+          onClick={() => setActiveTab("data-keluarga")}
+          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${
+            activeTab === "data-keluarga"
+              ? "border-[#007aff] text-foreground font-bold"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Data Keluarga</span>
+          {familyCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground font-medium">
+              {familyCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Tab Panels */}
@@ -141,6 +186,18 @@ export function EventDetailTabs({
             eventId={event.id}
             initialSheets={sheets}
             canManage={manageOps}
+            publicForm={publicForm}
+          />
+        </div>
+      )}
+
+      {activeTab === "data-keluarga" && (
+        <div className="space-y-4">
+          <EventFamilyDataSection
+            eventId={event.id}
+            initialForm={publicForm}
+            canManage={manageOps}
+            variant="full"
           />
         </div>
       )}

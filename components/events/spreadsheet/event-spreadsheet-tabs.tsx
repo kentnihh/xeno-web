@@ -33,13 +33,15 @@ import {
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import { sanitizeSheetData } from "@/lib/spreadsheet-adapter";
-import type { EventSheet, SheetData } from "@/types/database";
+import { EventFamilyDataSection } from "@/components/events/event-family-data-section";
+import type { EventSheet, SheetData, EventPublicForm } from "@/types/database";
 
 interface EventSpreadsheetTabsProps {
   eventId: string;
   initialSheets: EventSheet[];
   canManage?: boolean;
   onSheetsChange?: (sheets: EventSheet[]) => void;
+  publicForm?: EventPublicForm | null;
 }
 
 export function EventSpreadsheetTabs({
@@ -47,6 +49,7 @@ export function EventSpreadsheetTabs({
   initialSheets,
   canManage = true,
   onSheetsChange,
+  publicForm = null,
 }: EventSpreadsheetTabsProps) {
   const [sheets, setSheets] = useState<EventSheet[]>(initialSheets);
   const [activeTabName, setActiveTabName] = useState<string>(
@@ -574,6 +577,16 @@ export function EventSpreadsheetTabs({
           showGridLines={showGridLines}
         />
       )}
+
+      {/* Append Family Data directly below the FortuneSheet container */}
+      <div className="pt-6 border-t border-border mt-8">
+        <EventFamilyDataSection
+          eventId={eventId}
+          initialForm={publicForm}
+          canManage={canManage}
+          variant="embedded"
+        />
+      </div>
 
       <ConfirmModal
         isOpen={!!deletingSheetName}

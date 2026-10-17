@@ -266,18 +266,18 @@ const EXPECTED_INITIAL_TABS = [
   "Event Resepsi",
   "front desk",
   "Hotel Room Reception",
-  "Family Data",
 ];
 
-assert.strictEqual(INITIAL_EVENT_SHEETS.length, 10, "INITIAL_EVENT_SHEETS must have exactly 10 initial sheets");
+assert.strictEqual(INITIAL_EVENT_SHEETS.length, 9, "INITIAL_EVENT_SHEETS must have exactly 9 initial sheets (Family Data moved to dedicated form)");
 const initialNames = INITIAL_EVENT_SHEETS.map((s) => s.name);
+assert(!initialNames.includes("Family Data"), "Family Data must be removed from INITIAL_EVENT_SHEETS");
 for (const expectedName of EXPECTED_INITIAL_TABS) {
   assert(initialNames.includes(expectedName), `INITIAL_EVENT_SHEETS must contain tab: "${expectedName}"`);
 }
 
 // Check buildDefaultEventSheets helper
 const defaultSheets = buildDefaultEventSheets("evt-test-123");
-assert.strictEqual(defaultSheets.length, 10, "buildDefaultEventSheets must produce 10 records");
+assert.strictEqual(defaultSheets.length, 9, "buildDefaultEventSheets must produce 9 records");
 for (const s of defaultSheets) {
   assert.strictEqual(s.event_id, "evt-test-123");
   assert(s.data.columns.length > 0, `Sheet "${s.sheet_name}" must have column definitions`);
@@ -293,7 +293,7 @@ for (const sheet of defaultSheets) {
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   XLSX.utils.book_append_sheet(wb, ws, safeName);
 }
-assert.strictEqual(wb.SheetNames.length, 10, "Excel workbook must contain all 10 tab sheets");
+assert.strictEqual(wb.SheetNames.length, 9, "Excel workbook must contain all 9 tab sheets");
 assert.strictEqual(wb.SheetNames[0], "CHECKLIST", "First sheet in Excel workbook must be CHECKLIST");
 
 // 13. Verify Profiles RLS & Auth Trigger definitions

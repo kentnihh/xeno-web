@@ -2,7 +2,13 @@ import { jsPDF } from "jspdf";
 import rawAutoTable, { type UserOptions } from "jspdf-autotable";
 import { convertToFortuneSheet, extractCellText } from "@/lib/spreadsheet-adapter";
 import { formatDate } from "@/lib/utils";
-import type { EventSheet } from "@/types/database";
+import type {
+  EventSheet,
+  EventPublicForm,
+  EventFormData,
+  FormCategorySchema,
+} from "@/types/database";
+import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
 import {
   montserratRegularBase64,
   montserratBoldBase64,
@@ -20,6 +26,8 @@ export interface GenerateSpreadsheetPdfOptions {
   orientation?: "landscape" | "portrait";
   customFilename?: string;
   logoDataUrl?: string | null;
+  includeFamilyData?: boolean;
+  familyData?: EventPublicForm | null;
 }
 
 let cachedLogoDataUrl: string | null = null;
@@ -200,7 +208,14 @@ export function hexToRgb(color?: string | null): [number, number, number] | null
  * Builds a vector-based, professional PDF document from one or more event sheets.
  */
 export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsPDF {
-  const { eventTitle, sheets, orientation = "landscape", logoDataUrl } = options;
+  const {
+    eventTitle,
+    sheets,
+    orientation = "landscape",
+    logoDataUrl,
+    includeFamilyData = false,
+    familyData,
+  } = options;
   const logoUrl = logoDataUrl !== undefined ? logoDataUrl : getSyncLogoDataUrl();
 
   // Initialize PDF with requested orientation (A4)
@@ -221,7 +236,7 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
 
   // Filter valid sheets
   const validSheets = sheets.filter((s) => Boolean(s && s.sheet_name));
-  if (validSheets.length === 0) {
+  if (validSheets.length === 0 && !includeFamilyData) {
     renderEmptyDocument(doc, eventTitle, pageWidth, marginX, contentWidth);
     return doc;
   }
@@ -437,6 +452,27 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
 
     autoTable(doc, tableOptions);
   });
+
+  // 2. Render Family Data (Formulir Publik) if selected
+  if (includeFamilyData) {
+    // If Excel sheets were already rendered, start Family Data on a fresh page
+    if (validSheets.length > 0) {
+      doc.addPage("a4", orientation);
+    }
+
+    renderFamilyDataSectionPdf(
+      doc,
+      eventTitle,
+      familyData,
+      pageWidth,
+      pageHeight,
+      marginX,
+      contentWidth,
+      nowFormatted,
+      logoUrl,
+      orientation
+    );
+  }
 
   // Render uniform running footers on all pages
   const totalPages = doc.getNumberOfPages();
@@ -850,6 +886,234 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
 }
 
 /**
+ * Renders the Family Data (Formulir Publik) section into the PDF document.
+ * Draws letterhead header, category sub-headers, and clean autoTable grids for each category
+ * using the Montserrat font and matching theme styling.
+ */
+export function renderFamilyDataSectionPdf(
+  doc: jsPDF,
+  eventTitle: string,
+  familyData: EventPublicForm | null | undefined,
+  pageWidth: number,
+  pageHeight: number,
+  marginX: number,
+  contentWidth: number,
+  nowFormatted: string,
+  logoUrl?: string | null,
+  orientation: "landscape" | "portrait" = "landscape"
+): void {
+  let currentY = renderSheetHeader(
+    doc,
+    eventTitle,
+    "DATA KELUARGA (FORMULIR PUBLIK)",
+    pageWidth,
+    marginX,
+    contentWidth,
+    nowFormatted,
+    logoUrl
+  );
+
+  const baseCategories: FormCategorySchema[] =
+    familyData?.form_schema && familyData.form_schema.length > 0
+      ? familyData.form_schema
+      : DEFAULT_PUBLIC_FORM_SCHEMA;
+
+  const formData: EventFormData = familyData?.form_data || {};
+
+  // Combine categories from schema and any extra dynamic categories found in formData
+  const definedIds = new Set(baseCategories.map((c) => c.id));
+  const categories: FormCategorySchema[] = [...baseCategories];
+  for (const [key, val] of Object.entries(formData)) {
+    if (!definedIds.has(key) && Array.isArray(val) && val.length > 0) {
+      categories.push({
+        id: key,
+        name: key
+          .replace(/[_-]/g, " ")
+          .replace(/\b\w/g, (char) => char.toUpperCase()),
+      });
+    }
+  }
+
+  // Count total non-empty members
+  let totalMembersCount = 0;
+  categories.forEach((cat) => {
+    const list = formData[cat.id] || [];
+    const valid = list.filter(
+      (m) =>
+        Boolean(
+          m &&
+            (m.name ||
+              m.nama ||
+              m.role ||
+              m.hubungan ||
+              m.phone ||
+              m.no_hp ||
+              m.address ||
+              m.alamat ||
+              m.notes ||
+              m.catatan)
+        )
+    );
+    totalMembersCount += valid.length;
+  });
+
+  if (totalMembersCount === 0) {
+    doc.setFont("Montserrat", "italic");
+    doc.setFontSize(9);
+    doc.setTextColor(107, 114, 128);
+    doc.text(
+      "Belum ada data anggota keluarga yang tercatat pada formulir publik ini.",
+      marginX,
+      currentY + 6
+    );
+    return;
+  }
+
+  categories.forEach((cat) => {
+    const rawMembers = formData[cat.id] || [];
+    const members = rawMembers.filter(
+      (m) =>
+        Boolean(
+          m &&
+            (m.name ||
+              m.nama ||
+              m.role ||
+              m.hubungan ||
+              m.phone ||
+              m.no_hp ||
+              m.address ||
+              m.alamat ||
+              m.notes ||
+              m.catatan)
+        )
+    );
+
+    if (members.length === 0) return;
+
+    // Check vertical space on page before rendering category header & table
+    if (currentY > pageHeight - 35) {
+      doc.addPage("a4", orientation);
+      currentY = renderSheetHeader(
+        doc,
+        eventTitle,
+        "DATA KELUARGA (FORMULIR PUBLIK)",
+        pageWidth,
+        marginX,
+        contentWidth,
+        nowFormatted,
+        logoUrl
+      );
+    }
+
+    // Category sub-header text
+    doc.setFont("Montserrat", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(17, 24, 39);
+    doc.text(cat.name, marginX, currentY + 3.5);
+    currentY += 5;
+
+    if (cat.description) {
+      doc.setFont("Montserrat", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(107, 114, 128);
+      doc.text(cat.description, marginX, currentY);
+      currentY += 4;
+    }
+
+    const head = [
+      [
+        "No",
+        "Nama Lengkap",
+        "Hubungan / Peran",
+        "No. WhatsApp / HP",
+        "Alamat / Catatan Khusus",
+      ],
+    ];
+
+    const body = members.map((m, idx) => {
+      const addressNotes = [
+        (m.address || m.alamat)?.trim(),
+        (m.notes || m.catatan)?.trim(),
+      ]
+        .filter(Boolean)
+        .join(" • ");
+
+      return [
+        String(idx + 1),
+        m.name || m.nama || "-",
+        m.role || m.hubungan || m.peran || "-",
+        m.phone || m.no_hp || m.telepon || "-",
+        addressNotes || "-",
+      ];
+    });
+
+    const isLandscape = orientation === "landscape";
+
+    autoTable(doc, {
+      startY: currentY,
+      head,
+      body,
+      theme: "grid",
+      styles: {
+        font: "Montserrat",
+        lineWidth: 0.15,
+        lineColor: [229, 231, 235],
+      },
+      headStyles: {
+        font: "Montserrat",
+        fillColor: [244, 245, 247],
+        textColor: [17, 24, 39],
+        fontStyle: "bold",
+        fontSize: 8,
+        cellPadding: 2.8,
+        halign: "left",
+        valign: "middle",
+        lineWidth: 0.15,
+        lineColor: [229, 231, 235],
+      },
+      bodyStyles: {
+        font: "Montserrat",
+        fillColor: [255, 255, 255],
+        textColor: [31, 41, 55],
+        fontSize: 7.5,
+        cellPadding: 2.2,
+        lineColor: [229, 231, 235],
+        lineWidth: 0.15,
+        overflow: "linebreak",
+      },
+      columnStyles: {
+        0: { cellWidth: 10, halign: "center" },
+        1: { fontStyle: "bold", cellWidth: isLandscape ? 60 : 45 },
+        2: { cellWidth: isLandscape ? 50 : 35 },
+        3: { cellWidth: isLandscape ? 45 : 35 },
+        4: { cellWidth: "auto" },
+      },
+      margin: {
+        left: marginX,
+        right: marginX,
+        top: 20,
+        bottom: 18,
+      },
+      didDrawPage: (data) => {
+        if (data.pageNumber > 1 && data.pageNumber === doc.getNumberOfPages()) {
+          renderSubsequentHeader(
+            doc,
+            eventTitle,
+            `DATA KELUARGA — ${cat.name.toUpperCase()}`,
+            pageWidth,
+            marginX,
+            contentWidth
+          );
+        }
+      },
+    });
+
+    const lastFinalY = (doc as any).lastAutoTable?.finalY;
+    currentY = (lastFinalY || currentY) + 7;
+  });
+}
+
+/**
  * Triggers PDF generation and immediate browser download.
  */
 export async function downloadSpreadsheetPdf(
@@ -866,12 +1130,16 @@ export async function downloadSpreadsheetPdf(
     .replace(/\s+/g, "_");
 
   let fileName = `${cleanEvent}_Lembar_Kerja.pdf`;
-  if (options.sheets.length === 1 && options.sheets[0]?.sheet_name) {
+  if (options.sheets.length === 1 && options.sheets[0]?.sheet_name && !options.includeFamilyData) {
     const cleanSheet = options.sheets[0].sheet_name
       .replace(/[^a-zA-Z0-9_\-\s]/g, "")
       .trim()
       .replace(/\s+/g, "_");
     fileName = `${cleanEvent}_${cleanSheet}.pdf`;
+  } else if (options.sheets.length === 0 && options.includeFamilyData) {
+    fileName = `${cleanEvent}_Data_Keluarga.pdf`;
+  } else if (options.sheets.length > 0 && options.includeFamilyData) {
+    fileName = `${cleanEvent}_Lembar_Kerja_dan_Data_Keluarga.pdf`;
   }
 
   if (options.customFilename) {
@@ -883,3 +1151,4 @@ export async function downloadSpreadsheetPdf(
   doc.save(fileName);
   return { fileName };
 }
+

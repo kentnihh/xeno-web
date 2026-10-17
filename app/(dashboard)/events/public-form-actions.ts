@@ -1,0 +1,280 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
+import type { EventPublicForm, EventFormData, FormCategorySchema } from "@/types/database";
+
+/**
+ * Generates a secure random 32-character hex token using Node's native crypto module.
+ * Falls back to Web Crypto API in Edge environments.
+ */
+function generateNativeToken(): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const nodeCrypto = require("crypto");
+    if (typeof nodeCrypto?.randomBytes === "function") {
+      return nodeCrypto.randomBytes(16).toString("hex");
+    }
+  } catch {
+    // Edge runtime fallback
+  }
+
+  // Universal Web Crypto API fallback
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Public export for token generation utility adhering to Server Action async rule.
+ */
+export async function generateFormToken(): Promise<string> {
+  return generateNativeToken();
+}
+
+/**
+ * Calculates a default expiration date exactly 3 days from now.
+ */
+function getDefaultExpiryDate(): string {
+  return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/**
+ * Retrieve or create an active public form record for a given event.
+ * If one does not exist, it initializes with a 3-day expiry and the standard form schema.
+ */
+export async function getOrCreateEventPublicForm(eventId: string): Promise<EventPublicForm> {
+  const supabase = await createClient();
+
+  const { data: existing, error: selectError } = await supabase
+    .from("event_public_forms")
+    .select("*, event:events(id, title, venue, start_date, end_date)")
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  if (existing && !selectError) {
+    return existing as EventPublicForm;
+  }
+
+  const initialToken = generateNativeToken();
+  const initialExpiresAt = getDefaultExpiryDate();
+
+  const { data: created, error: insertError } = await supabase
+    .from("event_public_forms")
+    .insert({
+      event_id: eventId,
+      token: initialToken,
+      expires_at: initialExpiresAt,
+      form_schema: DEFAULT_PUBLIC_FORM_SCHEMA,
+      form_data: {},
+    })
+    .select("*, event:events(id, title, venue, start_date, end_date)")
+    .single();
+
+  if (insertError || !created) {
+    console.error("Failed to create public form:", insertError);
+    // If concurrent insert occurred, attempt fallback select
+    const { data: fallback } = await supabase
+      .from("event_public_forms")
+      .select("*, event:events(id, title, venue, start_date, end_date)")
+      .eq("event_id", eventId)
+      .single();
+    if (fallback) return fallback as EventPublicForm;
+    throw new Error(insertError?.message || "Gagal membuat tautan formulir publik");
+  }
+
+  return created as EventPublicForm;
+}
+
+/**
+ * Invalidate current token and generate a fresh token with a new 3-day expiry window.
+ */
+export async function regeneratePublicFormToken(eventId: string): Promise<EventPublicForm> {
+  const supabase = await createClient();
+  const newToken = generateNativeToken();
+  const newExpiry = getDefaultExpiryDate();
+
+  const { data, error } = await supabase
+    .from("event_public_forms")
+    .update({
+      token: newToken,
+      expires_at: newExpiry,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("event_id", eventId)
+    .select("*, event:events(id, title, venue, start_date, end_date)")
+    .single();
+
+  if (error || !data) {
+    console.error("Failed to regenerate token:", error);
+    throw new Error(error?.message || "Gagal memperbarui tautan");
+  }
+
+  revalidatePath(`/events/${eventId}`);
+  return data as EventPublicForm;
+}
+
+/**
+ * Extend or modify the expiration timestamp for an event's public form.
+ */
+export async function updatePublicFormExpiry(
+  eventId: string,
+  expiresAt: string
+): Promise<EventPublicForm> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("event_public_forms")
+    .update({
+      expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("event_id", eventId)
+    .select("*, event:events(id, title, venue, start_date, end_date)")
+    .single();
+
+  if (error || !data) {
+    console.error("Failed to update expiry:", error);
+    throw new Error(error?.message || "Gagal memperbarui masa berlaku tautan");
+  }
+
+  revalidatePath(`/events/${eventId}`);
+  return data as EventPublicForm;
+}
+
+/**
+ * Admin directly updates the family data JSONB structure.
+ */
+export async function updatePublicFormDataAdmin(
+  eventId: string,
+  formData: EventFormData,
+  formSchema?: FormCategorySchema[]
+): Promise<EventPublicForm> {
+  const supabase = await createClient();
+
+  const updatePayload: Record<string, any> = {
+    form_data: formData,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (formSchema) {
+    updatePayload.form_schema = formSchema;
+  }
+
+  const { data, error } = await supabase
+    .from("event_public_forms")
+    .update(updatePayload)
+    .eq("event_id", eventId)
+    .select("*, event:events(id, title, venue, start_date, end_date)")
+    .single();
+
+  if (error || !data) {
+    console.error("Failed to update form data by admin:", error);
+    throw new Error(error?.message || "Gagal memperbarui data keluarga");
+  }
+
+  revalidatePath(`/events/${eventId}`);
+  return data as EventPublicForm;
+}
+
+/**
+ * Fetch public form record by token for public client page.
+ * Uses admin client to bypass auth session while strictly checking validity.
+ */
+export async function getPublicFormDataByToken(token: string): Promise<{
+  form: EventPublicForm;
+  isExpired: boolean;
+  event: {
+    id: string;
+    title: string;
+    venue: string;
+    start_date: string;
+    end_date: string;
+  };
+} | null> {
+  if (!token) return null;
+
+  const adminClient = createAdminClient();
+  const { data, error } = await adminClient
+    .from("event_public_forms")
+    .select("*, event:events(id, title, venue, start_date, end_date)")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const form = data as EventPublicForm;
+  const isExpired = new Date() > new Date(form.expires_at);
+
+  return {
+    form,
+    isExpired,
+    event: form.event || {
+      id: form.event_id,
+      title: "Acara Pernikahan / Event",
+      venue: "Venue Acara",
+      start_date: new Date().toISOString(),
+      end_date: new Date().toISOString(),
+    },
+  };
+}
+
+/**
+ * Public client submission handler.
+ * Verifies token exists and is not expired before committing to form_data column.
+ */
+export async function submitPublicFormData(
+  token: string,
+  formData: EventFormData
+): Promise<{ success: boolean; error?: string }> {
+  if (!token) {
+    return { success: false, error: "Tautan tidak valid." };
+  }
+
+  const adminClient = createAdminClient();
+
+  // 1. Verify existence and expiration
+  const { data: existing, error: checkError } = await adminClient
+    .from("event_public_forms")
+    .select("id, event_id, expires_at")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (checkError || !existing) {
+    return { success: false, error: "Formulir tidak ditemukan atau tautan salah." };
+  }
+
+  if (new Date() > new Date(existing.expires_at)) {
+    return {
+      success: false,
+      error: "Tautan formulir ini sudah kadaluarsa (melewati batas waktu 3 hari). Silakan hubungi tim Xeno Entertainment untuk tautan baru.",
+    };
+  }
+
+  // 2. Commit data
+  const { error: updateError } = await adminClient
+    .from("event_public_forms")
+    .update({
+      form_data: formData,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", existing.id);
+
+  if (updateError) {
+    console.error("Public submission update failed:", updateError);
+    return { success: false, error: "Gagal menyimpan data ke sistem. Silakan coba kembali." };
+  }
+
+  // Invalidate cache for the event detail dashboard so admin sees the new entries immediately
+  if (existing.event_id) {
+    revalidatePath(`/events/${existing.event_id}`);
+  }
+
+  return { success: true };
+}

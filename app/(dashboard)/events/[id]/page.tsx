@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 import { deleteEvent } from "../actions";
 import { getEventSheets } from "../sheet-actions";
+import { getOrCreateEventPublicForm } from "../public-form-actions";
 import { hasPermission } from "@/lib/auth";
 import { ArrowLeft, Calendar, MapPin, User, Trash2 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/ui/confirm-modal";
@@ -41,6 +42,10 @@ export default async function EventDetailPage({
         resolvedSearchParams?.tab === "spreadsheets" ||
         resolvedSearchParams?.tab === "sheets"
       ? "lembar-kerja"
+      : resolvedSearchParams?.tab === "data-keluarga" ||
+        resolvedSearchParams?.tab === "family" ||
+        resolvedSearchParams?.tab === "keluarga"
+      ? "data-keluarga"
       : "operations";
 
   const [canEditEvent, canDeleteEvent, canManageFinance, canManageDocs] = await Promise.all([
@@ -61,6 +66,7 @@ export default async function EventDetailPage({
     { data: rawExpenses },
     { data: rawDocuments },
     sheets,
+    publicForm,
   ] = await Promise.all([
     supabase.from("events").select("*, client:clients(*)").eq("id", id).single(),
     supabase.from("event_tasks").select("*, assignee:profiles(*)").eq("event_id", id).order("created_at", { ascending: false }),
@@ -71,6 +77,7 @@ export default async function EventDetailPage({
     supabase.from("event_expenses").select("*").eq("event_id", id).order("expense_date", { ascending: false }),
     supabase.from("event_documents").select("*, uploader:profiles(*)").eq("event_id", id).order("created_at", { ascending: false }),
     getEventSheets(id),
+    getOrCreateEventPublicForm(id).catch(() => null),
   ]);
 
   const event = rawEvent || { id, ...FALLBACK_EVENT };
@@ -109,6 +116,7 @@ export default async function EventDetailPage({
             tasks={tasks}
             expenses={expenses}
             canEdit={canEditEvent}
+            publicForm={publicForm}
           />
 
           {canDeleteEvent && (
@@ -175,6 +183,7 @@ export default async function EventDetailPage({
           sheets={sheets}
           expenses={expenses}
           documents={documents}
+          publicForm={publicForm}
           canManage={canEditEvent}
           canManageFinance={canManageFinance}
           canManageDocuments={canManageDocs}

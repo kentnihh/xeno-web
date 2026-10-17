@@ -3,17 +3,21 @@
 import { useState, useEffect, useRef } from "react";
 import { FileText, CheckCircle2, X } from "lucide-react";
 import { ExportSpreadsheetPdfModal } from "./export-spreadsheet-pdf-modal";
-import type { EventSheet } from "@/types/database";
+import type { EventSheet, EventPublicForm } from "@/types/database";
 
 interface ExportSpreadsheetPdfButtonProps {
+  eventId?: string;
   eventTitle: string;
   sheets: EventSheet[];
+  publicForm?: EventPublicForm | null;
   className?: string;
 }
 
 export function ExportSpreadsheetPdfButton({
+  eventId,
   eventTitle,
   sheets: initialSheets,
+  publicForm,
   className = "",
 }: ExportSpreadsheetPdfButtonProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -65,6 +69,8 @@ export function ExportSpreadsheetPdfButton({
         onClose={() => setIsModalOpen(false)}
         eventTitle={eventTitle}
         sheets={sheets}
+        eventId={eventId}
+        publicForm={publicForm}
         onSuccess={showToast}
       />
 

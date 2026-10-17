@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { EditEventButton } from "@/components/events/edit-event-modal";
 import { SyncGCalButton } from "@/components/events/sync-gcal-button";
-import type { Event as AppEvent, EventCrew, EventTask, EventExpense, EventSheet } from "@/types/database";
+import type { Event as AppEvent, EventCrew, EventTask, EventExpense, EventSheet, EventPublicForm } from "@/types/database";
 
 const ExportPdfButton = dynamic(
   () => import("@/components/events/export-pdf-button").then((m) => m.ExportPdfButton),
@@ -31,6 +31,7 @@ interface EventActionButtonsProps {
   tasks: EventTask[];
   expenses: EventExpense[];
   canEdit?: boolean;
+  publicForm?: EventPublicForm | null;
 }
 
 export function EventActionButtons({
@@ -40,12 +41,18 @@ export function EventActionButtons({
   tasks,
   expenses,
   canEdit = true,
+  publicForm,
 }: EventActionButtonsProps) {
   return (
     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
       <SyncGCalButton eventId={event.id} eventTitle={event.title} />
       <ExportExcelButton eventTitle={event.title} sheets={sheets} />
-      <ExportSpreadsheetPdfButton eventTitle={event.title} sheets={sheets} />
+      <ExportSpreadsheetPdfButton
+        eventId={event.id}
+        eventTitle={event.title}
+        sheets={sheets}
+        publicForm={publicForm}
+      />
       {canEdit && <EditEventButton event={event} />}
       <ExportPdfButton
         event={event}

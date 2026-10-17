@@ -515,4 +515,52 @@ create policy "Master templates updatable by authenticated users" on public.mast
 drop policy if exists "Master templates deletable by authenticated users" on public.master_templates;
 create policy "Master templates deletable by authenticated users" on public.master_templates for delete to authenticated using (true);
 
+-- -----------------------------------------------------------------------------
+-- Event Public Forms (Client-facing family & photo representatives forms)
+-- -----------------------------------------------------------------------------
+create table if not exists public.event_public_forms (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.events(id) on delete cascade,
+  token text not null unique,
+  expires_at timestamptz not null,
+  form_schema jsonb not null default '[]'::jsonb,
+  form_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create index if not exists idx_event_public_forms_token on public.event_public_forms(token);
+create index if not exists idx_event_public_forms_event_id on public.event_public_forms(event_id);
+
+alter table public.event_public_forms enable row level security;
+
+-- Authenticated internal staff policies
+drop policy if exists "Authenticated users can select event_public_forms" on public.event_public_forms;
+create policy "Authenticated users can select event_public_forms"
+  on public.event_public_forms for select to authenticated using (true);
+
+drop policy if exists "Authenticated users can insert event_public_forms" on public.event_public_forms;
+create policy "Authenticated users can insert event_public_forms"
+  on public.event_public_forms for insert to authenticated with check (true);
+
+drop policy if exists "Authenticated users can update event_public_forms" on public.event_public_forms;
+create policy "Authenticated users can update event_public_forms"
+  on public.event_public_forms for update to authenticated using (true) with check (true);
+
+drop policy if exists "Authenticated users can delete event_public_forms" on public.event_public_forms;
+create policy "Authenticated users can delete event_public_forms"
+  on public.event_public_forms for delete to authenticated using (true);
+
+-- Public / Anonymous client policies
+drop policy if exists "Public can view event_public_forms with valid token" on public.event_public_forms;
+create policy "Public can view event_public_forms with valid token"
+  on public.event_public_forms for select to anon using (token is not null);
+
+drop policy if exists "Public can update form_data with valid unexpired token" on public.event_public_forms;
+create policy "Public can update form_data with valid unexpired token"
+  on public.event_public_forms for update to anon
+  using (token is not null and expires_at > now())
+  with check (token is not null and expires_at > now());
+
+
 

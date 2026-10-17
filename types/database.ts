@@ -264,4 +264,38 @@ export interface MasterTemplate {
   updated_at: string;
 }
 
+/** Form schema category definition for client-facing event public forms */
+export interface FormCategorySchema {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+/** Individual member entry in public form data */
+export interface FormMember {
+  id?: string;
+  name: string;
+  role: string;
+  phone?: string;
+  notes?: string;
+  [key: string]: any;
+}
+
+/** Submitted structured data dictionary keyed by category ID */
+export type EventFormData = Record<string, FormMember[]>;
+
+/** Public form record for client family & photo reps submission */
+export interface EventPublicForm {
+  id: string;
+  event_id: string;
+  token: string;
+  expires_at: string;
+  form_schema: FormCategorySchema[];
+  form_data: EventFormData;
+  created_at: string;
+  updated_at: string;
+  event?: Event | null;
+}
+
+
 

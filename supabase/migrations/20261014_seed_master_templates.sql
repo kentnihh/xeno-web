@@ -44,8 +44,4 @@ VALUES ('Hotel Room Reception', 8, '{"columns":[{"id":"col_1","name":"No Kamar"}
 ON CONFLICT (sheet_name) DO UPDATE 
 SET order_index = EXCLUDED.order_index, jsonb_structure = EXCLUDED.jsonb_structure, updated_at = now();
 
-INSERT INTO public.master_templates (sheet_name, order_index, jsonb_structure)
-VALUES ('Family Data', 9, '{"columns":[{"id":"col_1","name":"No"},{"id":"col_2","name":"Nama Lengkap"},{"id":"col_3","name":"Pihak Keluarga"},{"id":"col_4","name":"Hubungan"},{"id":"col_5","name":"Ukuran Busana"},{"id":"col_6","name":"No WhatsApp"}],"rows":[{"id":"row_1","col_1":"1","col_2":"Bpk. Hendra Gunawan","col_3":"Groom","col_4":"Ayah Kandung","col_5":"Beskap L","col_6":"0811-222-333"},{"id":"row_2","col_1":"2","col_2":"Ibu Megawati","col_3":"Groom","col_4":"Ibu Kandung","col_5":"Kebaya M","col_6":"0811-444-555"},{"id":"row_3","col_1":"3","col_2":"Bpk. Sutrisno","col_3":"Bride","col_4":"Ayah Kandung","col_5":"Beskap XL","col_6":"0812-777-888"}]}'::jsonb)
-ON CONFLICT (sheet_name) DO UPDATE 
-SET order_index = EXCLUDED.order_index, jsonb_structure = EXCLUDED.jsonb_structure, updated_at = now();
 
