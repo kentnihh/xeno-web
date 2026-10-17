@@ -19,10 +19,10 @@
   - `xlsx` for native Excel spreadsheet export.
   - `jspdf` + `jspdf-autotable` for vector PDF document export.
 - **Deployment & Hosting**:
-  - **Target**: [Cloudflare Pages](https://pages.cloudflare.com/) (Edge runtime adapter via `@cloudflare/next-on-pages`).
-  - **Build Command**: `pnpm run build` (`npx @cloudflare/next-on-pages@1`)
-  - **Deployment Command**: `npm run deploy:cloud` (`npm run build && npx wrangler pages deploy .vercel/output/static --project-name xeno`)
-  - **Preview**: `npm run preview` (`wrangler pages dev .vercel/output/static`)
+  - **Target**: Oracle Cloud Ubuntu VPS (Self-Hosted via Docker & Caddy reverse-proxy).
+  - **Production Domain**: `xenoent.my.id` (Automatic SSL/TLS managed by Caddy).
+  - **Production Build**: Multi-stage Docker build with Next.js `output: 'standalone'` (`docker compose up -d --build`).
+  - **Local Development**: Native Node.js execution without Docker (`pnpm run dev`).
 
 ---
 
@@ -224,8 +224,11 @@ pnpm run seed
 pnpm run seed:py
 ```
 
-### Deploying to Cloudflare Pages
+### Deploying to Production (Oracle Cloud VPS)
+Full step-by-step instructions are available in [DEPLOY.md](file:///Users/jonathankent/Documents/Code/xeno/DEPLOY.md).
 ```bash
-pnpm run deploy:cloud
+# On the Oracle Ubuntu VPS:
+git pull origin main
+docker compose up -d --build
 ```
-Builds the Next.js app for Cloudflare Workers/Pages edge output using `@cloudflare/next-on-pages` and deploys via Wrangler to the `xeno` project.
+This builds the Next.js standalone container, restarts the application, and Caddy automatically manages HTTPS certificates for `xenoent.my.id`.

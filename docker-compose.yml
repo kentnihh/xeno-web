@@ -1,0 +1,41 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    container_name: xeno_web
+    restart: always
+    env_file:
+      - .env
+    expose:
+      - "3000"
+    networks:
+      - xeno_net
+
+  caddy:
+    image: caddy:alpine
+    container_name: xeno_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    networks:
+      - xeno_net
+
+networks:
+  xeno_net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

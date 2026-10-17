@@ -1,0 +1,3 @@
+xenoent.my.id {
+    reverse_proxy web:3000
+}
