@@ -3,7 +3,7 @@
 # ==============================================================================
 
 # 1. Dependencies Stage
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -17,7 +17,7 @@ COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --frozen-lockfile
 
 # 2. Builder Stage
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 ENV PNPM_HOME="/pnpm"
@@ -41,7 +41,7 @@ ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 RUN pnpm run build
 
 # 3. Runner Stage
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
