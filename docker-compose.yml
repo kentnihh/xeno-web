@@ -20,9 +20,9 @@ services:
     container_name: xeno_caddy
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - "10.0.0.129:80:80"
+      - "10.0.0.129:443:443"
+      - "10.0.0.129:443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
