@@ -11,9 +11,19 @@ import {
   updateCrewRoleSchema,
   removeCrewSchema,
 } from "@/lib/validations/event";
-import { EVENT_STATUS_LIST, type EventStatus, type TaskPriority, type TaskStatus, type VendorStatus, type EventTask, type EventVendor } from "@/types/database";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
-import type { MasterTemplate } from "@/types/database";
+import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
+import {
+  EVENT_STATUS_LIST,
+  type EventStatus,
+  type TaskPriority,
+  type TaskStatus,
+  type VendorStatus,
+  type EventTask,
+  type EventVendor,
+  type MasterTemplate,
+  type FormCategorySchema,
+} from "@/types/database";
 
 
 /**
@@ -48,6 +58,12 @@ export async function createEvent(
     }
   }
 
+  const hasFamilyPresentFlag = formData.has("use_family_template_present");
+  const rawFamilyTemplate = formData.get("use_family_template");
+  const parsedUseFamilyTemplate = hasFamilyPresentFlag
+    ? formData.has("use_family_template") && (rawFamilyTemplate === "true" || rawFamilyTemplate === "on" || rawFamilyTemplate === "1")
+    : rawFamilyTemplate !== null ? Boolean(rawFamilyTemplate) : true;
+
   const validated = createEventSchema.parse({
     title: formData.get("title"),
     venue: formData.get("venue"),
@@ -56,6 +72,7 @@ export async function createEvent(
     pic: formData.get("pic"),
     client_id: formData.get("client_id") || null,
     use_template: formData.get("use_template") !== null ? formData.get("use_template") : true,
+    use_family_template: parsedUseFamilyTemplate,
     description: formData.get("description") || null,
     expenses: parsedExpenses,
     documents: parsedDocuments,
@@ -153,11 +170,67 @@ export async function createEvent(
     }
   }
 
+  // Initialize event_public_forms record for this event based on use_family_template setting
+  try {
+    let familySchema: FormCategorySchema[] = [];
+    if (validated.use_family_template) {
+      // Fetch schema from Master Family Template
+      const { data: familyTemplate } = await supabase
+        .from("master_family_templates")
+        .select("categories")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (
+        familyTemplate &&
+        Array.isArray(familyTemplate.categories) &&
+        familyTemplate.categories.length > 0
+      ) {
+        familySchema = familyTemplate.categories;
+      } else {
+        familySchema = DEFAULT_PUBLIC_FORM_SCHEMA;
+      }
+    } else {
+      // If FALSE, initialize with empty schema so admin builds categories manually
+      familySchema = [];
+    }
+
+    // Generate 32-character hex token and 3-day default expiry
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    const initialToken = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    const initialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { error: formInsertErr } = await supabase
+      .from("event_public_forms")
+      .insert({
+        event_id: data.id,
+        token: initialToken,
+        expires_at: initialExpiresAt,
+        form_schema: familySchema,
+        form_data: {},
+      });
+
+    if (formInsertErr) {
+      console.warn(
+        `[createEvent] Warning creating event_public_forms for ${data.id}:`,
+        formInsertErr.message
+      );
+    }
+  } catch (pubFormErr) {
+    console.warn(
+      `[createEvent] Non-fatal error initializing public form for ${data.id}:`,
+      pubFormErr
+    );
+  }
 
   // Invalidate event listings and return new event ID
   revalidatePath("/events");
   revalidatePath("/");
-    return { success: true, eventId: data.id };
+  return { success: true, eventId: data.id };
   } catch (err: unknown) {
     console.error("[createEvent] Error creating event:", err);
     return {

@@ -45,7 +45,15 @@ async function optimizeBundle() {
     try {
       const res = await swc.minify(code, {
         module: true,
-        compress: true,
+        compress: {
+          passes: 2,
+          drop_debugger: true,
+          unused: true,
+          dead_code: true,
+          conditionals: true,
+          evaluate: true,
+          booleans: true,
+        },
         mangle: true,
       });
       if (res && res.code) {
@@ -61,6 +69,13 @@ async function optimizeBundle() {
       console.warn(`  ⚠ Could not minify ${path.basename(file)}:`, err.message);
       totalAfter += beforeSize;
     }
+  }
+
+  // Remove nop-build-log.json artifact (saves ~384 KiB)
+  const buildLog = path.resolve(__dirname, "../.vercel/output/static/_worker.js/nop-build-log.json");
+  if (fs.existsSync(buildLog)) {
+    fs.unlinkSync(buildLog);
+    console.log("  ✓ Deleted nop-build-log.json (384 KiB saved)");
   }
 
   const savedTotal = ((totalBefore - totalAfter) / 1024).toFixed(1);

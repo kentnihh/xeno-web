@@ -264,11 +264,33 @@ export interface MasterTemplate {
   updated_at: string;
 }
 
+/** Configurable field definition within a family form category */
+export interface FormFieldSchema {
+  id: string;
+  label: string;
+  type?: "text" | "tel" | "textarea";
+  required?: boolean;
+  placeholder?: string;
+}
+
 /** Form schema category definition for client-facing event public forms */
 export interface FormCategorySchema {
   id: string;
+  title?: string;
   name: string;
   description?: string;
+  fields?: FormFieldSchema[];
+}
+
+/** Master Family Template record stored in public.master_family_templates */
+export interface MasterFamilyTemplate {
+  id: string;
+  name: string;
+  categories: FormCategorySchema[];
+  form_schema?: FormCategorySchema[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 /** Individual member entry in public form data */

@@ -48,6 +48,7 @@ export function ExportPdfButton({
     if (isExporting) return;
     try {
       setIsExporting(true);
+      const { jsPDF } = await import("jspdf");
       const { downloadEventSummaryPdf } = await import("@/lib/pdf/event-summary-pdf");
       await downloadEventSummaryPdf({
         event,

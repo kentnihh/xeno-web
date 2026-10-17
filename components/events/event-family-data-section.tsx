@@ -24,14 +24,15 @@ import {
   ChevronUp,
   X,
   Share2,
+  Settings,
 } from "lucide-react";
 import {
   getOrCreateEventPublicForm,
   regeneratePublicFormToken,
   updatePublicFormExpiry,
   updatePublicFormDataAdmin,
+  applyMasterFamilyTemplateToEvent,
 } from "@/app/(dashboard)/events/public-form-actions";
-import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { EventPublicForm, EventFormData, FormMember, FormCategorySchema } from "@/types/database";
 
@@ -62,6 +63,24 @@ export function EventFamilyDataSection({
   const [isUpdatingExpiry, setIsUpdatingExpiry] = useState(false);
   const [customExpiry, setCustomExpiry] = useState<string>("");
   const [showExpiryEdit, setShowExpiryEdit] = useState(false);
+
+  // Category Modal State (Add / Rename)
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<FormCategorySchema | null>(null);
+  const [categoryTitle, setCategoryTitle] = useState("");
+  const [categoryDesc, setCategoryDesc] = useState("");
+  const [categoryModalError, setCategoryModalError] = useState<string | null>(null);
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+
+  // Deleting Category State
+  const [deletingCategoryInfo, setDeletingCategoryInfo] = useState<{
+    catId: string;
+    title: string;
+  } | null>(null);
+
+  // Apply Master Template State
+  const [confirmApplyTemplateOpen, setConfirmApplyTemplateOpen] = useState(false);
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
 
   // Member Modal State
   const [memberModalOpen, setMemberModalOpen] = useState(false);
@@ -112,7 +131,6 @@ export function EventFamilyDataSection({
     if (form?.expires_at) {
       try {
         const d = new Date(form.expires_at);
-        // Format to YYYY-MM-DDTHH:mm for datetime-local input
         const localIso = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
           .toISOString()
           .slice(0, 16);
@@ -128,10 +146,15 @@ export function EventFamilyDataSection({
     setTimeout(() => setSuccessNotice(null), 3000);
   };
 
-  const categories: FormCategorySchema[] =
-    form?.form_schema && form.form_schema.length > 0
-      ? form.form_schema
-      : DEFAULT_PUBLIC_FORM_SCHEMA;
+  // 100% data-driven categories mapped directly from the database schema
+  const categories: FormCategorySchema[] = (
+    Array.isArray(form?.form_schema) ? form.form_schema : []
+  ).map((cat, idx) => ({
+    ...cat,
+    id: cat.id || String(idx + 1),
+    title: (cat.title || cat.name || `Kategori ${idx + 1}`).trim(),
+    name: (cat.name || cat.title || `Kategori ${idx + 1}`).trim(),
+  }));
 
   const formData: EventFormData = form?.form_data || {};
 
@@ -201,6 +224,116 @@ export function EventFamilyDataSection({
     }
   };
 
+  // --- CATEGORY ACTIONS ---
+  const handleOpenAddCategory = () => {
+    setEditingCategory(null);
+    setCategoryTitle("");
+    setCategoryDesc("");
+    setCategoryModalError(null);
+    setCategoryModalOpen(true);
+  };
+
+  const handleOpenEditCategory = (cat: FormCategorySchema) => {
+    setEditingCategory(cat);
+    setCategoryTitle(cat.title || cat.name || "");
+    setCategoryDesc(cat.description || "");
+    setCategoryModalError(null);
+    setCategoryModalOpen(true);
+  };
+
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryTitle.trim()) {
+      setCategoryModalError("Nama / Judul Kategori wajib diisi.");
+      return;
+    }
+    setIsSavingCategory(true);
+    setCategoryModalError(null);
+
+    try {
+      let updatedCategories: FormCategorySchema[] = [];
+      if (editingCategory) {
+        updatedCategories = categories.map((c) =>
+          c.id === editingCategory.id
+            ? {
+                ...c,
+                title: categoryTitle.trim(),
+                name: categoryTitle.trim(),
+                description: categoryDesc.trim(),
+              }
+            : c
+        );
+      } else {
+        const slug =
+          categoryTitle
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "_")
+            .slice(0, 24) || "kategori";
+        const newId = `${slug}_${Date.now().toString().slice(-4)}`;
+        const newCat: FormCategorySchema = {
+          id: newId,
+          title: categoryTitle.trim(),
+          name: categoryTitle.trim(),
+          description: categoryDesc.trim(),
+          fields: [
+            { id: "name", label: "Nama Lengkap", required: true },
+            { id: "role", label: "Hubungan / Peran", required: true },
+            { id: "phone", label: "No. WhatsApp / HP", required: false },
+            { id: "notes", label: "Catatan Khusus", required: false },
+          ],
+        };
+        updatedCategories = [...categories, newCat];
+      }
+
+      const updated = await updatePublicFormDataAdmin(eventId, formData, updatedCategories);
+      setForm(updated);
+      setCategoryModalOpen(false);
+      showFeedback(
+        editingCategory
+          ? `Kategori "${categoryTitle}" berhasil diperbarui!`
+          : `Kategori "${categoryTitle}" berhasil ditambahkan!`
+      );
+    } catch (err: any) {
+      setCategoryModalError(err?.message || "Gagal menyimpan kategori.");
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!deletingCategoryInfo || !form) return;
+    const { catId, title } = deletingCategoryInfo;
+
+    try {
+      const updatedCategories = categories.filter((c) => c.id !== catId);
+      const updatedFormData = { ...formData };
+      delete updatedFormData[catId];
+
+      const updated = await updatePublicFormDataAdmin(eventId, updatedFormData, updatedCategories);
+      setForm(updated);
+      setDeletingCategoryInfo(null);
+      showFeedback(`Kategori "${title}" dan seluruh anggotanya berhasil dihapus.`);
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Gagal menghapus kategori.");
+    }
+  };
+
+  const handleApplyMasterTemplate = async () => {
+    setIsApplyingTemplate(true);
+    try {
+      const updated = await applyMasterFamilyTemplateToEvent(eventId, true);
+      setForm(updated);
+      setConfirmApplyTemplateOpen(false);
+      showFeedback("Master template data keluarga berhasil diterapkan ke acara ini!");
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Gagal menerapkan master template.");
+    } finally {
+      setIsApplyingTemplate(false);
+    }
+  };
+
+  // --- MEMBER ACTIONS ---
   const handleOpenAddMember = (catId: string) => {
     setTargetCategory(catId);
     setEditingMember(null);
@@ -238,7 +371,6 @@ export function EventFamilyDataSection({
       let updatedCategoryList: FormMember[];
 
       if (editingMember) {
-        // Update existing member
         updatedCategoryList = currentCategoryList.map((m) =>
           m.id === editingMember.id
             ? {
@@ -251,9 +383,11 @@ export function EventFamilyDataSection({
             : m
         );
       } else {
-        // Add new member
         const newMember: FormMember = {
-          id: crypto.randomUUID?.() || String(Date.now() + Math.random()),
+          id:
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : String(Date.now() + Math.random()),
           name: memberName.trim(),
           role: memberRole.trim(),
           phone: memberPhone.trim(),
@@ -305,10 +439,12 @@ export function EventFamilyDataSection({
     }
   };
 
-  const getCategoryIcon = (catId: string) => {
-    if (catId.includes("groom")) return <Crown className="w-4 h-4 text-blue-500" />;
-    if (catId.includes("bride")) return <Heart className="w-4 h-4 text-pink-500" />;
-    if (catId.includes("photo")) return <Camera className="w-4 h-4 text-emerald-500" />;
+  const getCategoryIcon = (text: string) => {
+    const lower = text.toLowerCase();
+    if (lower.includes("groom") || lower.includes("pria")) return <Crown className="w-4 h-4 text-blue-500" />;
+    if (lower.includes("bride") || lower.includes("wanita")) return <Heart className="w-4 h-4 text-pink-500" />;
+    if (lower.includes("foto") || lower.includes("photo")) return <Camera className="w-4 h-4 text-emerald-500" />;
+    if (lower.includes("saksi")) return <Sparkles className="w-4 h-4 text-amber-500" />;
     return <Users className="w-4 h-4 text-[#007aff]" />;
   };
 
@@ -386,16 +522,28 @@ export function EventFamilyDataSection({
                 </span>
               )}
               <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground">
-                Total: {totalMembers} Anggota
+                {categories.length} Kategori • {totalMembers} Anggota
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Tautan publik formulir input untuk klien mengisi data keluarga inti, besar, dan perwakilan foto.
+              Formulir publik dinamis untuk klien mengisi data keluarga inti, saksi, keluarga besar, dan perwakilan sesi foto.
             </p>
           </div>
 
-          {/* Quick External Actions */}
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          {/* Header Action Buttons */}
+          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+            {canManage && (
+              <button
+                type="button"
+                onClick={handleOpenAddCategory}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#007aff] hover:bg-[#0066d6] text-white transition-all cursor-pointer shadow-2xs active:scale-95"
+                title="Tambah kategori baru"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Kategori</span>
+              </button>
+            )}
+
             {publicUrl && (
               <a
                 href={publicUrl}
@@ -408,21 +556,34 @@ export function EventFamilyDataSection({
                 <span>Buka Form</span>
               </a>
             )}
+
             {canManage && (
-              <button
-                type="button"
-                onClick={() => setConfirmRegenOpen(true)}
-                disabled={isRegenerating}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border transition-all cursor-pointer"
-                title="Buat token baru (mengganti link lama)"
-              >
-                {isRegenerating ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-                )}
-                <span>Reset Link</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setConfirmApplyTemplateOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border transition-all cursor-pointer"
+                  title="Terapkan kategori dari Master Template"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Master Template</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setConfirmRegenOpen(true)}
+                  disabled={isRegenerating}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border transition-all cursor-pointer"
+                  title="Buat token baru (mengganti link lama)"
+                >
+                  {isRegenerating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+                  )}
+                  <span>Reset Link</span>
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -451,29 +612,25 @@ export function EventFamilyDataSection({
           </button>
         </div>
 
-        {/* Expiry Details & Extension UI */}
+        {/* Expiration Controls Bar */}
         {form && (
-          <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border text-xs">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Clock className="w-3.5 h-3.5 text-[#007aff]" />
               <span>
-                Masa berlaku:{" "}
-                <strong className={isExpired ? "text-rose-500 font-semibold" : "text-foreground font-semibold"}>
-                  {new Date(form.expires_at).toLocaleDateString("id-ID", {
-                    weekday: "short",
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
+                Masa berlaku hingga:{" "}
+                <strong className="text-foreground">
+                  {new Date(form.expires_at).toLocaleString("id-ID", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
                   })}
                 </strong>
               </span>
             </div>
 
             {canManage && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-muted-foreground text-[11px]">Perpanjang:</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-muted-foreground mr-1">Perpanjang:</span>
                 <button
                   type="button"
                   onClick={() => handleExtendDays(3)}
@@ -493,10 +650,15 @@ export function EventFamilyDataSection({
                 <button
                   type="button"
                   onClick={() => setShowExpiryEdit(!showExpiryEdit)}
-                  className="px-2 py-1 rounded-lg text-[11px] text-[#007aff] hover:underline cursor-pointer flex items-center gap-1"
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-muted hover:bg-muted/80 text-[#007aff] border border-border/80 transition-all cursor-pointer active:scale-95 flex items-center gap-1"
                 >
+                  <Calendar className="w-3 h-3" />
                   <span>Kustom</span>
-                  {showExpiryEdit ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  {showExpiryEdit ? (
+                    <ChevronUp className="w-3 h-3" />
+                  ) : (
+                    <ChevronDown className="w-3 h-3" />
+                  )}
                 </button>
               </div>
             )}
@@ -526,170 +688,306 @@ export function EventFamilyDataSection({
         )}
       </div>
 
-      {/* 2. THE DATA VIEW: STRUCTURED CARDS (NOT A RIGID TABLE) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {categories.map((category) => {
-          const members = formData[category.id] || [];
+      {/* 2. DYNAMIC CATEGORY CARDS (100% DATA-DRIVEN FROM SCHEMA) */}
+      {categories.length === 0 ? (
+        <div className="bg-card rounded-2xl border border-dashed border-border p-12 text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+            <Users className="w-6 h-6 text-[#007aff]" />
+          </div>
+          <div className="max-w-md mx-auto space-y-1">
+            <h3 className="text-sm font-bold text-foreground">Belum Ada Kategori Data Keluarga</h3>
+            <p className="text-xs text-muted-foreground">
+              Formulir keluarga ini belum memiliki kategori. Buat kategori kustom (seperti "Saksi Pemberkatan", "Keluarga Inti", "Keluarga Groom") atau terapkan dari Master Template bawaan.
+            </p>
+          </div>
+          {canManage && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleOpenAddCategory}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#007aff] hover:bg-[#0066d6] text-white transition-all cursor-pointer shadow-2xs active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Kategori Baru</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmApplyTemplateOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border transition-all cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Terapkan Master Template</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {categories.map((category) => {
+            const title = category.title || category.name;
+            const members =
+              formData[category.id] ||
+              formData[category.name] ||
+              formData[category.title || ""] ||
+              [];
 
-          return (
-            <div
-              key={category.id}
-              className="bg-card rounded-2xl border border-border shadow-xs p-5 flex flex-col justify-between space-y-4 hover:border-border/80 transition-all"
-            >
-              {/* Category Card Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-border">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-muted">{getCategoryIcon(category.id)}</div>
-                  <div>
-                    <h3 className="text-xs font-bold text-foreground">{category.name}</h3>
-                    {category.description && (
-                      <p className="text-[11px] text-muted-foreground line-clamp-1">
-                        {category.description}
-                      </p>
-                    )}
+            return (
+              <div
+                key={category.id}
+                className="bg-card rounded-2xl border border-border shadow-xs p-5 flex flex-col justify-between space-y-4 hover:border-border/80 transition-all"
+              >
+                {/* Category Card Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-border gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 rounded-xl bg-muted shrink-0">
+                      {getCategoryIcon(title + " " + category.id)}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-bold text-foreground truncate" title={title}>
+                        {title}
+                      </h3>
+                      {category.description && (
+                        <p className="text-[11px] text-muted-foreground line-clamp-1">
+                          {category.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground">
-                    {members.length}
-                  </span>
-                  {canManage && (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAddMember(category.id)}
-                      className="p-1 rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-all cursor-pointer active:scale-95"
-                      title="Tambah anggota ke kategori ini"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-[#007aff]" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Members List (Cards / Rows) */}
-              <div className="space-y-2.5 flex-1 min-h-[90px]">
-                {members.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-border text-center space-y-2">
-                    <p className="text-xs text-muted-foreground">Belum ada data anggota keluarga.</p>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground">
+                      {members.length}
+                    </span>
                     {canManage && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenAddMember(category.id)}
-                        className="inline-flex items-center gap-1 text-[11px] font-medium text-[#007aff] hover:underline cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>+ Tambah Anggota</span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAddMember(category.id)}
+                          className="p-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-all cursor-pointer active:scale-95"
+                          title="Tambah anggota ke kategori ini"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-[#007aff]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditCategory(category)}
+                          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                          title="Ubah Nama Kategori"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingCategoryInfo({ catId: category.id, title })}
+                          className="p-1.5 rounded-lg hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 transition-all cursor-pointer"
+                          title="Hapus Kategori"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
                   </div>
-                ) : (
-                  members.map((member, idx) => {
-                    const cleanPhone = member.phone?.replace(/[^0-9]/g, "");
-                    const waUrl = cleanPhone
-                      ? `https://wa.me/${cleanPhone.startsWith("0") ? "62" + cleanPhone.slice(1) : cleanPhone}`
-                      : null;
+                </div>
 
-                    return (
-                      <div
-                        key={member.id || idx}
-                        className="p-3 rounded-xl bg-muted/30 border border-border/60 hover:bg-muted/50 transition-all flex flex-col gap-1.5 group"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-5 h-5 rounded-full bg-card border border-border flex items-center justify-center text-[10px] font-bold text-foreground shrink-0">
-                              {idx + 1}
-                            </span>
-                            <span className="text-xs font-bold text-foreground truncate">
-                              {member.name}
-                            </span>
-                            {member.role && (
-                              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[#007aff]/10 text-[#007aff] border border-[#007aff]/20 shrink-0">
-                                {member.role}
+                {/* Members List (Rows) */}
+                <div className="space-y-2.5 flex-1 min-h-[90px]">
+                  {members.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-border text-center space-y-2">
+                      <p className="text-xs text-muted-foreground">Belum ada data anggota.</p>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAddMember(category.id)}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#007aff] hover:underline cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>+ Tambah Anggota</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    members.map((member, idx) => {
+                      const cleanPhone = member.phone?.replace(/[^0-9]/g, "");
+                      const waUrl = cleanPhone
+                        ? `https://wa.me/${cleanPhone.startsWith("0") ? "62" + cleanPhone.slice(1) : cleanPhone}`
+                        : null;
+
+                      return (
+                        <div
+                          key={member.id || idx}
+                          className="p-3 rounded-xl bg-muted/30 border border-border/60 hover:bg-muted/50 transition-all flex flex-col gap-1.5 group"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-5 h-5 rounded-full bg-card border border-border flex items-center justify-center text-[10px] font-bold text-foreground shrink-0">
+                                {idx + 1}
                               </span>
+                              <span className="text-xs font-bold text-foreground truncate">
+                                {member.name}
+                              </span>
+                              {member.role && (
+                                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[#007aff]/10 text-[#007aff] border border-[#007aff]/20 shrink-0">
+                                  {member.role}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Action Buttons */}
+                            {canManage && (
+                              <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditMember(category.id, member)}
+                                  className="p-1 rounded-md hover:bg-card text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                                  title="Edit Anggota"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setDeletingMemberInfo({
+                                      catId: category.id,
+                                      memberId: member.id || String(idx),
+                                      memberName: member.name,
+                                    })
+                                  }
+                                  className="p-1 rounded-md hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 transition-all cursor-pointer"
+                                  title="Hapus Anggota"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
                             )}
                           </div>
 
-                          {/* Action Buttons */}
-                          {canManage && (
-                            <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditMember(category.id, member)}
-                                className="p-1 rounded-md hover:bg-card text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-                                title="Edit Anggota"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setDeletingMemberInfo({
-                                    catId: category.id,
-                                    memberId: member.id || String(idx),
-                                    memberName: member.name,
-                                  })
-                                }
-                                className="p-1 rounded-md hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 transition-all cursor-pointer"
-                                title="Hapus Anggota"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                          {/* Phone & Notes Details */}
+                          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground pl-7">
+                            {member.phone && (
+                              <div className="flex items-center gap-1">
+                                <Phone className="w-3 h-3 text-muted-foreground" />
+                                <span>{member.phone}</span>
+                                {waUrl && (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-emerald-600 hover:text-emerald-700 ml-0.5 inline-flex items-center"
+                                    title="Chat WhatsApp"
+                                  >
+                                    <MessageCircle className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </div>
+                            )}
 
-                        {/* Phone & Notes Details */}
-                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground pl-7">
-                          {member.phone && (
-                            <div className="flex items-center gap-1">
-                              <Phone className="w-3 h-3 text-muted-foreground" />
-                              <span>{member.phone}</span>
-                              {waUrl && (
-                                <a
-                                  href={waUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-emerald-600 hover:text-emerald-700 ml-0.5 inline-flex items-center"
-                                  title="Chat WhatsApp"
-                                >
-                                  <MessageCircle className="w-3 h-3" />
-                                </a>
-                              )}
-                            </div>
-                          )}
-
-                          {member.notes && (
-                            <span className="italic text-muted-foreground bg-card px-2 py-0.5 rounded border border-border/50 text-[10px]">
-                              {member.notes}
-                            </span>
-                          )}
+                            {member.notes && (
+                              <span className="italic text-muted-foreground bg-card px-2 py-0.5 rounded border border-border/50 text-[10px]">
+                                {member.notes}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Bottom Card Footer Button */}
+                {canManage && members.length > 0 && (
+                  <div className="pt-2 border-t border-border/50">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAddMember(category.id)}
+                      className="w-full py-1.5 px-2 rounded-lg text-[11px] font-semibold bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 transition-all cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Plus className="w-3 h-3 text-[#007aff]" />
+                      <span>Tambah Anggota</span>
+                    </button>
+                  </div>
                 )}
               </div>
+            );
+          })}
+        </div>
+      )}
 
-              {/* Bottom Card Footer Button */}
-              {canManage && members.length > 0 && (
-                <div className="pt-2 border-t border-border/50">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAddMember(category.id)}
-                    className="w-full py-1.5 px-2 rounded-lg text-[11px] font-semibold bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 transition-all cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    <Plus className="w-3 h-3 text-[#007aff]" />
-                    <span>Tambah Anggota</span>
-                  </button>
-                </div>
-              )}
+      {/* 3. ADD / EDIT CATEGORY MODAL */}
+      {categoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#007aff]" />
+                <span>{editingCategory ? "Ubah Nama Kategori" : "Tambah Kategori Baru"}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCategoryModalOpen(false)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          );
-        })}
-      </div>
 
-      {/* 3. ADD / EDIT MEMBER MODAL */}
+            {categoryModalError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{categoryModalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveCategory} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Nama / Judul Kategori <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={categoryTitle}
+                  onChange={(e) => setCategoryTitle(e.target.value)}
+                  placeholder="Contoh: Saksi Pemberkatan / Keluarga Inti / Tamu VIP"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-input bg-card focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Keterangan / Panduan Klien (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={categoryDesc}
+                  onChange={(e) => setCategoryDesc(e.target.value)}
+                  placeholder="Contoh: Daftar perwakilan saksi dari pihak pria & wanita"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-input bg-card focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-border flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCategoryModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground transition-all cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingCategory}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#007aff] hover:bg-[#0066d6] text-white transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSavingCategory && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{editingCategory ? "Simpan Perubahan" : "Tambah Kategori"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. ADD / EDIT MEMBER MODAL */}
       {memberModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-150">
@@ -715,6 +1013,24 @@ export function EventFamilyDataSection({
             )}
 
             <div className="space-y-3">
+              {/* Category Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Kategori
+                </label>
+                <select
+                  value={targetCategory || ""}
+                  onChange={(e) => setTargetCategory(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-input bg-card focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title || c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1">
                   Nama Lengkap <span className="text-rose-500">*</span>
@@ -737,7 +1053,7 @@ export function EventFamilyDataSection({
                   type="text"
                   value={memberRole}
                   onChange={(e) => setMemberRole(e.target.value)}
-                  placeholder="Contoh: Ayah Kandung / Paman / Sahabat"
+                  placeholder="Contoh: Ayah Kandung / Saksi / Paman"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-input bg-card focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
                 />
               </div>
@@ -791,7 +1107,33 @@ export function EventFamilyDataSection({
         </div>
       )}
 
-      {/* 4. CONFIRM DELETE MEMBER MODAL */}
+      {/* 5. CONFIRM DELETE CATEGORY MODAL */}
+      <ConfirmModal
+        isOpen={!!deletingCategoryInfo}
+        title="Konfirmasi Hapus Kategori"
+        itemName={deletingCategoryInfo?.title}
+        message={
+          deletingCategoryInfo
+            ? `Apakah Anda yakin ingin menghapus kategori "${deletingCategoryInfo.title}"? Seluruh data anggota keluarga di dalamnya juga akan terhapus.`
+            : undefined
+        }
+        confirmLabel="Hapus Kategori"
+        onConfirm={confirmDeleteCategory}
+        onClose={() => setDeletingCategoryInfo(null)}
+      />
+
+      {/* 6. CONFIRM APPLY MASTER TEMPLATE MODAL */}
+      <ConfirmModal
+        isOpen={confirmApplyTemplateOpen}
+        title="Terapkan Master Template Data Keluarga?"
+        itemName="Master Template"
+        message="Struktur kategori pada acara ini akan diperbarui sesuai master template data keluarga yang telah diatur di Settings. Data anggota keluarga yang sudah ada akan tetap dipertahankan jika kuncinya sesuai."
+        confirmLabel={isApplyingTemplate ? "Menerapkan..." : "Terapkan Template"}
+        onConfirm={handleApplyMasterTemplate}
+        onClose={() => setConfirmApplyTemplateOpen(false)}
+      />
+
+      {/* 7. CONFIRM DELETE MEMBER MODAL */}
       <ConfirmModal
         isOpen={!!deletingMemberInfo}
         title="Konfirmasi Hapus Anggota"
@@ -806,7 +1148,7 @@ export function EventFamilyDataSection({
         onClose={() => setDeletingMemberInfo(null)}
       />
 
-      {/* 5. CONFIRM REGENERATE TOKEN MODAL */}
+      {/* 8. CONFIRM REGENERATE TOKEN MODAL */}
       <ConfirmModal
         isOpen={confirmRegenOpen}
         title="Konfirmasi Reset Tautan Publik"

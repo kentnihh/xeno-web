@@ -1,4 +1,4 @@
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
 import { formatIDR, formatDate } from "@/lib/utils";
 import type {
   Event,
@@ -7,6 +7,30 @@ import type {
   EventExpense,
   EventStatus,
 } from "@/types/database";
+
+let _jsPdfConstructor: any = null;
+
+export async function loadSummaryJsPdf(): Promise<typeof jsPDF> {
+  if (!_jsPdfConstructor) {
+    const mod = await import("jspdf");
+    _jsPdfConstructor = mod.jsPDF || (mod as any).default?.jsPDF || (mod as any).default;
+  }
+  return _jsPdfConstructor;
+}
+
+function getSyncSummaryJsPdf(): typeof jsPDF | null {
+  if (_jsPdfConstructor) return _jsPdfConstructor;
+  if (typeof window === "undefined") {
+    try {
+      const mod = eval("require")("jspdf");
+      _jsPdfConstructor = mod.jsPDF || mod.default?.jsPDF || mod.default;
+      return _jsPdfConstructor;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 export interface EventSummaryPdfData {
   event:
@@ -35,15 +59,24 @@ export interface EventSummaryPdfData {
 /**
  * Generates an Apple-inspired, premium PDF summary for an event.
  */
-export function buildEventSummaryPdf(data: EventSummaryPdfData): jsPDF {
+export function buildEventSummaryPdf(data: EventSummaryPdfData, customDoc?: jsPDF): jsPDF {
   const { event, crew, tasks, expenses } = data;
 
+  const JsPdfClass = getSyncSummaryJsPdf() || (customDoc ? (customDoc.constructor as any) : null);
+  if (!customDoc && !JsPdfClass) {
+    throw new Error(
+      "jsPDF has not been loaded. In browser environments, call downloadEventSummaryPdf."
+    );
+  }
+
   // Initialize A4 document (210mm x 297mm)
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-  });
+  const doc =
+    customDoc ||
+    new JsPdfClass({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
 
   const pageWidth = 210;
   const pageHeight = 297;
@@ -520,7 +553,13 @@ function renderSectionHeading(
  * Client-side trigger to generate and immediately download the PDF file.
  */
 export async function downloadEventSummaryPdf(data: EventSummaryPdfData): Promise<void> {
-  const doc = buildEventSummaryPdf(data);
+  const JsPdfClass = await loadSummaryJsPdf();
+  const doc = new JsPdfClass({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+  });
+  buildEventSummaryPdf(data, doc);
   const cleanTitle = (data.event.title || "Acara")
     .toLowerCase()
     .replace(/[^a-z0-9]/gi, "-")

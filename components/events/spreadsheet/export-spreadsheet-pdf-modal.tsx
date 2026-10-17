@@ -125,6 +125,9 @@ export function ExportSpreadsheetPdfModal({
         }
       }
 
+      // Dynamically import PDF libraries strictly inside user click handler
+      const { jsPDF } = await import("jspdf");
+      await import("jspdf-autotable");
       const { downloadSpreadsheetPdf } = await import("@/lib/pdf/spreadsheet-pdf");
 
       const { fileName } = await downloadSpreadsheetPdf({

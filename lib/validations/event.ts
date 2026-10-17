@@ -41,6 +41,13 @@ export const createEventSchema = z.object({
     if (val === null || val === undefined) return false;
     return Boolean(val);
   }, z.boolean()).default(true),
+  use_family_template: z.preprocess((val) => {
+    if (typeof val === "boolean") return val;
+    if (val === "true" || val === "on" || val === "1") return true;
+    if (val === "false" || val === "off" || val === "0") return false;
+    if (val === null || val === undefined) return false;
+    return Boolean(val);
+  }, z.boolean()).default(true),
   budget: eventBudgetInputSchema.optional(),
   description: z.string().nullable().optional(),
   expenses: z.array(z.any()).nullable().optional().default([]),

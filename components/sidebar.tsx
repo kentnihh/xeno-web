@@ -150,8 +150,8 @@ export function Sidebar({ canAccessSettings = false }: SidebarProps) {
                     isSettingsActive && pathname === "/settings"
                       ? "bg-[#007aff] text-white shadow-[0_2px_12px_rgba(0,122,255,0.4)]"
                       : isSettingsActive
-                      ? "text-[#007aff] bg-[#007aff]/10 font-bold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                        ? "text-[#007aff] bg-[#007aff]/10 font-bold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
                   )}
                   onClick={() => setIsSettingsOpen((prev) => !prev)}
                 >
@@ -166,8 +166,8 @@ export function Sidebar({ canAccessSettings = false }: SidebarProps) {
                         isSettingsActive && pathname === "/settings"
                           ? "text-white"
                           : isSettingsActive
-                          ? "text-[#007aff]"
-                          : "text-muted-foreground group-hover:text-foreground"
+                            ? "text-[#007aff]"
+                            : "text-muted-foreground group-hover:text-foreground"
                       )}
                     />
                     <span className="truncate">Settings</span>

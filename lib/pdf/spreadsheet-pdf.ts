@@ -1,5 +1,5 @@
-import { jsPDF } from "jspdf";
-import rawAutoTable, { type UserOptions } from "jspdf-autotable";
+import type { jsPDF } from "jspdf";
+import type { UserOptions } from "jspdf-autotable";
 import { convertToFortuneSheet, extractCellText } from "@/lib/spreadsheet-adapter";
 import { formatDate } from "@/lib/utils";
 import type {
@@ -9,16 +9,71 @@ import type {
   FormCategorySchema,
 } from "@/types/database";
 import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
-import {
-  montserratRegularBase64,
-  montserratBoldBase64,
-} from "@/lib/fonts/Montserrat-base64";
 
-const autoTable = (
-  typeof rawAutoTable === "function"
-    ? rawAutoTable
-    : (rawAutoTable as any).default || (rawAutoTable as any).autoTable
-) as typeof rawAutoTable;
+let _jsPdfConstructor: any = null;
+let _autoTableFunction: any = null;
+
+export async function loadJsPdfModules(): Promise<{
+  jsPDF: typeof jsPDF;
+  autoTable: (doc: any, options: UserOptions) => any;
+}> {
+  if (!_jsPdfConstructor || !_autoTableFunction) {
+    const jspdfMod = await import("jspdf");
+    _jsPdfConstructor =
+      jspdfMod.jsPDF || (jspdfMod as any).default?.jsPDF || (jspdfMod as any).default;
+
+    const autotableMod = await import("jspdf-autotable");
+    const raw = autotableMod.default || autotableMod;
+    _autoTableFunction =
+      typeof raw === "function" ? raw : (raw as any).default || (raw as any).autoTable;
+  }
+  return {
+    jsPDF: _jsPdfConstructor,
+    autoTable: _autoTableFunction,
+  };
+}
+
+function getSyncJsPdfModules(): {
+  jsPDF: typeof jsPDF;
+  autoTable: (doc: any, options: UserOptions) => any;
+} | null {
+  if (_jsPdfConstructor && _autoTableFunction) {
+    return { jsPDF: _jsPdfConstructor, autoTable: _autoTableFunction };
+  }
+  if (typeof window === "undefined") {
+    try {
+      const jspdfMod = eval("require")("jspdf");
+      _jsPdfConstructor =
+        jspdfMod.jsPDF || jspdfMod.default?.jsPDF || jspdfMod.default;
+
+      const autotableMod = eval("require")("jspdf-autotable");
+      const raw = autotableMod.default || autotableMod;
+      _autoTableFunction =
+        typeof raw === "function" ? raw : (raw as any).default || (raw as any).autoTable;
+
+      return { jsPDF: _jsPdfConstructor, autoTable: _autoTableFunction };
+    } catch (err) {
+      console.warn("[getSyncJsPdfModules] Error loading jsPDF synchronously in Node:", err);
+    }
+  }
+  return null;
+}
+
+function autoTable(doc: any, options: UserOptions): any {
+  if (_autoTableFunction) {
+    return _autoTableFunction(doc, options);
+  }
+  const sync = getSyncJsPdfModules();
+  if (sync?.autoTable) {
+    return sync.autoTable(doc, options);
+  }
+  if (typeof (doc as any).autoTable === "function") {
+    return (doc as any).autoTable(options);
+  }
+  throw new Error(
+    "jspdf-autotable has not been loaded. In browser environments, ensure downloadSpreadsheetPdf or loadJsPdfModules() is called."
+  );
+}
 
 export interface GenerateSpreadsheetPdfOptions {
   eventTitle: string;
@@ -28,31 +83,127 @@ export interface GenerateSpreadsheetPdfOptions {
   logoDataUrl?: string | null;
   includeFamilyData?: boolean;
   familyData?: EventPublicForm | null;
+  doc?: jsPDF;
 }
 
 let cachedLogoDataUrl: string | null = null;
+let cachedRegularBase64: string | null = null;
+let cachedBoldBase64: string | null = null;
+
+/**
+ * Loads Montserrat font binary from network (browser) or disk (Node.js test environments),
+ * converts ArrayBuffer to Base64 at runtime, and caches it in memory.
+ */
+export async function loadMontserratFonts(): Promise<{ regular: string; bold: string }> {
+  if (cachedRegularBase64 && cachedBoldBase64) {
+    return { regular: cachedRegularBase64, bold: cachedBoldBase64 };
+  }
+
+  if (typeof window !== "undefined") {
+    try {
+      // Fetch font dynamically during PDF export
+      const [fontRes, boldRes] = await Promise.all([
+        fetch("/fonts/Montserrat-Regular.ttf"),
+        fetch("/fonts/Montserrat-Bold.ttf"),
+      ]);
+
+      if (!fontRes.ok) throw new Error(`HTTP ${fontRes.status} fetching Montserrat-Regular.ttf`);
+      if (!boldRes.ok) throw new Error(`HTTP ${boldRes.status} fetching Montserrat-Bold.ttf`);
+
+      const [fontBuffer, boldBuffer] = await Promise.all([
+        fontRes.arrayBuffer(),
+        boldRes.arrayBuffer(),
+      ]);
+
+      // Convert ArrayBuffer to Base64 in the browser
+      cachedRegularBase64 = btoa(
+        new Uint8Array(fontBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      );
+      cachedBoldBase64 = btoa(
+        new Uint8Array(boldBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      );
+    } catch (err) {
+      console.error("[loadMontserratFonts] Network fetch failed for Montserrat fonts:", err);
+      throw err;
+    }
+  } else {
+    try {
+      const fs = eval("require")("node:fs");
+      const path = eval("require")("node:path");
+      const fontsDir = path.join(process.cwd(), "public", "fonts");
+      cachedRegularBase64 = fs.readFileSync(path.join(fontsDir, "Montserrat-Regular.ttf")).toString("base64");
+      cachedBoldBase64 = fs.readFileSync(path.join(fontsDir, "Montserrat-Bold.ttf")).toString("base64");
+    } catch (err) {
+      console.warn("[loadMontserratFonts] Error reading fonts from disk in Node environment:", err);
+    }
+  }
+
+  return {
+    regular: cachedRegularBase64 || "",
+    bold: cachedBoldBase64 || "",
+  };
+}
+
+function getSyncMontserratFonts(): { regular: string; bold: string } {
+  if (cachedRegularBase64 && cachedBoldBase64) {
+    return { regular: cachedRegularBase64, bold: cachedBoldBase64 };
+  }
+  if (typeof window === "undefined") {
+    try {
+      const fs = eval("require")("node:fs");
+      const path = eval("require")("node:path");
+      const fontsDir = path.join(process.cwd(), "public", "fonts");
+      cachedRegularBase64 = fs.readFileSync(path.join(fontsDir, "Montserrat-Regular.ttf")).toString("base64");
+      cachedBoldBase64 = fs.readFileSync(path.join(fontsDir, "Montserrat-Bold.ttf")).toString("base64");
+      return { regular: cachedRegularBase64 || "", bold: cachedBoldBase64 || "" };
+    } catch (err) {
+      console.warn("[getSyncMontserratFonts] Failed reading fonts:", err);
+    }
+  }
+  return {
+    regular: cachedRegularBase64 || "",
+    bold: cachedBoldBase64 || "",
+  };
+}
+
+export function registerMontserratFontWithData(
+  doc: any,
+  fonts: { regular: string; bold: string }
+): void {
+  try {
+    if (fonts.regular) {
+      doc.addFileToVFS("Montserrat-Regular.ttf", fonts.regular);
+      doc.addFont("Montserrat-Regular.ttf", "Montserrat", "normal");
+      doc.addFont("Montserrat-Regular.ttf", "Montserrat", "italic");
+    }
+    if (fonts.bold) {
+      doc.addFileToVFS("Montserrat-Bold.ttf", fonts.bold);
+      doc.addFont("Montserrat-Bold.ttf", "Montserrat", "bold");
+      doc.addFont("Montserrat-Bold.ttf", "Montserrat", "bolditalic");
+    }
+    doc.setFont("Montserrat", "normal");
+  } catch (err) {
+    console.warn("[registerMontserratFontWithData] Error embedding Montserrat font in jsPDF:", err);
+  }
+}
 
 /**
  * Embeds Montserrat font (Regular, Bold, Italic, BoldItalic) into jsPDF Virtual File System (VFS)
  * and activates it as the active default font.
+ * Supports both synchronous invocation (when fonts are cached or in Node test environment)
+ * and asynchronous Promise-based invocation.
  */
-export function registerMontserratFont(doc: jsPDF): void {
-  try {
-    // 1. Add Regular font to jsPDF Virtual File System (VFS)
-    doc.addFileToVFS("Montserrat-Regular.ttf", montserratRegularBase64);
-    doc.addFont("Montserrat-Regular.ttf", "Montserrat", "normal");
-    doc.addFont("Montserrat-Regular.ttf", "Montserrat", "italic");
-
-    // 2. Add Bold font to jsPDF Virtual File System (VFS)
-    doc.addFileToVFS("Montserrat-Bold.ttf", montserratBoldBase64);
-    doc.addFont("Montserrat-Bold.ttf", "Montserrat", "bold");
-    doc.addFont("Montserrat-Bold.ttf", "Montserrat", "bolditalic");
-
-    // 3. Set Montserrat as the active default font
-    doc.setFont("Montserrat", "normal");
-  } catch (err) {
-    console.warn("[registerMontserratFont] Error embedding Montserrat font in jsPDF:", err);
+export function registerMontserratFont(doc: any): void | Promise<void> {
+  const syncFonts = getSyncMontserratFonts();
+  if (syncFonts.regular && syncFonts.bold) {
+    registerMontserratFontWithData(doc, syncFonts);
+    return;
   }
+
+  return (async () => {
+    const fonts = await loadMontserratFonts();
+    registerMontserratFontWithData(doc, fonts);
+  })();
 }
 
 /**
@@ -215,15 +366,27 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
     logoDataUrl,
     includeFamilyData = false,
     familyData,
+    doc: customDoc,
   } = options;
   const logoUrl = logoDataUrl !== undefined ? logoDataUrl : getSyncLogoDataUrl();
 
+  const syncModules = getSyncJsPdfModules();
+  const JsPdfClass = syncModules?.jsPDF || (customDoc ? (customDoc.constructor as any) : null);
+
+  if (!customDoc && !JsPdfClass) {
+    throw new Error(
+      "jsPDF has not been loaded. In browser environments, call downloadSpreadsheetPdf or preload with loadJsPdfModules()."
+    );
+  }
+
   // Initialize PDF with requested orientation (A4)
-  const doc = new jsPDF({
-    orientation,
-    unit: "mm",
-    format: "a4",
-  });
+  const doc =
+    customDoc ||
+    new JsPdfClass({
+      orientation,
+      unit: "mm",
+      format: "a4",
+    });
 
   // Embed Montserrat font into jsPDF VFS and set as default font
   registerMontserratFont(doc);
@@ -913,10 +1076,16 @@ export function renderFamilyDataSectionPdf(
     logoUrl
   );
 
-  const baseCategories: FormCategorySchema[] =
-    familyData?.form_schema && familyData.form_schema.length > 0
+  const baseCategories: FormCategorySchema[] = (
+    Array.isArray(familyData?.form_schema)
       ? familyData.form_schema
-      : DEFAULT_PUBLIC_FORM_SCHEMA;
+      : DEFAULT_PUBLIC_FORM_SCHEMA
+  ).map((c, i) => ({
+    ...c,
+    id: c.id || String(i + 1),
+    title: (c.title || c.name || `Kategori ${i + 1}`).trim(),
+    name: (c.name || c.title || `Kategori ${i + 1}`).trim(),
+  }));
 
   const formData: EventFormData = familyData?.form_data || {};
 
@@ -925,11 +1094,13 @@ export function renderFamilyDataSectionPdf(
   const categories: FormCategorySchema[] = [...baseCategories];
   for (const [key, val] of Object.entries(formData)) {
     if (!definedIds.has(key) && Array.isArray(val) && val.length > 0) {
+      const generatedName = key
+        .replace(/[_-]/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase());
       categories.push({
         id: key,
-        name: key
-          .replace(/[_-]/g, " ")
-          .replace(/\b\w/g, (char) => char.toUpperCase()),
+        title: generatedName,
+        name: generatedName,
       });
     }
   }
@@ -942,16 +1113,16 @@ export function renderFamilyDataSectionPdf(
       (m) =>
         Boolean(
           m &&
-            (m.name ||
-              m.nama ||
-              m.role ||
-              m.hubungan ||
-              m.phone ||
-              m.no_hp ||
-              m.address ||
-              m.alamat ||
-              m.notes ||
-              m.catatan)
+          (m.name ||
+            m.nama ||
+            m.role ||
+            m.hubungan ||
+            m.phone ||
+            m.no_hp ||
+            m.address ||
+            m.alamat ||
+            m.notes ||
+            m.catatan)
         )
     );
     totalMembersCount += valid.length;
@@ -975,16 +1146,16 @@ export function renderFamilyDataSectionPdf(
       (m) =>
         Boolean(
           m &&
-            (m.name ||
-              m.nama ||
-              m.role ||
-              m.hubungan ||
-              m.phone ||
-              m.no_hp ||
-              m.address ||
-              m.alamat ||
-              m.notes ||
-              m.catatan)
+          (m.name ||
+            m.nama ||
+            m.role ||
+            m.hubungan ||
+            m.phone ||
+            m.no_hp ||
+            m.address ||
+            m.alamat ||
+            m.notes ||
+            m.catatan)
         )
     );
 
@@ -1009,7 +1180,7 @@ export function renderFamilyDataSectionPdf(
     doc.setFont("Montserrat", "bold");
     doc.setFontSize(10.5);
     doc.setTextColor(17, 24, 39);
-    doc.text(cat.name, marginX, currentY + 3.5);
+    doc.text(cat.title || cat.name, marginX, currentY + 3.5);
     currentY += 5;
 
     if (cat.description) {
@@ -1119,10 +1290,32 @@ export function renderFamilyDataSectionPdf(
 export async function downloadSpreadsheetPdf(
   options: GenerateSpreadsheetPdfOptions
 ): Promise<{ fileName: string }> {
-  // Obtain official logo data URL via off-screen canvas if in browser
+  // 1. Strictly load jsPDF and jspdf-autotable dynamically
+  const { jsPDF } = await loadJsPdfModules();
+
+  // 2. Fetch fonts dynamically over network at runtime
+  const fonts = await loadMontserratFonts();
+
+  // 3. Obtain official logo data URL via off-screen canvas if in browser
   const logoDataUrl =
     options.logoDataUrl !== undefined ? options.logoDataUrl : await getLogoDataUrl();
-  const doc = buildSpreadsheetPdf({ ...options, logoDataUrl });
+
+  // 4. Instantiate jsPDF
+  const doc = new jsPDF({
+    orientation: options.orientation || "landscape",
+    unit: "mm",
+    format: "a4",
+  });
+
+  // 5. Register fonts onto doc
+  registerMontserratFontWithData(doc, fonts);
+
+  // 6. Build the spreadsheet PDF document
+  buildSpreadsheetPdf({
+    ...options,
+    doc,
+    logoDataUrl,
+  });
 
   const cleanEvent = (options.eventTitle || "Event")
     .replace(/[^a-zA-Z0-9_\-\s]/g, "")

@@ -63,13 +63,28 @@ export async function getOrCreateEventPublicForm(eventId: string): Promise<Event
   const initialToken = generateNativeToken();
   const initialExpiresAt = getDefaultExpiryDate();
 
+  // Fetch schema from active master_family_templates or fallback to DEFAULT_PUBLIC_FORM_SCHEMA
+  let initialSchema = DEFAULT_PUBLIC_FORM_SCHEMA;
+  try {
+    const { data: familyTemplate } = await supabase
+      .from("master_family_templates")
+      .select("categories")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (familyTemplate?.categories && Array.isArray(familyTemplate.categories) && familyTemplate.categories.length > 0) {
+      initialSchema = familyTemplate.categories;
+    }
+  } catch {
+    // Fall back to default constant
+  }
+
   const { data: created, error: insertError } = await supabase
     .from("event_public_forms")
     .insert({
       event_id: eventId,
       token: initialToken,
       expires_at: initialExpiresAt,
-      form_schema: DEFAULT_PUBLIC_FORM_SCHEMA,
+      form_schema: initialSchema,
       form_data: {},
     })
     .select("*, event:events(id, title, venue, start_date, end_date)")
@@ -179,6 +194,49 @@ export async function updatePublicFormDataAdmin(
 
   revalidatePath(`/events/${eventId}`);
   return data as EventPublicForm;
+}
+
+/**
+ * Applies the active Master Family Template schema to an event.
+ */
+export async function applyMasterFamilyTemplateToEvent(
+  eventId: string,
+  preserveExistingData: boolean = true
+): Promise<EventPublicForm> {
+  const supabase = await createClient();
+
+  // 1. Fetch active master family template
+  const { data: master } = await supabase
+    .from("master_family_templates")
+    .select("categories")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const rawCategories = master?.categories && Array.isArray(master.categories) && master.categories.length > 0
+    ? master.categories
+    : DEFAULT_PUBLIC_FORM_SCHEMA;
+
+  const categories: FormCategorySchema[] = rawCategories.map((c: any, i: number) => ({
+    ...c,
+    id: c.id || String(i + 1),
+    title: (c.title || c.name || `Kategori ${i + 1}`).trim(),
+    name: (c.name || c.title || `Kategori ${i + 1}`).trim(),
+    description: c.description || "",
+    fields: Array.isArray(c.fields) ? c.fields : [],
+  }));
+
+  // 2. Fetch existing form data if preserving
+  let currentFormData: EventFormData = {};
+  if (preserveExistingData) {
+    const { data: existing } = await supabase
+      .from("event_public_forms")
+      .select("form_data")
+      .eq("event_id", eventId)
+      .maybeSingle();
+    currentFormData = existing?.form_data || {};
+  }
+
+  return await updatePublicFormDataAdmin(eventId, currentFormData, categories);
 }
 
 /**

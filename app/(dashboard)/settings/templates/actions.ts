@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
-import type { MasterTemplate, SheetData } from "@/types/database";
+import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
+import type {
+  MasterTemplate,
+  MasterFamilyTemplate,
+  FormCategorySchema,
+  SheetData,
+} from "@/types/database";
 
 type ActionResult<T = unknown> = { success?: boolean; data?: T; error?: string };
 
@@ -210,3 +216,195 @@ export async function reorderMasterTemplates(
     };
   }
 }
+
+/**
+ * Fetch the active master family template blueprint.
+ * If empty or uninitialized, falls back to seeding DEFAULT_PUBLIC_FORM_SCHEMA.
+ */
+export async function getMasterFamilyTemplate(): Promise<MasterFamilyTemplate> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("master_family_templates")
+      .select("*")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!error && data) {
+      const rawCategories = Array.isArray(data.categories) ? data.categories : [];
+      const mapped = rawCategories.map((c: any, i: number) => ({
+        ...c,
+        id: c.id || String(i + 1),
+        title: (c.title || c.name || `Kategori ${i + 1}`).trim(),
+        name: (c.name || c.title || `Kategori ${i + 1}`).trim(),
+        description: c.description || "",
+        fields: Array.isArray(c.fields) ? c.fields : [],
+      }));
+      return {
+        ...data,
+        categories: mapped,
+        form_schema: mapped,
+      } as MasterFamilyTemplate;
+    }
+
+    // If no row exists yet, seed default blueprint
+    const defaultSchema = DEFAULT_PUBLIC_FORM_SCHEMA.map((c, i) => ({
+      ...c,
+      id: c.id || String(i + 1),
+      title: (c.title || c.name || `Kategori ${i + 1}`).trim(),
+      name: (c.name || c.title || `Kategori ${i + 1}`).trim(),
+    }));
+
+    const { data: created, error: insertErr } = await supabase
+      .from("master_family_templates")
+      .insert({
+        name: "Master Template Data Keluarga",
+        categories: defaultSchema,
+        is_active: true,
+      })
+      .select("*")
+      .single();
+
+    if (!insertErr && created) {
+      return {
+        ...created,
+        categories: defaultSchema,
+        form_schema: defaultSchema,
+      } as MasterFamilyTemplate;
+    }
+
+    // Fallback in-memory
+    return {
+      id: "fallback-default",
+      name: "Master Template Data Keluarga",
+      categories: defaultSchema,
+      form_schema: defaultSchema,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  } catch (err) {
+    console.error("[getMasterFamilyTemplate] Exception:", err);
+    const defaultSchema = DEFAULT_PUBLIC_FORM_SCHEMA.map((c, i) => ({
+      ...c,
+      id: c.id || String(i + 1),
+      title: (c.title || c.name || `Kategori ${i + 1}`).trim(),
+      name: (c.name || c.title || `Kategori ${i + 1}`).trim(),
+    }));
+    return {
+      id: "fallback-default",
+      name: "Master Template Data Keluarga",
+      categories: defaultSchema,
+      form_schema: defaultSchema,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+}
+
+/**
+ * Save / Update master family template blueprint categories.
+ */
+export async function saveMasterFamilyTemplate(
+  categories: FormCategorySchema[],
+  name: string = "Master Template Data Keluarga"
+): Promise<{ success: boolean; error?: string; data?: MasterFamilyTemplate }> {
+  try {
+    await requirePermission("templates.manage");
+    const supabase = await createClient();
+    const now = new Date().toISOString();
+
+    const sanitizedCategories: FormCategorySchema[] = (Array.isArray(categories) ? categories : []).map(
+      (cat, idx) => {
+        const title = (cat.title || cat.name || `Kategori ${idx + 1}`).trim();
+        return {
+          id: cat.id || String(idx + 1),
+          title,
+          name: title,
+          description: cat.description || "",
+          fields: Array.isArray(cat.fields) ? cat.fields : [],
+        };
+      }
+    );
+
+    // Check for existing active template
+    const { data: existing } = await supabase
+      .from("master_family_templates")
+      .select("id")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    let resultData: MasterFamilyTemplate | null = null;
+    if (existing?.id) {
+      const { data: updated, error } = await supabase
+        .from("master_family_templates")
+        .update({
+          name: name.trim() || "Master Template Data Keluarga",
+          categories: sanitizedCategories,
+          updated_at: now,
+        })
+        .eq("id", existing.id)
+        .select("*")
+        .single();
+
+      if (error) throw new Error(error.message);
+      resultData = {
+        ...updated,
+        categories: sanitizedCategories,
+        form_schema: sanitizedCategories,
+      } as MasterFamilyTemplate;
+    } else {
+      const { data: inserted, error } = await supabase
+        .from("master_family_templates")
+        .insert({
+          name: name.trim() || "Master Template Data Keluarga",
+          categories: sanitizedCategories,
+          is_active: true,
+          updated_at: now,
+        })
+        .select("*")
+        .single();
+
+      if (error) throw new Error(error.message);
+      resultData = {
+        ...inserted,
+        categories: sanitizedCategories,
+        form_schema: sanitizedCategories,
+      } as MasterFamilyTemplate;
+    }
+
+    revalidatePath("/settings/templates");
+    revalidatePath("/events/new");
+    return { success: true, data: resultData };
+  } catch (err: unknown) {
+    console.error("[saveMasterFamilyTemplate] Error:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal menyimpan template master data keluarga.",
+    };
+  }
+}
+
+/**
+ * Reset master family template back to standard default schema presets.
+ */
+export async function resetMasterFamilyTemplate(): Promise<{
+  success: boolean;
+  error?: string;
+  data?: MasterFamilyTemplate;
+}> {
+  try {
+    await requirePermission("templates.manage");
+    return await saveMasterFamilyTemplate(
+      DEFAULT_PUBLIC_FORM_SCHEMA,
+      "Master Template Data Keluarga"
+    );
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal mereset template master data keluarga.",
+    };
+  }
+}
+

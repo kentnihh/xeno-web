@@ -54,10 +54,10 @@ export function EventDetailTabs({
     initialTab === "documents"
       ? "documents"
       : initialTab === "lembar-kerja" || initialTab === "spreadsheets" || initialTab === "sheets"
-      ? "lembar-kerja"
-      : initialTab === "data-keluarga" || initialTab === "family" || initialTab === "keluarga"
-      ? "data-keluarga"
-      : "operations"
+        ? "lembar-kerja"
+        : initialTab === "data-keluarga" || initialTab === "family" || initialTab === "keluarga"
+          ? "data-keluarga"
+          : "operations"
   );
   const [currentCrew, setCurrentCrew] = useState<EventCrew[]>(crew);
   const manageOps = canManage;
@@ -80,11 +80,10 @@ export function EventDetailTabs({
         <button
           type="button"
           onClick={() => setActiveTab("operations")}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${
-            activeTab === "operations"
+          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${activeTab === "operations"
               ? "border-[#007aff] text-foreground font-bold"
               : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           <Layers className="w-4 h-4" />
           <span>Operasional Acara</span>
@@ -96,11 +95,10 @@ export function EventDetailTabs({
         <button
           type="button"
           onClick={() => setActiveTab("documents")}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${
-            activeTab === "documents"
+          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${activeTab === "documents"
               ? "border-[#007aff] text-foreground font-bold"
               : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           <FolderOpen className="w-4 h-4" />
           <span>Dokumen & Berkas</span>
@@ -112,11 +110,10 @@ export function EventDetailTabs({
         <button
           type="button"
           onClick={() => setActiveTab("lembar-kerja")}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${
-            activeTab === "lembar-kerja"
+          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${activeTab === "lembar-kerja"
               ? "border-[#007aff] text-foreground font-bold"
               : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           <FileSpreadsheet className="w-4 h-4" />
           <span>Lembar Kerja</span>
@@ -129,11 +126,10 @@ export function EventDetailTabs({
         <button
           type="button"
           onClick={() => setActiveTab("data-keluarga")}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${
-            activeTab === "data-keluarga"
+          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${activeTab === "data-keluarga"
               ? "border-[#007aff] text-foreground font-bold"
               : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           <Users className="w-4 h-4" />
           <span>Data Keluarga</span>

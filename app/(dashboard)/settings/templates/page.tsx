@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { FileSpreadsheet } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
 import { isAdmin, hasPermission } from "@/lib/auth";
-import { MasterTemplatesManager } from "@/components/settings/master-templates-manager";
-import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
-import type { MasterTemplate } from "@/types/database";
+import {
+  getMasterTemplates,
+  getMasterFamilyTemplate,
+} from "@/app/(dashboard)/settings/templates/actions";
+import { TemplatesTabsView } from "@/components/settings/templates-tabs-view";
 
 export default async function MasterTemplatesSettingsPage() {
   const canAccess = (await isAdmin()) || (await hasPermission("templates.manage"));
@@ -13,31 +14,10 @@ export default async function MasterTemplatesSettingsPage() {
     redirect("/dashboard");
   }
 
-  const supabase = await createClient();
-  const { data: rawTemplates } = await supabase
-    .from("master_templates")
-    .select("*")
-    .order("order_index", { ascending: true });
-
-  let templates: MasterTemplate[] = (rawTemplates as MasterTemplate[]) || [];
-
-  // Fallback: If DB master_templates table is empty, seed defaults
-  if (templates.length === 0) {
-    const seedRows = INITIAL_EVENT_SHEETS.map((tpl, idx) => ({
-      sheet_name: tpl.name,
-      order_index: idx,
-      jsonb_structure: tpl.data,
-    }));
-
-    const { data: seeded } = await supabase
-      .from("master_templates")
-      .insert(seedRows)
-      .select("*");
-
-    if (seeded && seeded.length > 0) {
-      templates = seeded as MasterTemplate[];
-    }
-  }
+  const [templates, familyTemplate] = await Promise.all([
+    getMasterTemplates(),
+    getMasterFamilyTemplate(),
+  ]);
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -47,14 +27,17 @@ export default async function MasterTemplatesSettingsPage() {
           <span>Pengaturan Blueprint Master Template</span>
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Master Templates Lembar Kerja Dinamis
+          Master Templates Lembar Kerja & Formulir Publik
         </h1>
         <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
-          Ubah konfigurasi kolom, nama kolom, dan isi default template lembar kerja. Seluruh event baru yang dibuat ke depan akan otomatis mengadopsi struktur dari template di bawah ini.
+          Ubah konfigurasi blueprint lembar kerja Excel dan formulir publik data keluarga. Seluruh acara baru yang dibuat ke depan akan otomatis mengadopsi struktur template di bawah ini.
         </p>
       </div>
 
-      <MasterTemplatesManager initialTemplates={templates} />
+      <TemplatesTabsView
+        initialTemplates={templates}
+        initialFamilyTemplate={familyTemplate}
+      />
     </div>
   );
 }

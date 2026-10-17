@@ -562,5 +562,32 @@ create policy "Public can update form_data with valid unexpired token"
   using (token is not null and expires_at > now())
   with check (token is not null and expires_at > now());
 
+-- -----------------------------------------------------------------------------
+-- Master Family Templates (Default blueprint for event public forms)
+-- -----------------------------------------------------------------------------
+create table if not exists public.master_family_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null default 'Master Template Data Keluarga',
+  categories jsonb not null default '[]'::jsonb,
+  is_active boolean not null default true,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
 
+alter table public.master_family_templates enable row level security;
 
+drop policy if exists "Authenticated users can select master_family_templates" on public.master_family_templates;
+create policy "Authenticated users can select master_family_templates"
+  on public.master_family_templates for select to authenticated using (true);
+
+drop policy if exists "Authenticated users can insert master_family_templates" on public.master_family_templates;
+create policy "Authenticated users can insert master_family_templates"
+  on public.master_family_templates for insert to authenticated with check (true);
+
+drop policy if exists "Authenticated users can update master_family_templates" on public.master_family_templates;
+create policy "Authenticated users can update master_family_templates"
+  on public.master_family_templates for update to authenticated using (true) with check (true);
+
+drop policy if exists "Authenticated users can delete master_family_templates" on public.master_family_templates;
+create policy "Authenticated users can delete master_family_templates"
+  on public.master_family_templates for delete to authenticated using (true);

@@ -184,6 +184,27 @@ export function CreateEventForm({ clients }: CreateEventFormProps) {
           </label>
         </div>
 
+        <div className="flex items-start gap-3 p-3.5 rounded-xl bg-muted/40 border border-border">
+          <input type="hidden" name="use_family_template_present" value="1" />
+          <input
+            id="use_family_template"
+            name="use_family_template"
+            type="checkbox"
+            defaultChecked
+            value="true"
+            className="mt-0.5 h-4 w-4 rounded border-border text-[#007aff] focus:ring-[#007aff] cursor-pointer"
+          />
+          <label
+            htmlFor="use_family_template"
+            className="text-xs font-medium text-foreground cursor-pointer select-none"
+          >
+            <span className="font-bold block">Gunakan Template Family Data Bawaan?</span>
+            <span className="text-muted-foreground text-[11px] block mt-0.5">
+              Jika dicentang, struktur formulir publik (Keluarga Groom, Keluarga Bride, Wakil Foto) akan dibuat otomatis dari Master Template. Jika tidak dicentang, formulir publik akan dimulai tanpa kategori (kosong).
+            </span>
+          </label>
+        </div>
+
         <div>
           <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5 text-[#ff9f0a]" /> Deskripsi Singkat Acara
