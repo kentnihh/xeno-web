@@ -10,7 +10,12 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
-import { convertToFortuneSheet, matrixToCelldata } from "@/lib/spreadsheet-adapter";
+import {
+  convertToFortuneSheet,
+  matrixToCelldata,
+  sanitizeSheetData,
+} from "@/lib/spreadsheet-adapter";
+import { registerMontserratInFortuneSheet } from "@/lib/fortune-sheet-fonts";
 import type { SheetData } from "@/types/database";
 import type { WorkbookInstance } from "@fortune-sheet/react";
 import type { Sheet } from "@fortune-sheet/core";
@@ -18,7 +23,11 @@ import "@fortune-sheet/react/dist/index.css";
 
 // Dynamic import with ssr: false ensures canvas/DOM APIs only initialize on client
 const Workbook = dynamic(
-  () => import("@fortune-sheet/react").then((mod) => mod.Workbook),
+  () =>
+    import("@fortune-sheet/react").then(async (mod) => {
+      await registerMontserratInFortuneSheet();
+      return mod.Workbook;
+    }),
   {
     ssr: false,
     loading: () => (
@@ -39,11 +48,12 @@ export interface DynamicSheetGridProps {
   data: SheetData;
   readOnly?: boolean;
   sheetName?: string;
+  showGridLines?: boolean;
 }
 
 export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetGridProps>(
   function DynamicSheetGrid(
-    { data, readOnly = false, sheetName = "Sheet 1" },
+    { data, readOnly = false, sheetName = "Sheet 1", showGridLines = true },
     ref
   ) {
     const [mounted, setMounted] = useState(false);
@@ -51,14 +61,32 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
 
     // Initialize initialSheets ONCE on mount for this sheet key.
     // FortuneSheet operates as an uncontrolled component managing its internal canvas state.
-    const [initialSheets] = useState<Sheet[]>(() => [
-      convertToFortuneSheet(data, sheetName),
-    ]);
+    const [initialSheets] = useState<Sheet[]>(() => {
+      const sheet = convertToFortuneSheet(data, sheetName, showGridLines);
+      // Deep clone before mutating so we never mutate read-only / frozen objects from React props/state
+      const newSheet: Sheet =
+        typeof structuredClone === "function"
+          ? structuredClone(sheet)
+          : (JSON.parse(JSON.stringify(sheet)) as Sheet);
+
+      if (showGridLines !== undefined) {
+        newSheet.showGridLines = showGridLines;
+        if (!newSheet.config) {
+          newSheet.config = {};
+        } else {
+          newSheet.config = { ...newSheet.config };
+        }
+        (newSheet.config as any).showGridLines = showGridLines ? 1 : 0;
+      }
+      return [newSheet];
+    });
 
     const latestSheetRef = useRef<Sheet>(initialSheets[0]);
 
     useEffect(() => {
-      setMounted(true);
+      registerMontserratInFortuneSheet().then(() => {
+        setMounted(true);
+      });
     }, []);
 
     // Expose imperative handle so parents can grab fresh data on-demand
@@ -80,28 +108,26 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
 
           // Clone to prevent mutating internal FortuneSheet objects
           const sheetClone: Sheet = JSON.parse(JSON.stringify(sheet));
+          if (showGridLines !== undefined) {
+            sheetClone.showGridLines = showGridLines;
+          }
 
-          // Ensure celldata is attached for safe re-hydration
-          if (
-            (!sheetClone.celldata || sheetClone.celldata.length === 0) &&
-            Array.isArray(sheetClone.data)
-          ) {
+          // Always synchronize celldata from the live 2D canvas matrix for safe re-hydration & multiline preservation
+          if (Array.isArray(sheetClone.data) && sheetClone.data.length > 0) {
             sheetClone.celldata = matrixToCelldata(sheetClone.data as any[][]);
           }
-          return sheetClone as unknown as SheetData;
+
+          return sanitizeSheetData(sheetClone);
         },
         getAllSheets: () => {
           if (workbookRef.current?.getAllSheets) {
             const all = workbookRef.current.getAllSheets();
             return all.map((s) => {
               const clone: Sheet = JSON.parse(JSON.stringify(s));
-              if (
-                (!clone.celldata || clone.celldata.length === 0) &&
-                Array.isArray(clone.data)
-              ) {
+              if (Array.isArray(clone.data) && clone.data.length > 0) {
                 clone.celldata = matrixToCelldata(clone.data as any[][]);
               }
-              return clone;
+              return sanitizeSheetData(clone) as unknown as Sheet;
             });
           }
           return [latestSheetRef.current];

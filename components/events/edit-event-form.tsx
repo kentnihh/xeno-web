@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MapPin, User, Building2, FileText, Activity, Loader2 } from "lucide-react";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { Combobox } from "@/components/ui/combobox";
 import { updateEvent } from "@/app/(dashboard)/events/actions";
 import { PostSubmitSyncModal } from "@/components/events/post-submit-sync-modal";
 import type { Event, Client } from "@/types/database";
@@ -14,6 +15,17 @@ export function EditEventForm({ event, clients = [] }: { event: Event; clients?:
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [clientId, setClientId] = useState(event.client_id || "");
+
+  const clientOptions = [
+    { value: "", label: "-- Tanpa Klien (Opsional) --" },
+    ...clients.map((c) => ({
+      value: c.id,
+      label: c.name,
+      subLabel: c.company || undefined,
+      badge: c.event_type || undefined,
+    })),
+  ];
 
   const defaultEndDate =
     event.end_date ||
@@ -140,18 +152,16 @@ export function EditEventForm({ event, clients = [] }: { event: Event; clients?:
           <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
             <Building2 className="w-3.5 h-3.5 text-[#007aff]" /> Klien
           </label>
-          <select
+          <Combobox
             name="client_id"
-            defaultValue={event.client_id || ""}
-            className="apple-input w-full px-3.5 py-2.5 text-sm bg-muted border-border cursor-pointer"
-          >
-            <option value="">Pilih Klien (Opsional)</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.company ? `(${c.company})` : ""}
-              </option>
-            ))}
-          </select>
+            value={clientId}
+            onChange={setClientId}
+            options={clientOptions}
+            allowClear
+            placeholder="Pilih Klien (Opsional)..."
+            searchPlaceholder="Cari nama klien atau perusahaan..."
+            emptyText="Klien tidak ditemukan. Tambahkan di menu Klien."
+          />
         </div>
 
         <div>

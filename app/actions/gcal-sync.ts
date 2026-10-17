@@ -6,6 +6,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 export interface SyncGCalResponse {
   success: boolean;
   message: string;
+  error?: string;
   eventId?: string;
   gcalEventId?: string;
   htmlLink?: string;
@@ -119,254 +120,332 @@ async function getGoogleCalendarAccessToken(): Promise<{
 /**
  * Server Action: Syncs a single event to Google Calendar via REST API.
  * Idempotent: checks for event.gcal_event_id and issues PUT (update) or POST (create & save ID).
- * Handles 404 on PUT by resetting gcal_event_id and recreating with POST.
+ * Gracefully catches all errors (including 403 Forbidden & 404 Not Found) without crashing client boundary.
  */
 export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGCalResponse> {
-  if (
-    !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
-    !process.env.GOOGLE_PRIVATE_KEY ||
-    !process.env.GOOGLE_CALENDAR_ID
-  ) {
-    const missing: string[] = [];
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) missing.push("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-    if (!process.env.GOOGLE_PRIVATE_KEY) missing.push("GOOGLE_PRIVATE_KEY");
-    if (!process.env.GOOGLE_CALENDAR_ID) missing.push("GOOGLE_CALENDAR_ID");
-    throw new Error(
-      `Konfigurasi Google Calendar belum lengkap: [${missing.join(", ")}] wajib disetel di environment variables.`
-    );
-  }
-
-  if (!eventId) {
-    throw new Error("Event ID wajib disertakan untuk sinkronisasi.");
-  }
-
-  const { accessToken, calendarId } = await getGoogleCalendarAccessToken();
-  const supabase = getSupabaseClient();
-
-  // Fetch event details from database
-  const { data: rawEvent } = await supabase
-    .from("events")
-    .select("*, client:clients(*)")
-    .eq("id", eventId)
-    .single();
-
-  // Fallback if event is demo / not in DB
-  const event = rawEvent || {
-    id: eventId,
-    title: "Sinar Jaya Annual Gala 2026",
-    venue: "Grand Ballroom Hotel Indonesia Kempinski",
-    start_date: "2026-10-20T11:00:00.000Z",
-    end_date: "2026-10-20T19:00:00.000Z",
-    status: "confirmed",
-    pic: "Jonathan Admin",
-    description: "Annual gala dinner Xeno production",
-    gcal_event_id: null,
-  };
-
-  const summary = event.title || "Acara Xeno Entertainment";
-  const location = event.venue || "";
-  const description = [
-    `Nama Acara: ${event.title}`,
-    event.venue ? `Venue / Lokasi: ${event.venue}` : null,
-    event.pic ? `PIC (Person in Charge): ${event.pic}` : null,
-    `Status: ${event.status || "Planning"}`,
-    event.client?.name
-      ? `Klien: ${event.client.name}${event.client.company ? ` (${event.client.company})` : ""}`
-      : null,
-    event.description ? `Catatan: ${event.description}` : null,
-    "",
-    "Disinkronkan otomatis dari Xeno Entertainment Operations System",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  const { safeStartDate, safeEndDate } = resolveEventDates(event.start_date, event.end_date);
-
-  const eventPayload = {
-    summary,
-    description,
-    location,
-    start: {
-      dateTime: safeStartDate.toISOString(),
-    },
-    end: {
-      dateTime: safeEndDate.toISOString(),
-    },
-  };
-
-  const baseCalendarUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
-  let gcalEventData: any = null;
-
-  // Step 2 & 3: Check if event.gcal_event_id EXISTS
-  if (event.gcal_event_id) {
-    try {
-      const updateRes = await fetch(
-        `${baseCalendarUrl}/${encodeURIComponent(event.gcal_event_id)}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(eventPayload),
-        }
-      );
-
-      if (updateRes.ok) {
-        gcalEventData = await updateRes.json();
-      } else if (updateRes.status === 404) {
-        // Step 3: Handle 404 (event manually deleted on Google Calendar)
-        console.warn(
-          `[GCal Sync] Event ${event.gcal_event_id} was deleted on Google Calendar (404). Clearing ID and recreating...`
-        );
-        if (rawEvent?.id) {
-          await supabase
-            .from("events")
-            .update({ gcal_event_id: null })
-            .eq("id", rawEvent.id);
-        }
-      } else {
-        const errText = await updateRes.text();
-        throw new Error(`Google Calendar PUT update failed (${updateRes.status}): ${errText}`);
-      }
-    } catch (putErr: any) {
-      if (putErr?.message?.includes("404") || !gcalEventData) {
-        // Fallback to POST will trigger below
-      } else {
-        throw putErr;
-      }
+  try {
+    if (
+      !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
+      !process.env.GOOGLE_PRIVATE_KEY ||
+      !process.env.GOOGLE_CALENDAR_ID
+    ) {
+      const missing: string[] = [];
+      if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) missing.push("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+      if (!process.env.GOOGLE_PRIVATE_KEY) missing.push("GOOGLE_PRIVATE_KEY");
+      if (!process.env.GOOGLE_CALENDAR_ID) missing.push("GOOGLE_CALENDAR_ID");
+      const msg = `Konfigurasi Google Calendar belum lengkap: [${missing.join(", ")}] wajib disetel di environment variables.`;
+      return {
+        success: false,
+        message: msg,
+        error: msg,
+      };
     }
-  }
 
-  // If it DOES NOT EXIST (or was reset due to 404 on Google Calendar)
-  if (!gcalEventData) {
-    const insertRes = await fetch(baseCalendarUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
+    if (!eventId) {
+      const msg = "Event ID wajib disertakan untuk sinkronisasi.";
+      return {
+        success: false,
+        message: msg,
+        error: msg,
+      };
+    }
+
+    const { accessToken, calendarId } = await getGoogleCalendarAccessToken();
+    const supabase = getSupabaseClient();
+
+    // Fetch event details from database
+    const { data: rawEvent } = await supabase
+      .from("events")
+      .select("*, client:clients(*)")
+      .eq("id", eventId)
+      .single();
+
+    // Fallback if event is demo / not in DB
+    const event = rawEvent || {
+      id: eventId,
+      title: "Sinar Jaya Annual Gala 2026",
+      venue: "Grand Ballroom Hotel Indonesia Kempinski",
+      start_date: "2026-10-20T11:00:00.000Z",
+      end_date: "2026-10-20T19:00:00.000Z",
+      status: "confirmed",
+      pic: "Jonathan Admin",
+      description: "Annual gala dinner Xeno production",
+      gcal_event_id: null,
+    };
+
+    const summary = event.title || "Acara Xeno Entertainment";
+    const location = event.venue || "";
+    const description = [
+      `Nama Acara: ${event.title}`,
+      event.venue ? `Venue / Lokasi: ${event.venue}` : null,
+      event.pic ? `PIC (Person in Charge): ${event.pic}` : null,
+      `Status: ${event.status || "Planning"}`,
+      event.client?.name
+        ? `Klien: ${event.client.name}${event.client.company ? ` (${event.client.company})` : ""}`
+        : null,
+      event.description ? `Catatan: ${event.description}` : null,
+      "",
+      "Disinkronkan otomatis dari Xeno Entertainment Operations System",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const { safeStartDate, safeEndDate } = resolveEventDates(event.start_date, event.end_date);
+
+    const eventPayload = {
+      summary,
+      description,
+      location,
+      start: {
+        dateTime: safeStartDate.toISOString(),
       },
-      body: JSON.stringify(eventPayload),
-    });
+      end: {
+        dateTime: safeEndDate.toISOString(),
+      },
+    };
 
-    if (!insertRes.ok) {
-      const errText = await insertRes.text();
-      throw new Error(`Google Calendar API error (${insertRes.status}): ${errText}`);
-    }
+    const baseCalendarUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let gcalEventData: any = null;
 
-    gcalEventData = await insertRes.json();
-
-    // CRITICAL STEP: Extract the id from Google API response and immediately save to Supabase
-    if (gcalEventData?.id && rawEvent?.id) {
-      const { error: dbUpdateError } = await supabase
-        .from("events")
-        .update({ gcal_event_id: gcalEventData.id })
-        .eq("id", rawEvent.id);
-
-      if (dbUpdateError) {
-        console.error(
-          `[GCal Sync] Failed to save gcal_event_id to Supabase for event ${rawEvent.id}:`,
-          dbUpdateError
+    // Step 2 & 3: Check if event.gcal_event_id EXISTS
+    if (event.gcal_event_id) {
+      try {
+        const updateRes = await fetch(
+          `${baseCalendarUrl}/${encodeURIComponent(event.gcal_event_id)}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(eventPayload),
+          }
         );
-        throw new Error(
-          `Gagal menyimpan ID Google Calendar ke database: ${dbUpdateError.message}`
-        );
+
+        if (updateRes.ok) {
+          gcalEventData = await updateRes.json();
+        } else if (updateRes.status === 404) {
+          // Event was deleted on Google Calendar (404). Clear ID and fall back to POST
+          console.warn(
+            `[GCal Sync] Event ${event.gcal_event_id} was deleted on Google Calendar (404). Clearing ID and recreating...`
+          );
+          if (rawEvent?.id) {
+            await supabase
+              .from("events")
+              .update({ gcal_event_id: null })
+              .eq("id", rawEvent.id);
+          }
+        } else if (updateRes.status === 403) {
+          const errText = await updateRes.text();
+          console.warn(`[GCal Sync] PUT 403 Forbidden:`, errText);
+          return {
+            success: false,
+            message: `Akses ditolak (403 Forbidden). Pastikan kalender Google (${calendarId}) telah dibagikan dengan izin 'Make changes to events' ke service account: ${process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL}`,
+            error: errText,
+          };
+        } else {
+          const errText = await updateRes.text();
+          console.warn(`[GCal Sync] Google Calendar PUT failed (${updateRes.status}): ${errText}`);
+          // Fall back to POST creation if update fails
+        }
+      } catch (putErr) {
+        console.warn("[GCal Sync] Exception during PUT update, falling back to POST:", putErr);
       }
     }
-  }
 
-  return {
-    success: true,
-    message: `Acara "${event.title}" berhasil disinkronkan ke Google Calendar!`,
-    eventId,
-    gcalEventId: gcalEventData?.id,
-    htmlLink: gcalEventData?.htmlLink,
-  };
+    // If it DOES NOT EXIST (or was reset due to 404 on Google Calendar)
+    if (!gcalEventData) {
+      const insertRes = await fetch(baseCalendarUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(eventPayload),
+      });
+
+      if (!insertRes.ok) {
+        const errText = await insertRes.text();
+        console.warn(`[GCal Sync] POST failed (${insertRes.status}): ${errText}`);
+
+        let userMsg = `Gagal menyinkronkan ke Google Calendar (${insertRes.status}).`;
+        if (insertRes.status === 403) {
+          userMsg = `Akses ditolak (403 Forbidden). Pastikan kalender Google (${calendarId}) telah dibagikan dengan akses edit ke email service account: ${process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL}`;
+        } else if (insertRes.status === 404) {
+          userMsg = `Kalender Google (${calendarId}) tidak ditemukan (404 Not Found). Periksa kembali GOOGLE_CALENDAR_ID di konfigurasi.`;
+        }
+
+        return {
+          success: false,
+          message: userMsg,
+          error: errText,
+        };
+      }
+
+      gcalEventData = await insertRes.json();
+
+      // Extract the id from Google API response and immediately save to Supabase
+      if (gcalEventData?.id && rawEvent?.id) {
+        const { error: dbUpdateError } = await supabase
+          .from("events")
+          .update({ gcal_event_id: gcalEventData.id })
+          .eq("id", rawEvent.id);
+
+        if (dbUpdateError) {
+          console.error(
+            `[GCal Sync] Failed to save gcal_event_id to Supabase for event ${rawEvent.id}:`,
+            dbUpdateError
+          );
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: `Acara "${event.title}" berhasil disinkronkan ke Google Calendar!`,
+      eventId,
+      gcalEventId: gcalEventData?.id,
+      htmlLink: gcalEventData?.htmlLink,
+    };
+  } catch (err: unknown) {
+    console.error("[syncEventToGoogleCalendar] Unexpected error caught gracefully:", err);
+    const errMsg = err instanceof Error ? err.message : "Terjadi kesalahan saat menyinkronkan ke Google Calendar.";
+    return {
+      success: false,
+      message: errMsg,
+      error: errMsg,
+    };
+  }
 }
 
 /**
  * Server Action: Syncs all active & upcoming events to Google Calendar.
  * Edge-compatible (fetch + jose).
+ * Gracefully catches errors without throwing unhandled exceptions.
  */
 export async function syncAllEventsToGoogleCalendar(): Promise<SyncGCalResponse> {
-  if (
-    !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
-    !process.env.GOOGLE_PRIVATE_KEY ||
-    !process.env.GOOGLE_CALENDAR_ID
-  ) {
-    const missing: string[] = [];
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) missing.push("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-    if (!process.env.GOOGLE_PRIVATE_KEY) missing.push("GOOGLE_PRIVATE_KEY");
-    if (!process.env.GOOGLE_CALENDAR_ID) missing.push("GOOGLE_CALENDAR_ID");
-    throw new Error(
-      `Konfigurasi Google Calendar belum lengkap: [${missing.join(", ")}] wajib disetel di environment variables.`
-    );
+  try {
+    if (
+      !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
+      !process.env.GOOGLE_PRIVATE_KEY ||
+      !process.env.GOOGLE_CALENDAR_ID
+    ) {
+      const missing: string[] = [];
+      if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) missing.push("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+      if (!process.env.GOOGLE_PRIVATE_KEY) missing.push("GOOGLE_PRIVATE_KEY");
+      if (!process.env.GOOGLE_CALENDAR_ID) missing.push("GOOGLE_CALENDAR_ID");
+      const msg = `Konfigurasi Google Calendar belum lengkap: [${missing.join(", ")}] wajib disetel di environment variables.`;
+      return {
+        success: false,
+        message: msg,
+        error: msg,
+      };
+    }
+
+    const supabase = getSupabaseClient();
+
+    const now = new Date();
+    const localTodayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const jakartaDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now);
+    const jakartaTodayStart = new Date(`${jakartaDate}T00:00:00+07:00`);
+    const todayStart = localTodayStart < jakartaTodayStart ? localTodayStart : jakartaTodayStart;
+
+    const { data: rawEvents } = await supabase
+      .from("events")
+      .select("*, client:clients(*)")
+      .neq("status", "completed")
+      .gte("start_date", todayStart.toISOString())
+      .order("start_date", { ascending: true });
+
+    const eventsToSync =
+      rawEvents && rawEvents.length > 0
+        ? rawEvents
+        : [
+            {
+              id: "66666666-6666-6666-6666-666666666666",
+              title: "Sinar Jaya Annual Gala 2026",
+              start_date: "2026-10-20T11:00:00.000Z",
+              end_date: "2026-10-20T19:00:00.000Z",
+              venue: "Grand Ballroom Hotel Indonesia",
+              status: "confirmed",
+              pic: "Jonathan Admin",
+              gcal_event_id: null,
+            },
+            {
+              id: "77777777-7777-7777-7777-777777777777",
+              title: "Jessica & Kevin Wedding Reception",
+              start_date: "2026-10-29T11:00:00.000Z",
+              end_date: "2026-10-29T17:00:00.000Z",
+              venue: "Plataran Dharmawangsa",
+              status: "planning",
+              pic: "Rian Kru Operasional",
+              gcal_event_id: null,
+            },
+          ];
+
+    let count = 0;
+    let failedCount = 0;
+    let lastError: string | undefined;
+
+    for (const ev of eventsToSync) {
+      const res = await syncEventToGoogleCalendar(ev.id);
+      if (res.success) {
+        count++;
+      } else {
+        failedCount++;
+        lastError = res.error || res.message;
+      }
+    }
+
+    if (failedCount > 0 && count === 0) {
+      return {
+        success: false,
+        message: lastError || `Gagal menyinkronkan ${failedCount} acara ke Google Calendar.`,
+        error: lastError,
+      };
+    }
+
+    return {
+      success: true,
+      message:
+        failedCount > 0
+          ? `${count} acara berhasil disinkronkan, ${failedCount} acara gagal disinkronkan.`
+          : `${count} acara aktif berhasil disinkronkan ke Google Calendar!`,
+    };
+  } catch (err: unknown) {
+    console.error("[syncAllEventsToGoogleCalendar] Unexpected error caught gracefully:", err);
+    const errMsg = err instanceof Error ? err.message : "Gagal menyinkronkan seluruh acara ke Google Calendar.";
+    return {
+      success: false,
+      message: errMsg,
+      error: errMsg,
+    };
   }
-
-  const supabase = getSupabaseClient();
-
-  const now = new Date();
-  const localTodayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const jakartaDate = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-  const jakartaTodayStart = new Date(`${jakartaDate}T00:00:00+07:00`);
-  const todayStart = localTodayStart < jakartaTodayStart ? localTodayStart : jakartaTodayStart;
-
-  const { data: rawEvents } = await supabase
-    .from("events")
-    .select("*, client:clients(*)")
-    .neq("status", "completed")
-    .gte("start_date", todayStart.toISOString())
-    .order("start_date", { ascending: true });
-
-  const eventsToSync =
-    rawEvents && rawEvents.length > 0
-      ? rawEvents
-      : [
-          {
-            id: "66666666-6666-6666-6666-666666666666",
-            title: "Sinar Jaya Annual Gala 2026",
-            start_date: "2026-10-20T11:00:00.000Z",
-            end_date: "2026-10-20T19:00:00.000Z",
-            venue: "Grand Ballroom Hotel Indonesia",
-            status: "confirmed",
-            pic: "Jonathan Admin",
-            gcal_event_id: null,
-          },
-          {
-            id: "77777777-7777-7777-7777-777777777777",
-            title: "Jessica & Kevin Wedding Reception",
-            start_date: "2026-10-29T11:00:00.000Z",
-            end_date: "2026-10-29T17:00:00.000Z",
-            venue: "Plataran Dharmawangsa",
-            status: "planning",
-            pic: "Rian Kru Operasional",
-            gcal_event_id: null,
-          },
-        ];
-
-  let count = 0;
-  for (const ev of eventsToSync) {
-    await syncEventToGoogleCalendar(ev.id);
-    count++;
-  }
-
-  return {
-    success: true,
-    message: `${count} acara aktif berhasil disinkronkan ke Google Calendar!`,
-  };
 }
 
 /**
  * Server Action alias: Syncs either a specific event (if eventId provided) or all upcoming events.
+ * Returns clean object response on error without throwing unhandled exceptions.
  */
 export async function syncUpcomingEventsToCalendar(eventId?: string): Promise<SyncGCalResponse> {
-  if (eventId) {
-    return syncEventToGoogleCalendar(eventId);
+  try {
+    if (eventId) {
+      return await syncEventToGoogleCalendar(eventId);
+    }
+    return await syncAllEventsToGoogleCalendar();
+  } catch (err: unknown) {
+    console.error("[syncUpcomingEventsToCalendar] Unexpected error caught gracefully:", err);
+    const errMsg = err instanceof Error ? err.message : "Gagal menyinkronkan ke Google Calendar.";
+    return {
+      success: false,
+      message: errMsg,
+      error: errMsg,
+    };
   }
-  return syncAllEventsToGoogleCalendar();
 }

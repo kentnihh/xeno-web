@@ -43,6 +43,7 @@ export function EventDetailTabs({
       ? "lembar-kerja"
       : "operations"
   );
+  const [currentCrew, setCurrentCrew] = useState<EventCrew[]>(crew);
   const manageOps = canManage;
   const manageDocs = canManageDocuments ?? canManage;
 
@@ -62,7 +63,7 @@ export function EventDetailTabs({
           <Layers className="w-4 h-4" />
           <span>Operasional Acara</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground font-medium">
-            {crew.length + tasks.length + eventVendors.length}
+            {currentCrew.length + tasks.length + eventVendors.length}
           </span>
         </button>
 
@@ -107,12 +108,13 @@ export function EventDetailTabs({
             initialCrew={crew}
             allProfiles={allProfiles}
             canManage={manageOps}
+            onCrewChange={setCurrentCrew}
           />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <EventTasksSection
               eventId={event.id}
               initialTasks={tasks}
-              crewProfiles={allProfiles}
+              assignedCrew={currentCrew}
               canManage={manageOps}
             />
             <EventVendorsSection

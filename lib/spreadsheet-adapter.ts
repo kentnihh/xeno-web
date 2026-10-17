@@ -4,7 +4,72 @@ import type { Sheet } from "@fortune-sheet/core";
 import { INITIAL_EVENT_SHEETS } from "./constants/event-sheets";
 
 /**
- * Safely parses any sheet data payload if passed as a JSON string.
+ * Safely extracts text content from any cell representation (plain value, rich cell object, or inlineStr).
+ */
+export function extractCellText(cell: any): string {
+  if (cell === null || cell === undefined) return "";
+  if (typeof cell !== "object") return String(cell);
+  if (cell.m !== undefined && cell.m !== null) return String(cell.m);
+  if (cell.v !== undefined && cell.v !== null) return String(cell.v);
+  if (cell.ct?.t === "inlineStr" && Array.isArray(cell.ct.s)) {
+    return cell.ct.s.map((item: any) => item?.v ?? "").join("");
+  }
+  return "";
+}
+
+/**
+ * Normalizes a cell object for FortuneSheet, ensuring multiline strings (\n or \r\n)
+ * are configured with inlineStr and text wrap (tb: "2") so they display visual line breaks
+ * and never lose data across serialization/deserialization cycles.
+ */
+export function normalizeCellForFortuneSheet(cell: any): any {
+  if (cell === null || cell === undefined) return null;
+  if (typeof cell !== "object") {
+    const str = String(cell);
+    return { v: cell, m: str };
+  }
+
+  const clone: Record<string, any> = { ...cell };
+  const text = extractCellText(clone);
+
+  // If text contains newline characters (\n or \r\n), ensure FortuneSheet inlineStr & text-wrap
+  if (typeof text === "string" && (text.includes("\n") || text.includes("\r"))) {
+    // FortuneSheet uses \r\n internally for inline string rendering
+    const normalizedText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "\r\n");
+    clone.v = normalizedText;
+    clone.m = normalizedText;
+    clone.tb = "2"; // wrap text
+    if (!clone.ct || clone.ct.t !== "inlineStr") {
+      clone.ct = {
+        t: "inlineStr",
+        fa: "General",
+        s: [{ v: normalizedText, fs: clone.fs || 11 }],
+      };
+    } else if (Array.isArray(clone.ct.s)) {
+      if (clone.ct.s.length === 0) {
+        clone.ct.s = [{ v: normalizedText, fs: clone.fs || 11 }];
+      } else {
+        // Ensure child strings preserve normalized text
+        clone.ct.s = clone.ct.s.map((s: any) => ({
+          ...s,
+          v: typeof s?.v === "string" ? s.v.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "\r\n") : s?.v,
+        }));
+      }
+    }
+  } else if (clone.ct?.t === "inlineStr" && Array.isArray(clone.ct.s)) {
+    // Ensure v and m are populated when inlineStr exists
+    if (clone.v === undefined || clone.v === null) {
+      clone.v = text;
+      clone.m = text;
+    }
+  }
+
+  return clone;
+}
+
+/**
+ * Safely parses any sheet data payload if passed as a JSON string,
+ * with fallback repair for unescaped control characters (such as literal newlines).
  */
 export function parseSheetData(input: unknown): any {
   if (!input) return null;
@@ -12,10 +77,57 @@ export function parseSheetData(input: unknown): any {
     try {
       return JSON.parse(input);
     } catch {
-      return null;
+      try {
+        // Repair literal unescaped control characters in JSON string literals
+        const repaired = input
+          .replace(/(?<!\\)\r\n/g, "\\r\\n")
+          .replace(/(?<!\\)\n/g, "\\n")
+          .replace(/(?<!\\)\r/g, "\\r")
+          .replace(/(?<!\\)\t/g, "\\t");
+        return JSON.parse(repaired);
+      } catch (err2) {
+        console.warn("[parseSheetData] Failed to parse sheet JSON string:", err2);
+        return null;
+      }
     }
   }
   return input;
+}
+
+/**
+ * Sanitizes and prepares a sheet payload for safe JSON serialization and persistence.
+ * Guarantees that multiline cell strings and rich formatting are preserved and round-trippable.
+ */
+export function sanitizeSheetData(sheetData: SheetData | unknown): SheetData {
+  const parsed = parseSheetData(sheetData);
+  if (!parsed || typeof parsed !== "object") {
+    return (sheetData as SheetData) || ({ columns: [], rows: [] } as any);
+  }
+
+  const obj = JSON.parse(JSON.stringify(parsed));
+
+  // Sanitize 2D matrix if present
+  if (Array.isArray(obj.data) && obj.data.length > 0) {
+    for (let r = 0; r < obj.data.length; r++) {
+      if (Array.isArray(obj.data[r])) {
+        for (let c = 0; c < obj.data[r].length; c++) {
+          if (obj.data[r][c]) {
+            obj.data[r][c] = normalizeCellForFortuneSheet(obj.data[r][c]);
+          }
+        }
+      }
+    }
+    // Synchronize celldata from 2D matrix
+    obj.celldata = matrixToCelldata(obj.data);
+  } else if (Array.isArray(obj.celldata) && obj.celldata.length > 0) {
+    obj.celldata = obj.celldata.map((item: any) => ({
+      r: item.r,
+      c: item.c,
+      v: normalizeCellForFortuneSheet(item.v),
+    }));
+  }
+
+  return obj as SheetData;
 }
 
 /**
@@ -35,9 +147,19 @@ export function matrixToCelldata(
       const cell = row[c];
       if (cell !== null && cell !== undefined) {
         if (typeof cell !== "object") {
-          celldata.push({ r, c, v: { v: cell, m: String(cell) } });
-        } else if (cell.v !== undefined || cell.m !== undefined) {
-          celldata.push({ r, c, v: cell });
+          const str = String(cell);
+          celldata.push({ r, c, v: normalizeCellForFortuneSheet({ v: cell, m: str }) });
+        } else {
+          const text = extractCellText(cell);
+          const hasV = cell.v !== undefined && cell.v !== null && cell.v !== "";
+          const hasM = cell.m !== undefined && cell.m !== null && cell.m !== "";
+          const isInline = cell.ct?.t === "inlineStr" && Array.isArray(cell.ct.s) && cell.ct.s.length > 0;
+          const hasContent = hasV || hasM || isInline || text !== "";
+          const hasFormatting = cell.bg || cell.bl || cell.fc || cell.it || cell.fs || cell.ht || cell.mc || cell.f;
+
+          if (hasContent || hasFormatting) {
+            celldata.push({ r, c, v: normalizeCellForFortuneSheet(cell) });
+          }
         }
       }
     }
@@ -64,7 +186,8 @@ export function isFortuneSheet(data: unknown): boolean {
  */
 export function convertToFortuneSheet(
   rawInput: SheetData | unknown,
-  sheetName = "Sheet 1"
+  sheetName = "Sheet 1",
+  showGridLines?: boolean
 ): Sheet {
   const input = parseSheetData(rawInput);
   if (!input) {
@@ -72,16 +195,16 @@ export function convertToFortuneSheet(
       (t) => t.name.trim().toLowerCase() === sheetName.trim().toLowerCase()
     );
     if (defaultTpl) {
-      return convertToFortuneSheet(defaultTpl.data, sheetName);
+      return convertToFortuneSheet(defaultTpl.data, sheetName, showGridLines);
     }
-    return createEmptyFortuneSheet(sheetName);
+    return createEmptyFortuneSheet(sheetName, showGridLines !== undefined ? showGridLines : true);
   }
 
   // If passed an array of sheets, take the first one
   if (Array.isArray(input)) {
     return input[0]
-      ? convertToFortuneSheet(input[0], sheetName)
-      : createEmptyFortuneSheet(sheetName);
+      ? convertToFortuneSheet(input[0], sheetName, showGridLines)
+      : createEmptyFortuneSheet(sheetName, showGridLines !== undefined ? showGridLines : true);
   }
 
   const obj = input as Record<string, unknown>;
@@ -95,10 +218,14 @@ export function convertToFortuneSheet(
     // If celldata is missing (e.g. after getAllSheets() returns only `data: Matrix`),
     // FortuneSheet will overwrite all cells with nulls! Reconstruct celldata from matrix if needed:
     let celldata: { r: number; c: number; v: any }[] = [];
-    if (Array.isArray(obj.celldata) && obj.celldata.length > 0) {
-      celldata = obj.celldata as any;
-    } else if (Array.isArray(obj.data) && obj.data.length > 0) {
+    if (Array.isArray(obj.data) && obj.data.length > 0) {
       celldata = matrixToCelldata(obj.data as any[][]);
+    } else if (Array.isArray(obj.celldata) && obj.celldata.length > 0) {
+      celldata = (obj.celldata as any[]).map((item) => ({
+        r: item.r,
+        c: item.c,
+        v: normalizeCellForFortuneSheet(item.v),
+      }));
     }
 
     // If completely empty (0 cells) and matches a known template, fallback to default template
@@ -107,9 +234,16 @@ export function convertToFortuneSheet(
         (t) => t.name.trim().toLowerCase() === sheetName.trim().toLowerCase()
       );
       if (defaultTpl) {
-        return convertToFortuneSheet(defaultTpl.data, sheetName);
+        return convertToFortuneSheet(defaultTpl.data, sheetName, showGridLines);
       }
     }
+
+    const gridLines =
+      showGridLines !== undefined
+        ? showGridLines
+        : obj.showGridLines !== undefined
+        ? Boolean(obj.showGridLines)
+        : true;
 
     return {
       name: (obj.name as string) || sheetName,
@@ -119,7 +253,9 @@ export function convertToFortuneSheet(
       row: defaultRows,
       column: defaultCols,
       celldata,
-      config: (obj.config as any) || {},
+      data: Array.isArray(obj.data) ? (obj.data as any[][]) : undefined,
+      config: obj.config ? JSON.parse(JSON.stringify(obj.config)) : {},
+      showGridLines: gridLines,
     };
   }
 
@@ -166,6 +302,7 @@ export function convertToFortuneSheet(
 
     const rowCount = Math.max(rows.length + 15, 30);
     const colCount = Math.max(columns.length + 6, 18);
+    const gridLines = showGridLines !== undefined ? showGridLines : true;
 
     return {
       name: sheetName,
@@ -180,6 +317,7 @@ export function convertToFortuneSheet(
         rowlen: { "0": 32 },
         columnlen: {},
       },
+      showGridLines: gridLines,
     };
   }
 
@@ -188,16 +326,16 @@ export function convertToFortuneSheet(
     (t) => t.name.trim().toLowerCase() === sheetName.trim().toLowerCase()
   );
   if (defaultTpl) {
-    return convertToFortuneSheet(defaultTpl.data, sheetName);
+    return convertToFortuneSheet(defaultTpl.data, sheetName, showGridLines);
   }
 
-  return createEmptyFortuneSheet(sheetName);
+  return createEmptyFortuneSheet(sheetName, showGridLines !== undefined ? showGridLines : true);
 }
 
 /**
  * Creates a blank FortuneSheet with sensible defaults.
  */
-function createEmptyFortuneSheet(name: string): Sheet {
+function createEmptyFortuneSheet(name: string, showGridLines = true): Sheet {
   return {
     name,
     id: `sheet_${Date.now()}`,
@@ -211,6 +349,7 @@ function createEmptyFortuneSheet(name: string): Sheet {
       rowlen: {},
       columnlen: {},
     },
+    showGridLines,
   };
 }
 
@@ -251,7 +390,8 @@ export function sheetToAoaAndMerges(sheetPayload: SheetData | unknown): {
     sheetObj.data.forEach((row, r) => {
       if (Array.isArray(row)) {
         row.forEach((cell, c) => {
-          if (cell && (cell.v !== undefined && cell.v !== null && cell.v !== "")) {
+          const text = extractCellText(cell);
+          if (cell && (text !== "" || cell.bg || cell.bl)) {
             if (r > maxR) maxR = r;
             if (c > maxC) maxC = c;
           }
@@ -265,7 +405,7 @@ export function sheetToAoaAndMerges(sheetPayload: SheetData | unknown): {
       const sourceRow = sheetObj.data[r] || [];
       for (let c = 0; c <= maxC; c++) {
         const cell = sourceRow[c];
-        const val = cell && cell.v !== undefined && cell.v !== null ? (cell.v as any) : "";
+        const val = extractCellText(cell);
         rowArr.push(val);
       }
       aoa.push(rowArr);
@@ -293,10 +433,7 @@ export function sheetToAoaAndMerges(sheetPayload: SheetData | unknown): {
 
     sheetObj.celldata.forEach((item) => {
       if (item && typeof item.r === "number" && typeof item.c === "number") {
-        const val =
-          item.v && item.v.v !== undefined && item.v.v !== null
-            ? (item.v.v as any)
-            : item.v?.m || "";
+        const val = extractCellText(item.v);
         if (aoa[item.r]) {
           aoa[item.r][item.c] = val;
         }

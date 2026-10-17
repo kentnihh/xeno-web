@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { createUser, updateUser } from "@/app/(dashboard)/users/actions";
+import { Combobox } from "@/components/ui/combobox";
 import { ModalShell } from "./modal-shell";
 import type { Role, UserWithRBAC } from "@/types/database";
 
@@ -21,6 +22,7 @@ export function UserModal({
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const isEdit = Boolean(user);
+  const [roleId, setRoleId] = useState(user?.roles?.[0]?.id || roles[0]?.id || "");
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -148,17 +150,18 @@ export function UserModal({
             <label className="block text-xs font-medium text-foreground mb-1.5">
               Peran (Role) <span className="text-[#ff453a]">*</span>
             </label>
-            <select
+            <Combobox
               name="roleId"
-              defaultValue={user?.roles?.[0]?.id || user?.role || "staff"}
-              className="apple-input w-full px-3.5 py-2 text-sm cursor-pointer capitalize bg-muted text-foreground border-border"
-            >
-              {roles.map((r) => (
-                <option key={r.id} value={r.id} className="bg-card text-foreground">
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              value={roleId}
+              onChange={setRoleId}
+              options={roles.map((r) => ({
+                value: r.id,
+                label: r.name,
+                subLabel: r.description || undefined,
+              }))}
+              placeholder="Pilih peran..."
+              searchPlaceholder="Cari peran..."
+            />
           </div>
         </div>
 

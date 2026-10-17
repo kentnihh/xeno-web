@@ -105,13 +105,8 @@ export function ManageCrewModal({
     setErrorMsg(null);
     setSuccessMsg(null);
     setEditingCrewId(m.id);
-    if ((PRESET_ROLES as readonly string[]).includes(m.role_in_event)) {
-      setEditingRoleChoice(m.role_in_event);
-      setEditingCustomRole("");
-    } else {
-      setEditingRoleChoice("Custom");
-      setEditingCustomRole(m.role_in_event);
-    }
+    setEditingRoleChoice(m.role_in_event);
+    setEditingCustomRole("");
   };
 
   const handleCancelEdit = () => {
@@ -121,7 +116,7 @@ export function ManageCrewModal({
   };
 
   const handleSaveRole = async (crewId: string) => {
-    const finalRole = editingRoleChoice === "Custom" ? editingCustomRole.trim() : editingRoleChoice;
+    const finalRole = editingRoleChoice.trim();
     if (!finalRole) {
       setErrorMsg("Peran di acara tidak boleh kosong.");
       return;
@@ -338,44 +333,38 @@ export function ManageCrewModal({
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-2">
-                              <select
-                                value={editingRoleChoice}
-                                onChange={(e) => setEditingRoleChoice(e.target.value)}
-                                className="apple-input text-xs px-2 py-1"
-                              >
-                                {PRESET_ROLES.map((r) => (
-                                  <option key={r} value={r}>{r}</option>
-                                ))}
-                                <option value="Custom">Kustom...</option>
-                              </select>
+                            <div className="flex items-center gap-2 flex-1 max-w-xs">
+                              <div className="flex-1">
+                                <Combobox
+                                  options={PRESET_ROLES.map((r) => ({ value: r, label: r }))}
+                                  value={editingRoleChoice}
+                                  onChange={(val) => setEditingRoleChoice(val)}
+                                  allowCustom={true}
+                                  customOptionPrefix="Gunakan:"
+                                  placeholder="Pilih peran..."
+                                  searchPlaceholder="Ketik peran..."
+                                />
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => handleSaveRole(m.id)}
                                 disabled={updatingCrewId === m.id}
-                                className="apple-btn-primary px-2 py-1 text-xs cursor-pointer"
+                                className="apple-btn-primary px-2.5 py-2 text-xs cursor-pointer shrink-0"
+                                title="Simpan perubahan peran"
                               >
-                                {updatingCrewId === m.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                {updatingCrewId === m.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                               </button>
                               <button
                                 type="button"
                                 onClick={handleCancelEdit}
-                                className="apple-btn-secondary px-2 py-1 text-xs cursor-pointer"
+                                className="apple-btn-secondary px-2.5 py-2 text-xs cursor-pointer shrink-0"
+                                title="Batal"
                               >
-                                <X className="w-3 h-3" />
+                                <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           )}
                         </div>
-                        {isEditing && editingRoleChoice === "Custom" && (
-                          <input
-                            type="text"
-                            value={editingCustomRole}
-                            onChange={(e) => setEditingCustomRole(e.target.value)}
-                            placeholder="Nama peran kustom..."
-                            className="apple-input w-full px-2 py-1 text-xs mt-2"
-                          />
-                        )}
                       </div>
                     );
                   })}

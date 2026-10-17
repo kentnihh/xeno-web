@@ -92,18 +92,18 @@ assert.strictEqual(selectedSheetNames.length, 3, "Select All must select all she
 console.log("✓ Modal UX: 'Pilih Semua' selects all sheets when partially selected");
 
 // -------------------------------------------------------------
-// Part 2: Test PDF Header Style & High Contrast Overrides
+// Part 2: Test Exact FortuneSheet Cell Styling (bg, fc, bl, it, ht)
 // -------------------------------------------------------------
-// Create a sheet with weird / light JSONB background formatting on row 0
-const sheetWithWeirdHeaderColors: EventSheet = {
-  id: "s_weird",
+// Create a sheet with custom background and text formatting on row 0 (Header) and row 1 (Body)
+const sheetWithCustomHeaderColors: EventSheet = {
+  id: "s_custom",
   event_id: "e1",
-  sheet_name: "LIGHT_HEADER_TEST",
+  sheet_name: "EXACT_STYLING_TEST",
   order_index: 0,
   data: {
-    name: "LIGHT_HEADER_TEST",
+    name: "EXACT_STYLING_TEST",
     celldata: [
-      // Row 0 (Headers) with light gray background that previously caused white-on-light-gray
+      // Row 0 (Headers) with custom background and font color
       { r: 0, c: 0, v: { v: "No Meja", bl: 1, bg: "#f4f4f6", fc: "#ffffff" } },
       { r: 0, c: 1, v: { v: "Nama Tamu", bl: 1, bg: "#e2e8f0", fc: "#ffffff" } },
       // Row 1 (Body) with custom styling
@@ -115,43 +115,43 @@ const sheetWithWeirdHeaderColors: EventSheet = {
   updated_at: "",
 };
 
-// Verify parseFortuneSheetForAutoTable does not pass conflicting light bg to header cells
-const { head, body } = parseFortuneSheetForAutoTable(sheetWithWeirdHeaderColors.data);
+// Verify parseFortuneSheetForAutoTable extracts exact FortuneSheet styling for row 0 (Headers)
+const { head, body } = parseFortuneSheetForAutoTable(sheetWithCustomHeaderColors.data);
 assert.strictEqual(head.length, 1, "Must produce 1 header row");
 assert.strictEqual(body.length, 1, "Must produce 1 body row");
 
-// Check header cell styles: should NOT have light background fillColor
+// Check header cell styles: should match exact FortuneSheet bg and fc
 const headerCell = head[0][0];
-if (typeof headerCell === "object") {
-  assert.strictEqual(
-    headerCell.styles?.fillColor,
-    undefined,
-    "Header cell styles must NOT inherit light gray JSONB background"
-  );
-  assert.strictEqual(
-    headerCell.styles?.textColor,
-    undefined,
-    "Header cell styles must NOT inherit conflicting JSONB textColor"
-  );
-}
-console.log("✓ PDF Parser: Header cells do NOT inherit conflicting light gray JSONB background");
+assert.strictEqual(typeof headerCell, "object", "Header cell must be an object");
+assert.deepStrictEqual(
+  headerCell.styles?.fillColor,
+  [244, 244, 246],
+  "Header cell styles must reflect exact FortuneSheet bg (#f4f4f6)"
+);
+assert.deepStrictEqual(
+  headerCell.styles?.textColor,
+  [255, 255, 255],
+  "Header cell styles must reflect exact FortuneSheet fc (#ffffff)"
+);
+console.log("✓ PDF Parser: Header cells accurately extract exact FortuneSheet bg and fc colors");
 
-// Check body cell styles: body cells SHOULD preserve their formatting
+// Check body cell styles: body cells preserve their formatting
 const bodyCell0 = body[0][0];
 assert.strictEqual(typeof bodyCell0, "object", "Body cell must preserve custom styles");
 assert.deepStrictEqual(bodyCell0.styles?.fillColor, [254, 243, 199], "Body cell bg #fef3c7 preserved");
+assert.deepStrictEqual(bodyCell0.styles?.textColor, [146, 64, 14], "Body cell fc #92400e preserved");
 console.log("✓ PDF Parser: Body cells correctly preserve custom formatting");
 
 // Test buildSpreadsheetPdf executes without errors and builds valid PDF
 const doc = buildSpreadsheetPdf({
   eventTitle: "Sinar Jaya Gala 2026",
-  sheets: [sheetWithWeirdHeaderColors, mockSheets[0]],
+  sheets: [sheetWithCustomHeaderColors, mockSheets[0]],
   orientation: "landscape",
 });
 assert.ok(doc !== null, "PDF Document must be built");
 assert.strictEqual(doc.getNumberOfPages(), 2, "Must build 2 pages for 2 sheets");
 const byteLength = doc.output("arraybuffer").byteLength;
 assert.ok(byteLength > 5000, `PDF size should be > 5000 bytes, got ${byteLength}`);
-console.log(`✓ PDF Generation: Successfully rendered high-contrast PDF (${byteLength} bytes)`);
+console.log(`✓ PDF Generation: Successfully rendered exact styled PDF (${byteLength} bytes)`);
 
 console.log("\n== ALL PDF MODAL & CONTRAST TESTS PASSED! ==");

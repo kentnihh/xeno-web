@@ -85,7 +85,7 @@ export function PostSubmitSyncModal({
       } else {
         setToast({
           type: "error",
-          message: res.message || "Gagal menyinkronkan ke Google Calendar.",
+          message: res.error || res.message || "Gagal menyinkronkan ke Google Calendar.",
         });
         setIsSyncing(false);
       }

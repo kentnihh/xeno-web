@@ -17,6 +17,7 @@ export async function getMasterTemplates(): Promise<MasterTemplate[]> {
     const { data, error } = await supabase
       .from("master_templates")
       .select("*")
+      .order("sort_order", { ascending: true })
       .order("order_index", { ascending: true });
 
     if (!error && data && data.length > 0) {
@@ -62,6 +63,7 @@ export async function saveMasterTemplate(
           id: id.startsWith("new-") ? undefined : id,
           sheet_name: sheetName.trim(),
           order_index: orderIndex,
+          sort_order: orderIndex,
           jsonb_structure: sanitizedData,
           updated_at: now,
         },
@@ -103,6 +105,7 @@ export async function createMasterTemplate(
       .insert({
         sheet_name: sheetName.trim(),
         order_index: orderIndex,
+        sort_order: orderIndex,
         jsonb_structure: jsonbStructure,
         created_at: now,
         updated_at: now,
@@ -158,6 +161,7 @@ export async function resetAllMasterTemplates(): Promise<ActionResult> {
         {
           sheet_name: tpl.name,
           order_index: i,
+          sort_order: i,
           jsonb_structure: tpl.data,
           updated_at: new Date().toISOString(),
         },
@@ -169,5 +173,40 @@ export async function resetAllMasterTemplates(): Promise<ActionResult> {
     return { success: true };
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : "Gagal mereset template master." };
+  }
+}
+
+/**
+ * Bulk reorder master templates.
+ * Updates sort_order and order_index for each master template.
+ */
+export async function reorderMasterTemplates(
+  orderedSheetNames: string[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requirePermission("templates.manage");
+    const supabase = await createClient();
+
+    const now = new Date().toISOString();
+    for (let i = 0; i < orderedSheetNames.length; i++) {
+      await supabase
+        .from("master_templates")
+        .update({
+          sort_order: i,
+          order_index: i,
+          updated_at: now,
+        })
+        .eq("sheet_name", orderedSheetNames[i]);
+    }
+
+    revalidatePath("/settings/templates");
+    revalidatePath("/events/new");
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("[reorderMasterTemplates] Error reordering master templates:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal menyimpan urutan template master.",
+    };
   }
 }

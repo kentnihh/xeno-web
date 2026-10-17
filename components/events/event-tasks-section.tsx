@@ -20,7 +20,7 @@ import {
 } from "@/app/(dashboard)/events/actions";
 import { TaskModal } from "./task-modal";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import type { EventTask, Profile, TaskPriority, TaskStatus } from "@/types/database";
+import type { EventTask, EventCrew, Profile, TaskPriority, TaskStatus } from "@/types/database";
 
 const PRIORITY_BADGES: Record<TaskPriority, { label: string; cls: string }> = {
   low: { label: "Low", cls: "bg-neutral-100 text-neutral-700 dark:bg-white/[0.08] dark:text-neutral-300 border border-neutral-300 dark:border-white/10 font-bold" },
@@ -38,12 +38,14 @@ const STATUS_BADGES: Record<TaskStatus, { label: string; cls: string }> = {
 export function EventTasksSection({
   eventId,
   initialTasks,
-  crewProfiles,
+  crewProfiles = [],
+  assignedCrew,
   canManage = true,
 }: {
   eventId: string;
   initialTasks: EventTask[];
-  crewProfiles: Profile[];
+  crewProfiles?: Profile[];
+  assignedCrew?: EventCrew[];
   canManage?: boolean;
 }) {
   const [tasks, setTasks] = useState<EventTask[]>(initialTasks);
@@ -317,6 +319,7 @@ export function EventTasksSection({
         }}
         eventId={eventId}
         task={editingTask}
+        assignedCrew={assignedCrew}
         crewProfiles={crewProfiles}
         onSubmit={handleModalSubmit}
         isPending={isPending}

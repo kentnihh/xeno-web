@@ -53,7 +53,9 @@ export interface Profile {
   updated_at: string;
 }
 
-/** Client or corporate customer commissioning the event */
+export type ClientEventType = "Wedding" | "Birthday" | "Corporate" | "Social Event" | "Lainnya" | string;
+
+/** Client or customer commissioning the event */
 export interface Client {
   id: string;
   name: string;
@@ -62,6 +64,11 @@ export interface Client {
   phone: string;
   address: string | null;
   notes: string | null;
+  event_type?: ClientEventType | null;
+  partner_name?: string | null;
+  partner_email?: string | null;
+  partner_phone?: string | null;
+  partner_address?: string | null;
   created_at: string;
 }
 
@@ -240,6 +247,7 @@ export interface EventSheet<T = SheetData> {
   event_id: string;
   sheet_name: string;
   order_index: number;
+  sort_order?: number;
   data: T;
   created_at: string;
   updated_at: string;
@@ -250,6 +258,7 @@ export interface MasterTemplate {
   id: string;
   sheet_name: string;
   order_index: number;
+  sort_order?: number;
   jsonb_structure: SheetData;
   created_at: string;
   updated_at: string;

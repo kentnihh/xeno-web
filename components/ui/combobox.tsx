@@ -19,6 +19,7 @@ export interface ComboboxProps {
   emptyText?: string;
   allowCustom?: boolean;
   customOptionPrefix?: string;
+  allowClear?: boolean;
   className?: string;
   disabled?: boolean;
   id?: string;
@@ -34,6 +35,7 @@ export function Combobox({
   emptyText = "Tidak ditemukan opsi yang sesuai.",
   allowCustom = false,
   customOptionPrefix = "Gunakan peran kustom:",
+  allowClear = false,
   className = "",
   disabled = false,
   id,
@@ -180,7 +182,29 @@ export function Combobox({
           )}
         </span>
 
-        <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0 opacity-60" />
+        <div className="flex items-center gap-1 shrink-0">
+          {allowClear && value && !disabled && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSelect("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  handleSelect("");
+                }
+              }}
+              className="p-0.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              title="Hapus pilihan"
+            >
+              <X className="w-3.5 h-3.5" />
+            </span>
+          )}
+          <ChevronsUpDown className="w-4 h-4 text-muted-foreground opacity-60" />
+        </div>
       </button>
 
       {/* Dropdown Popover */}

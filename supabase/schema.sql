@@ -48,6 +48,11 @@ create table if not exists public.clients (
   phone text not null,
   address text,
   notes text,
+  event_type text,
+  partner_name text,
+  partner_email text,
+  partner_phone text,
+  partner_address text,
   created_at timestamptz default now() not null
 );
 
@@ -457,6 +462,7 @@ create table if not exists public.event_sheets (
   event_id uuid not null references public.events(id) on delete cascade,
   sheet_name text not null,
   order_index integer not null default 0,
+  sort_order integer not null default 0,
   data jsonb not null default '{"columns": [], "rows": []}'::jsonb,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null,
@@ -465,6 +471,7 @@ create table if not exists public.event_sheets (
 
 create index if not exists idx_event_sheets_event_id on public.event_sheets(event_id);
 create index if not exists idx_event_sheets_order_index on public.event_sheets(order_index);
+create index if not exists idx_event_sheets_sort_order on public.event_sheets(sort_order);
 
 alter table public.event_sheets enable row level security;
 
@@ -479,4 +486,33 @@ create policy "Authenticated users can update event sheets" on public.event_shee
 
 drop policy if exists "Authenticated users can delete event sheets" on public.event_sheets;
 create policy "Authenticated users can delete event sheets" on public.event_sheets for delete to authenticated using (true);
+
+-- Master Templates Table
+create table if not exists public.master_templates (
+  id uuid primary key default gen_random_uuid(),
+  sheet_name text not null unique,
+  order_index integer not null default 0,
+  sort_order integer not null default 0,
+  jsonb_structure jsonb not null default '{"columns": [], "rows": []}'::jsonb,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create index if not exists idx_master_templates_order on public.master_templates(order_index);
+create index if not exists idx_master_templates_sort_order on public.master_templates(sort_order);
+
+alter table public.master_templates enable row level security;
+
+drop policy if exists "Master templates viewable by authenticated users" on public.master_templates;
+create policy "Master templates viewable by authenticated users" on public.master_templates for select to authenticated using (true);
+
+drop policy if exists "Master templates insertable by authenticated users" on public.master_templates;
+create policy "Master templates insertable by authenticated users" on public.master_templates for insert to authenticated with check (true);
+
+drop policy if exists "Master templates updatable by authenticated users" on public.master_templates;
+create policy "Master templates updatable by authenticated users" on public.master_templates for update to authenticated using (true) with check (true);
+
+drop policy if exists "Master templates deletable by authenticated users" on public.master_templates;
+create policy "Master templates deletable by authenticated users" on public.master_templates for delete to authenticated using (true);
+
 

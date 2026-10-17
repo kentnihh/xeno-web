@@ -12,11 +12,13 @@ export function EventCrewSection({
   initialCrew,
   allProfiles,
   canManage = true,
+  onCrewChange,
 }: {
   eventId: string;
   initialCrew: EventCrew[];
   allProfiles: Profile[];
   canManage?: boolean;
+  onCrewChange?: (crew: EventCrew[]) => void;
 }) {
   const [crew, setCrew] = useState<EventCrew[]>(initialCrew);
   const [isOpen, setIsOpen] = useState(false);
@@ -44,7 +46,11 @@ export function EventCrewSection({
       profile: target,
     };
 
-    setCrew((prev) => [...prev, item]);
+    setCrew((prev) => {
+      const next = [...prev, item];
+      onCrewChange?.(next);
+      return next;
+    });
     setIsOpen(false);
 
     startTransition(async () => {
@@ -56,7 +62,11 @@ export function EventCrewSection({
 
       const res = await assignEventCrew(fd);
       if (!res.success) {
-        setCrew((prev) => prev.filter((c) => c.id !== tempId));
+        setCrew((prev) => {
+          const reverted = prev.filter((c) => c.id !== tempId);
+          onCrewChange?.(reverted);
+          return reverted;
+        });
         setErrorMsg(res.error || "Gagal menugaskan kru.");
       }
     });
@@ -66,12 +76,20 @@ export function EventCrewSection({
     if (!deletingCrew) return;
     const target = deletingCrew;
     setDeletingId(target.id);
-    setCrew((prev) => prev.filter((c) => c.id !== target.id));
+    setCrew((prev) => {
+      const next = prev.filter((c) => c.id !== target.id);
+      onCrewChange?.(next);
+      return next;
+    });
 
     const res = await removeEventCrew(target.id, eventId);
     setDeletingId(null);
     if (!res.success) {
-      setCrew((prev) => [...prev, target]);
+      setCrew((prev) => {
+        const reverted = [...prev, target];
+        onCrewChange?.(reverted);
+        return reverted;
+      });
       throw new Error(res.error || "Gagal menghapus.");
     }
   };

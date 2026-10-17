@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Loader2, MapPin, User, FileText, Activity } from "lucide-react";
 import { ModalShell } from "@/components/users/modal-shell";
@@ -21,22 +21,6 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
-  if (!isOpen && !showSyncModal) return null;
-
-  if (showSyncModal) {
-    return (
-      <PostSubmitSyncModal
-        isOpen={showSyncModal}
-        eventId={event.id}
-        defaultRedirectUrl={typeof window !== "undefined" ? window.location.pathname : `/events/${event.id}`}
-        onClose={() => {
-          setShowSyncModal(false);
-          onClose();
-        }}
-      />
-    );
-  }
-
   const defaultEndDate =
     event.end_date ||
     (event.start_date
@@ -47,6 +31,23 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
     event.start_date ? new Date(event.start_date) : new Date()
   );
   const [endDate, setEndDate] = useState<Date>(new Date(defaultEndDate));
+
+  // Sync state when modal opens or event prop changes
+  useEffect(() => {
+    if (isOpen) {
+      setErrorMsg(null);
+      setStartDate(event.start_date ? new Date(event.start_date) : new Date());
+      const end =
+        event.end_date ||
+        (event.start_date
+          ? new Date(new Date(event.start_date).getTime() + 1 * 3600000).toISOString()
+          : new Date().toISOString());
+      setEndDate(new Date(end));
+    }
+  }, [isOpen, event.start_date, event.end_date]);
+
+  // All React Hooks are declared above this line unconditionally
+  if (!isOpen && !showSyncModal) return null;
 
   const handleStartDateChange = (newStart: Date) => {
     setStartDate(newStart);
@@ -71,11 +72,13 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
   };
 
   return (
-    <ModalShell
-      title="Edit Informasi Acara"
-      subtitle="Perbarui jadwal, venue, status, dan penanggung jawab"
-      onClose={onClose}
-    >
+    <>
+      {isOpen && !showSyncModal && (
+        <ModalShell
+          title="Edit Informasi Acara"
+          subtitle="Perbarui jadwal, venue, status, dan penanggung jawab"
+          onClose={onClose}
+        >
       <form onSubmit={handleSubmit} className="space-y-4">
         <input type="hidden" name="id" value={event.id} />
         {event.client_id && <input type="hidden" name="client_id" value={event.client_id} />}
@@ -186,7 +189,21 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
           </button>
         </div>
       </form>
-    </ModalShell>
+        </ModalShell>
+      )}
+
+      {showSyncModal && (
+        <PostSubmitSyncModal
+          isOpen={showSyncModal}
+          eventId={event.id}
+          defaultRedirectUrl={typeof window !== "undefined" ? window.location.pathname : `/events/${event.id}`}
+          onClose={() => {
+            setShowSyncModal(false);
+            onClose();
+          }}
+        />
+      )}
+    </>
   );
 }
 

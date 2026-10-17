@@ -4,19 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
+import { createClientSchema, type CreateClientInput, type UpdateClientInput } from "@/lib/validations/client";
 
-const createClientSchema = z.object({
-  name: z.string().trim().min(1, "Nama klien wajib diisi"),
-  company: z.preprocess((v) => (typeof v === "string" && !v.trim() ? null : v), z.string().trim().nullable().optional()),
-  phone: z.string().trim().min(1, "Nomor telepon wajib diisi"),
-  email: z.preprocess(
-    (v) => (typeof v === "string" && !v.trim() ? null : v),
-    z.string().trim().email("Format email tidak valid").nullable().optional()
-  ),
-  address: z.preprocess((v) => (typeof v === "string" && !v.trim() ? null : v), z.string().trim().nullable().optional()),
-});
-
-export type CreateClientInput = z.infer<typeof createClientSchema>;
+export type { CreateClientInput, UpdateClientInput };
 
 export async function createClientAction(
   input: FormData | Record<string, unknown>
@@ -32,6 +22,12 @@ export async function createClientAction(
         phone: input.get("phone"),
         email: input.get("email"),
         address: input.get("address"),
+        notes: input.get("notes"),
+        event_type: input.get("event_type"),
+        partner_name: input.get("partner_name"),
+        partner_email: input.get("partner_email"),
+        partner_phone: input.get("partner_phone"),
+        partner_address: input.get("partner_address"),
       };
     } else {
       raw = input;
@@ -61,6 +57,70 @@ export async function createClientAction(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Gagal menambahkan klien baru.",
+    };
+  }
+}
+
+export async function updateClientAction(
+  clientId: string,
+  input: FormData | Record<string, unknown>
+): Promise<{ success: boolean; error?: string; client?: unknown }> {
+  try {
+    await requirePermission("clients.create");
+
+    const parsedId = z.string().min(1, "ID klien wajib diisi").safeParse(clientId);
+    if (!parsedId.success) {
+      return { success: false, error: parsedId.error.issues[0]?.message || "ID klien tidak valid." };
+    }
+
+    let raw: Record<string, unknown>;
+    if (input instanceof FormData) {
+      raw = {
+        name: input.get("name"),
+        company: input.get("company"),
+        phone: input.get("phone"),
+        email: input.get("email"),
+        address: input.get("address"),
+        notes: input.get("notes"),
+        event_type: input.get("event_type"),
+        partner_name: input.get("partner_name"),
+        partner_email: input.get("partner_email"),
+        partner_phone: input.get("partner_phone"),
+        partner_address: input.get("partner_address"),
+      };
+    } else {
+      raw = input;
+    }
+
+    const parsed = createClientSchema.safeParse(raw);
+    if (!parsed.success) {
+      const errMsg = parsed.error.issues[0]?.message || "Data klien tidak valid.";
+      console.warn("[updateClientAction] Validation error:", errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("clients")
+      .update(parsed.data)
+      .eq("id", parsedId.data)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[updateClientAction] Supabase error:", error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/clients");
+    revalidatePath("/events");
+    revalidatePath("/events/new");
+    return { success: true, client: data };
+  } catch (err: unknown) {
+    console.error("[updateClientAction] Execution exception:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal memperbarui data klien.",
     };
   }
 }

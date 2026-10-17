@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { buildDefaultEventSheets, INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
+import { sanitizeSheetData } from "@/lib/spreadsheet-adapter";
 import type { EventSheet, SheetData, MasterTemplate } from "@/types/database";
 
 /**
@@ -20,6 +21,7 @@ export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
       .from("event_sheets")
       .select("*")
       .eq("event_id", eventId)
+      .order("sort_order", { ascending: true })
       .order("order_index", { ascending: true });
 
     if (!error && data && data.length > 0) {
@@ -30,12 +32,14 @@ export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
     const { data: dbTemplates, error: tplError } = await supabase
       .from("master_templates")
       .select("*")
+      .order("sort_order", { ascending: true })
       .order("order_index", { ascending: true });
 
     let initialRows: Array<{
       event_id: string;
       sheet_name: string;
       order_index: number;
+      sort_order: number;
       data: SheetData;
     }> = [];
 
@@ -44,6 +48,7 @@ export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
         event_id: eventId,
         sheet_name: tpl.sheet_name,
         order_index: tpl.order_index ?? idx,
+        sort_order: tpl.sort_order ?? tpl.order_index ?? idx,
         data: tpl.jsonb_structure,
       }));
     } else {
@@ -52,6 +57,7 @@ export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
         event_id: eventId,
         sheet_name: tpl.name,
         order_index: idx,
+        sort_order: idx,
         data: tpl.data,
       }));
     }
@@ -98,11 +104,8 @@ export async function saveEventSheet(
       return { success: false, error: "eventId dan sheetName wajib diisi." };
     }
 
-    // Ensure valid JSON payload structure (preserves rich FortuneSheet state with cell metadata, styles, and merges)
-    const sanitizedData: SheetData =
-      sheetData && typeof sheetData === "object"
-        ? sheetData
-        : { columns: [], rows: [] };
+    // Ensure valid JSON payload structure (preserves rich FortuneSheet state, cell metadata, styles, merges, and multiline text)
+    const sanitizedData: SheetData = sanitizeSheetData(sheetData);
 
     const supabase = await createClient();
     const now = new Date().toISOString();
@@ -114,6 +117,7 @@ export async function saveEventSheet(
           event_id: eventId,
           sheet_name: sheetName,
           order_index: orderIndex,
+          sort_order: orderIndex,
           data: sanitizedData,
           updated_at: now,
         },
@@ -218,3 +222,40 @@ export async function resetSheetToMaster(
     };
   }
 }
+
+/**
+ * Bulk reorder event spreadsheet tabs.
+ * Updates sort_order and order_index for each sheet tab.
+ */
+export async function reorderEventSheets(
+  eventId: string,
+  orderedSheetNames: string[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requirePermission("events.edit");
+    const supabase = await createClient();
+
+    const now = new Date().toISOString();
+    for (let i = 0; i < orderedSheetNames.length; i++) {
+      await supabase
+        .from("event_sheets")
+        .update({
+          sort_order: i,
+          order_index: i,
+          updated_at: now,
+        })
+        .eq("event_id", eventId)
+        .eq("sheet_name", orderedSheetNames[i]);
+    }
+
+    revalidatePath(`/events/${eventId}`);
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("[reorderEventSheets] Error reordering sheets:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal menyimpan urutan lembar kerja.",
+    };
+  }
+}
+

@@ -1,13 +1,20 @@
 export const runtime = "edge";
 
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
   display: "swap",
 });
 
@@ -35,7 +42,7 @@ export default function RootLayout({
     <html
       lang="id"
       suppressHydrationWarning
-      className={`${inter.variable} h-full antialiased`}
+      className={`${inter.variable} ${montserrat.variable} h-full antialiased`}
     >
       <head>
         <script

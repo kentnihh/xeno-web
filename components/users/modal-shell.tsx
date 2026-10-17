@@ -9,11 +9,13 @@ export function ModalShell({
   subtitle,
   onClose,
   children,
+  maxWidthClassName = "max-w-lg",
 }: {
   title: string;
   subtitle?: string;
   onClose: () => void;
   children: ReactNode;
+  maxWidthClassName?: string;
 }) {
   const [mounted, setMounted] = useState(false);
 
@@ -39,12 +41,12 @@ export function ModalShell({
         aria-hidden="true"
       />
       <div
-        className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-2rem)] max-w-lg rounded-3xl bg-card backdrop-blur-2xl border border-border shadow-2xl p-6 text-foreground transform transition-all duration-150 animate-in zoom-in-95 focus:outline-hidden"
+        className={`fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-2rem)] ${maxWidthClassName} max-h-[90vh] flex flex-col rounded-3xl bg-card backdrop-blur-2xl border border-border shadow-2xl p-6 text-foreground transform transition-all duration-150 animate-in zoom-in-95 focus:outline-hidden`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex items-start justify-between pb-4 border-b border-border">
+        <div className="flex items-start justify-between pb-4 border-b border-border shrink-0">
           <div>
             <h2 className="text-lg font-bold text-foreground tracking-tight">{title}</h2>
             {subtitle && <p className="text-xs text-muted-foreground mt-0.5 font-medium">{subtitle}</p>}
@@ -58,7 +60,7 @@ export function ModalShell({
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="pt-4">{children}</div>
+        <div className="pt-4 overflow-y-auto flex-1 pr-1">{children}</div>
       </div>
     </div>
   );

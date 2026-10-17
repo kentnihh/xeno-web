@@ -27,7 +27,8 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-border: var(--sidebar-border);
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Inter", system-ui, sans-serif;
+  --font-montserrat: var(--font-montserrat), "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: var(--font-montserrat), "Montserrat", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Inter", system-ui, sans-serif;
   --font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
 
   --color-apple-blue: #007aff;
@@ -272,6 +273,21 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #007aff;
+}
+
+/* FortuneSheet global typography: Montserrat */
+.fortune-sheet-wrapper,
+.fortune-sheet-wrapper * {
+  font-family: var(--font-montserrat), "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.fortune-toolbar,
+.fortune-toolbar select,
+.fortune-toolbar button,
+.fortune-context-menu,
+.fortune-dialog,
+.fortune-sheet-container {
+  font-family: var(--font-montserrat), "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 

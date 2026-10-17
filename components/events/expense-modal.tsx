@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ModalShell } from "@/components/users/modal-shell";
+import { Combobox } from "@/components/ui/combobox";
 import { Loader2, Coins } from "lucide-react";
 import type { EventExpense, ExpenseCategory, ExpenseStatus } from "@/types/database";
 
@@ -83,15 +84,13 @@ export function ExpenseModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-semibold text-foreground block mb-1.5">Kategori *</label>
-            <select
+            <Combobox
+              options={CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
               value={category}
-              onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-              className="apple-input w-full px-3.5 py-2 text-sm bg-muted text-foreground border-border cursor-pointer font-medium"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value} className="bg-card text-foreground">{c.label}</option>
-              ))}
-            </select>
+              onChange={(v) => setCategory(v as ExpenseCategory)}
+              placeholder="Pilih kategori..."
+              searchPlaceholder="Cari kategori pengeluaran..."
+            />
           </div>
 
           <div>

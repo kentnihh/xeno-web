@@ -1,8 +1,12 @@
 import { jsPDF } from "jspdf";
 import rawAutoTable, { type UserOptions } from "jspdf-autotable";
-import { convertToFortuneSheet } from "@/lib/spreadsheet-adapter";
+import { convertToFortuneSheet, extractCellText } from "@/lib/spreadsheet-adapter";
 import { formatDate } from "@/lib/utils";
 import type { EventSheet } from "@/types/database";
+import {
+  montserratRegularBase64,
+  montserratBoldBase64,
+} from "@/lib/fonts/Montserrat-base64";
 
 const autoTable = (
   typeof rawAutoTable === "function"
@@ -15,14 +19,171 @@ export interface GenerateSpreadsheetPdfOptions {
   sheets: EventSheet[];
   orientation?: "landscape" | "portrait";
   customFilename?: string;
+  logoDataUrl?: string | null;
+}
+
+let cachedLogoDataUrl: string | null = null;
+
+/**
+ * Embeds Montserrat font (Regular, Bold, Italic, BoldItalic) into jsPDF Virtual File System (VFS)
+ * and activates it as the active default font.
+ */
+export function registerMontserratFont(doc: jsPDF): void {
+  try {
+    // 1. Add Regular font to jsPDF Virtual File System (VFS)
+    doc.addFileToVFS("Montserrat-Regular.ttf", montserratRegularBase64);
+    doc.addFont("Montserrat-Regular.ttf", "Montserrat", "normal");
+    doc.addFont("Montserrat-Regular.ttf", "Montserrat", "italic");
+
+    // 2. Add Bold font to jsPDF Virtual File System (VFS)
+    doc.addFileToVFS("Montserrat-Bold.ttf", montserratBoldBase64);
+    doc.addFont("Montserrat-Bold.ttf", "Montserrat", "bold");
+    doc.addFont("Montserrat-Bold.ttf", "Montserrat", "bolditalic");
+
+    // 3. Set Montserrat as the active default font
+    doc.setFont("Montserrat", "normal");
+  } catch (err) {
+    console.warn("[registerMontserratFont] Error embedding Montserrat font in jsPDF:", err);
+  }
 }
 
 /**
- * Converts a hex color (#ffffff, #fff, or ffffff) into RGB tuple [r, g, b].
+ * Synchronously retrieves the base64 data URL for /logo-xeno.png in Node.js environments.
  */
-export function hexToRgb(hex?: string | null): [number, number, number] | null {
-  if (!hex || typeof hex !== "string") return null;
-  let clean = hex.replace("#", "").trim();
+export function getSyncLogoDataUrl(): string | null {
+  if (cachedLogoDataUrl) return cachedLogoDataUrl;
+  if (typeof window === "undefined") {
+    try {
+      const fs = eval("require")("node:fs");
+      const path = eval("require")("node:path");
+      const logoPath = path.join(process.cwd(), "public", "logo-xeno.png");
+      if (fs.existsSync(logoPath)) {
+        const buffer = fs.readFileSync(logoPath);
+        cachedLogoDataUrl = `data:image/png;base64,${buffer.toString("base64")}`;
+        return cachedLogoDataUrl;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Loads the official /logo-xeno.png using fetch and an off-screen canvas to obtain a clean PNG data URL,
+ * suitable for jsPDF's doc.addImage().
+ */
+export async function getLogoDataUrl(): Promise<string | null> {
+  if (cachedLogoDataUrl) return cachedLogoDataUrl;
+
+  if (typeof window !== "undefined") {
+    try {
+      // 1. Fetch the image as a Blob
+      const response = await fetch("/logo-xeno.png");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch logo: HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      // 2. Load into HTMLImageElement
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = (e) => reject(e);
+        img.src = objectUrl;
+      });
+
+      // 3. Draw to a temporary canvas and obtain standard PNG data URL
+      const canvas = document.createElement("canvas");
+      const naturalWidth = img.naturalWidth || img.width || 400;
+      const naturalHeight = img.naturalHeight || img.height || 400;
+      canvas.width = naturalWidth;
+      canvas.height = naturalHeight;
+
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, naturalWidth, naturalHeight);
+        cachedLogoDataUrl = canvas.toDataURL("image/png");
+      }
+
+      URL.revokeObjectURL(objectUrl);
+      if (cachedLogoDataUrl) return cachedLogoDataUrl;
+    } catch (fetchErr) {
+      console.warn("[getLogoDataUrl] Fetch failed, falling back to Image load:", fetchErr);
+    }
+
+    // Fallback: direct Image load if fetch is unavailable
+    return new Promise((resolve) => {
+      try {
+        const fallbackImg = new Image();
+        fallbackImg.crossOrigin = "anonymous";
+        fallbackImg.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            const w = fallbackImg.naturalWidth || 400;
+            const h = fallbackImg.naturalHeight || 400;
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(fallbackImg, 0, 0, w, h);
+              cachedLogoDataUrl = canvas.toDataURL("image/png");
+              resolve(cachedLogoDataUrl);
+              return;
+            }
+            resolve(fallbackImg.src);
+          } catch {
+            resolve(fallbackImg.src);
+          }
+        };
+        fallbackImg.onerror = () => resolve(null);
+        fallbackImg.src = "/logo-xeno.png";
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  return getSyncLogoDataUrl();
+}
+
+/**
+ * Converts a hex (#ffffff, #fff, ffffff), rgb(r, g, b), or rgba(r, g, b, a) color into RGB tuple [r, g, b].
+ */
+export function hexToRgb(color?: string | null): [number, number, number] | null {
+  if (!color || typeof color !== "string") return null;
+  const str = color.trim().toLowerCase();
+  if (str === "transparent" || str === "none") return null;
+
+  // Handle rgb / rgba: "rgb(255, 0, 0)" or "rgba(255, 0, 0, 1)"
+  if (str.startsWith("rgb")) {
+    const match = str.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (match) {
+      return [
+        Math.min(255, Math.max(0, parseInt(match[1], 10))),
+        Math.min(255, Math.max(0, parseInt(match[2], 10))),
+        Math.min(255, Math.max(0, parseInt(match[3], 10))),
+      ];
+    }
+  }
+
+  // Handle common named colors
+  const namedColors: Record<string, [number, number, number]> = {
+    white: [255, 255, 255],
+    black: [0, 0, 0],
+    red: [239, 68, 68],
+    green: [34, 197, 94],
+    blue: [59, 130, 246],
+    yellow: [234, 179, 8],
+    gray: [107, 114, 128],
+    grey: [107, 114, 128],
+  };
+  if (namedColors[str]) {
+    return namedColors[str];
+  }
+
+  let clean = str.replace("#", "").trim();
   if (clean.length === 3) {
     clean = clean
       .split("")
@@ -39,7 +200,8 @@ export function hexToRgb(hex?: string | null): [number, number, number] | null {
  * Builds a vector-based, professional PDF document from one or more event sheets.
  */
 export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsPDF {
-  const { eventTitle, sheets, orientation = "landscape" } = options;
+  const { eventTitle, sheets, orientation = "landscape", logoDataUrl } = options;
+  const logoUrl = logoDataUrl !== undefined ? logoDataUrl : getSyncLogoDataUrl();
 
   // Initialize PDF with requested orientation (A4)
   const doc = new jsPDF({
@@ -47,6 +209,9 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
     unit: "mm",
     format: "a4",
   });
+
+  // Embed Montserrat font into jsPDF VFS and set as default font
+  registerMontserratFont(doc);
 
   const pageWidth = orientation === "landscape" ? 297 : 210;
   const pageHeight = orientation === "landscape" ? 210 : 297;
@@ -74,7 +239,8 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       pageWidth,
       marginX,
       contentWidth,
-      nowFormatted
+      nowFormatted,
+      logoUrl
     );
 
     // Convert sheet data to FortuneSheet model for unified parsing
@@ -87,26 +253,35 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       head: head.length > 0 ? head : undefined,
       body,
       theme: "grid",
+      styles: {
+        font: "Montserrat",
+        lineWidth: 0.15,
+        lineColor: [229, 231, 235],
+      },
       headStyles: {
-        fillColor: [30, 41, 59], // Dark slate (#1e293b)
-        textColor: [255, 255, 255], // High-contrast crisp white
+        font: "Montserrat",
+        fillColor: [244, 245, 247], // Neutral light header background fallback (matches FortuneSheet)
+        textColor: [0, 0, 0], // Default black
         fontStyle: "bold",
         fontSize: 8,
         cellPadding: 2.8,
         halign: "left",
         valign: "middle",
         lineWidth: 0.15,
-        lineColor: [51, 65, 85],
+        lineColor: [229, 231, 235],
       },
       bodyStyles: {
-        textColor: [31, 41, 55],
+        font: "Montserrat",
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
         fontSize: 7.5,
         cellPadding: 2.2,
         lineColor: [229, 231, 235],
         lineWidth: 0.15,
+        overflow: "linebreak",
       },
       alternateRowStyles: {
-        fillColor: [250, 250, 250],
+        fillColor: [255, 255, 255], // Clean white by default matching web spreadsheet
       },
       margin: {
         left: marginX,
@@ -115,11 +290,134 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
         bottom: 18,
       },
       didParseCell: (data) => {
-        // Strictly force high-contrast dark slate header style and override any weird JSONB formatting
-        if (data.section === "head") {
-          data.cell.styles.fillColor = [30, 41, 59];
-          data.cell.styles.textColor = [255, 255, 255];
+        data.cell.styles.font = "Montserrat";
+
+        const raw = data.cell.raw;
+        let rawCell: any = null;
+        let mergeInfo: { colSpan?: number; rowSpan?: number } | null = null;
+
+        if (typeof raw === "object" && raw !== null) {
+          if ((raw as any)._rawCell !== undefined) {
+            rawCell = (raw as any)._rawCell;
+          } else if (
+            (raw as any).bg !== undefined ||
+            (raw as any).fc !== undefined ||
+            (raw as any).bl !== undefined ||
+            (raw as any).it !== undefined ||
+            (raw as any).ht !== undefined ||
+            (raw as any).mc !== undefined ||
+            (raw as any).v !== undefined
+          ) {
+            rawCell = raw;
+          }
+
+          if ((raw as any)._merge) {
+            mergeInfo = (raw as any)._merge;
+          }
+        }
+
+        // Check merge from cell.mc if not already present
+        if (!mergeInfo && rawCell?.mc) {
+          const mc = rawCell.mc;
+          const rs = Math.max(mc.rs || 1, 1);
+          const cs = Math.max(mc.cs || 1, 1);
+          if (rs > 1 || cs > 1) {
+            mergeInfo = { rowSpan: rs, colSpan: cs };
+          }
+        }
+
+        // Apply ColSpan and RowSpan to match spreadsheet layout
+        if (mergeInfo) {
+          if (mergeInfo.colSpan && mergeInfo.colSpan > 1) {
+            data.cell.colSpan = mergeInfo.colSpan;
+          }
+          if (mergeInfo.rowSpan && mergeInfo.rowSpan > 1) {
+            data.cell.rowSpan = mergeInfo.rowSpan;
+          }
+        }
+
+        // Apply background color (bg) using cell's hex code for EVERY cell, including header row
+        if (rawCell?.bg) {
+          const bgRgb = hexToRgb(rawCell.bg);
+          if (bgRgb) {
+            data.cell.styles.fillColor = bgRgb;
+          }
+        } else {
+          if (data.section === "head") {
+            data.cell.styles.fillColor = [244, 245, 247];
+          } else {
+            data.cell.styles.fillColor = [255, 255, 255];
+          }
+        }
+
+        // Apply text color (fc) using cell's hex code (default to black if empty)
+        if (rawCell?.fc) {
+          const fcRgb = hexToRgb(rawCell.fc);
+          if (fcRgb) {
+            data.cell.styles.textColor = fcRgb;
+          } else {
+            data.cell.styles.textColor = [0, 0, 0];
+          }
+        } else {
+          data.cell.styles.textColor = [0, 0, 0];
+        }
+
+        // Apply fontStyle (bold / italic) directly from FortuneSheet cell object
+        const isBold =
+          rawCell?.bl === 1 || (data.section === "head" && rawCell?.bl !== 0);
+        const isItalic = rawCell?.it === 1;
+
+        if (isBold && isItalic) {
+          data.cell.styles.fontStyle = "bolditalic";
+        } else if (isBold) {
           data.cell.styles.fontStyle = "bold";
+        } else if (isItalic) {
+          data.cell.styles.fontStyle = "italic";
+        } else {
+          data.cell.styles.fontStyle = "normal";
+        }
+
+        // Apply horizontal alignment (halign) directly from FortuneSheet cell object
+        if (
+          rawCell?.ht === 0 ||
+          rawCell?.ht === "0" ||
+          rawCell?.ht === "center"
+        ) {
+          data.cell.styles.halign = "center";
+        } else if (
+          rawCell?.ht === 1 ||
+          rawCell?.ht === "1" ||
+          rawCell?.ht === "left"
+        ) {
+          data.cell.styles.halign = "left";
+        } else if (
+          rawCell?.ht === 2 ||
+          rawCell?.ht === "2" ||
+          rawCell?.ht === "right"
+        ) {
+          data.cell.styles.halign = "right";
+        }
+
+        // Apply vertical alignment (valign)
+        if (
+          rawCell?.vt === 0 ||
+          rawCell?.vt === "0" ||
+          rawCell?.vt === "center" ||
+          rawCell?.vt === "middle"
+        ) {
+          data.cell.styles.valign = "middle";
+        } else if (
+          rawCell?.vt === 1 ||
+          rawCell?.vt === "1" ||
+          rawCell?.vt === "top"
+        ) {
+          data.cell.styles.valign = "top";
+        } else if (
+          rawCell?.vt === 2 ||
+          rawCell?.vt === "2" ||
+          rawCell?.vt === "bottom"
+        ) {
+          data.cell.styles.valign = "bottom";
         }
       },
       didDrawPage: (data) => {
@@ -151,7 +449,7 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
     doc.line(marginX, pageHeight - 12, marginX + contentWidth, pageHeight - 12);
 
     // Footer text
-    doc.setFont("helvetica", "normal");
+    doc.setFont("Montserrat", "normal");
     doc.setFontSize(6.8);
     doc.setTextColor(156, 163, 175);
     doc.text(
@@ -172,77 +470,77 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
 }
 
 /**
- * Renders the top brand header for a sheet.
+ * Renders the clean, official executive letterhead for a sheet.
+ * Features:
+ * 1. Left-aligned official Xeno logo at marginX (X=14).
+ * 2. "Assignment Letter" title and sheet name positioned to the right of the logo, vertically centered.
+ * 3. Clean text without "Sheet:" prefix and completely removed "Dicetak:" print date.
+ * 4. Crisp hairline divider line and nicely proportioned startY for autoTable.
  */
-function renderSheetHeader(
+export function renderSheetHeader(
   doc: jsPDF,
   eventTitle: string,
   sheetName: string,
   pageWidth: number,
   marginX: number,
   contentWidth: number,
-  nowFormatted: string
+  nowFormatted?: string,
+  logoDataUrl?: string | null
 ): number {
-  const topY = 10;
+  const logoY = 9;
+  const logoWidth = 22;
+  const logoHeight = 22;
+  let textX = marginX;
 
-  // 1. Brand Logo Mark (Rounded Slate Badge with crisp "X")
-  doc.setFillColor(17, 24, 39);
-  doc.roundedRect(marginX, topY, 8, 8, 1.8, 1.8, "F");
+  // 1. Official Logo at top-left
+  if (logoDataUrl) {
+    try {
+      doc.addImage(logoDataUrl, "PNG", marginX, logoY, logoWidth, logoHeight);
+      textX = marginX + logoWidth + 7; // Place text neatly to the right of the logo
+    } catch (err) {
+      console.warn("[renderSheetHeader] Error inserting logo image:", err);
+      textX = marginX;
+    }
+  }
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.text("X", marginX + 4, topY + 5.5, { align: "center" });
+  // 2. "Assignment Letter" Title (sitting to the right of the logo, vertically aligned)
+  const titleY = logoDataUrl ? logoY + 8 : logoY + 6;
+  doc.setFont("Montserrat", "bold");
+  doc.setFontSize(15);
+  doc.setTextColor(17, 24, 39); // Deep slate / charcoal
+  doc.text("Assignment Letter", textX, titleY);
 
-  // Brand Name & Subtitle
-  doc.setTextColor(17, 24, 39);
-  doc.setFont("helvetica", "bold");
+  // 3. Sheet Name (cleanly rendered directly under "Assignment Letter" without "Sheet:" prefix)
+  const subtitleY = logoDataUrl ? logoY + 15.5 : logoY + 13.5;
+  const cleanSheetName = (sheetName || "Sheet 1").toUpperCase();
+  doc.setFont("Montserrat", "bold");
   doc.setFontSize(9.5);
-  doc.text("XENO ENTERTAINMENT", marginX + 11, topY + 4);
+  doc.setTextColor(75, 85, 99); // Slate-600
+  doc.text(cleanSheetName, textX, subtitleY);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
-  doc.setTextColor(107, 114, 128);
-  doc.text("LEMBAR KERJA & SPREADSHEET OPERASIONAL ACARA", marginX + 11, topY + 7.5);
+  // 4. Optional Event Title (right-aligned on the letterhead banner if provided)
+  if (
+    eventTitle &&
+    eventTitle.trim() &&
+    eventTitle !== "Acara Xeno" &&
+    eventTitle !== "Event"
+  ) {
+    const cleanEvent =
+      eventTitle.length > 50 ? eventTitle.slice(0, 47) + "..." : eventTitle.trim();
+    doc.setFont("Montserrat", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(107, 114, 128); // Slate-500
+    doc.text(cleanEvent, pageWidth - marginX, subtitleY, { align: "right" });
+  }
 
-  // 2. Right-Aligned Event & Sheet Information
-  const cleanEventTitle =
-    eventTitle && eventTitle.length > 45
-      ? eventTitle.slice(0, 43) + "..."
-      : eventTitle || "Acara Xeno";
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(17, 24, 39);
-  doc.text(cleanEventTitle, pageWidth - marginX, topY + 3.8, { align: "right" });
-
-  // Sheet Name Badge
-  const badgeText = `LEMBAR: ${sheetName.toUpperCase()}`;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.5);
-  const badgeTextWidth = doc.getTextWidth(badgeText);
-  const badgeWidth = badgeTextWidth + 6;
-  const badgeX = pageWidth - marginX - badgeWidth;
-  const badgeY = topY + 5.2;
-
-  doc.setFillColor(239, 246, 255);
-  doc.roundedRect(badgeX, badgeY, badgeWidth, 4.2, 1.2, 1.2, "F");
-  doc.setTextColor(0, 122, 255);
-  doc.text(badgeText, badgeX + badgeWidth / 2, badgeY + 3, { align: "center" });
-
-  // Print Timestamp under sheet name
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6);
-  doc.setTextColor(156, 163, 175);
-  doc.text(`Dicetak: ${nowFormatted}`, pageWidth - marginX, topY + 13, { align: "right" });
-
-  // Divider Line
-  const dividerY = topY + 15;
+  // 5. Hairline Divider Line below the letterhead header
+  const dividerY = logoDataUrl ? logoY + logoHeight + 3.5 : subtitleY + 5;
   doc.setDrawColor(229, 231, 235);
   doc.setLineWidth(0.25);
   doc.line(marginX, dividerY, marginX + contentWidth, dividerY);
 
-  return dividerY + 4; // Start Y for table
+  // 6. Return startY for autoTable with clean breathing room below the divider
+  return dividerY + 5.5;
 }
 
 /**
@@ -257,11 +555,11 @@ function renderSubsequentHeader(
   contentWidth: number
 ) {
   const topY = 10;
-  doc.setFont("helvetica", "bold");
+  doc.setFont("Montserrat", "bold");
   doc.setFontSize(7.5);
   doc.setTextColor(107, 114, 128);
   doc.text(
-    `XENO ENTERTAINMENT — ${eventTitle.toUpperCase()} (Lanjutan Sheet: ${sheetName})`,
+    `ASSIGNMENT LETTER — ${sheetName.toUpperCase()} (Lanjutan)`,
     marginX,
     topY + 3
   );
@@ -281,11 +579,11 @@ function renderEmptyDocument(
   marginX: number,
   contentWidth: number
 ) {
-  doc.setFont("helvetica", "bold");
+  doc.setFont("Montserrat", "bold");
   doc.setFontSize(12);
   doc.text(eventTitle || "Detail Acara", marginX, 20);
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("Montserrat", "normal");
   doc.setFontSize(9);
   doc.setTextColor(107, 114, 128);
   doc.text("Tidak ada lembar kerja yang dipilih atau tersedia untuk diekspor.", marginX, 30);
@@ -293,61 +591,125 @@ function renderEmptyDocument(
 
 /**
  * Parses FortuneSheet data into structured autoTable head and body arrays,
- * preserving cell formatting (bold, italic, colors, text alignment) and merged ranges.
+ * completely preventing data shifting (null/empty handling up to max columns),
+ * supporting merged cells (both config.merge and cell.mc) with accurate subordinate skipping,
+ * and matching exact FortuneSheet cell styling (including row 0 header).
  */
 export function parseFortuneSheetForAutoTable(sheetObj: any): {
   head: any[][];
   body: any[][];
 } {
-  // 1. Build a 2D matrix of cell objects { v, m, bg, bl, it, fc, ht }
   let maxR = 0;
   let maxC = 0;
-  const matrix: Map<string, any> = new Map();
+  let hasAnyData = false;
+  const matrix = new Map<string, any>();
 
-  // If 2D array data exists
-  if (Array.isArray(sheetObj.data) && sheetObj.data.length > 0) {
+  const registerCell = (r: number, c: number, cell: any) => {
+    if (r < 0 || c < 0) return;
+    if (cell === null || cell === undefined) return;
+
+    matrix.set(`${r}_${c}`, cell);
+
+    const text = extractCellText(cell);
+    const hasContent = text.trim() !== "";
+    const hasFormatting = Boolean(
+      cell.bg ||
+      cell.bl ||
+      cell.fc ||
+      cell.it ||
+      cell.ht !== undefined ||
+      cell.vt !== undefined
+    );
+    const hasMerge = Boolean(cell.mc);
+
+    if (hasContent || hasFormatting || hasMerge) {
+      hasAnyData = true;
+      if (r > maxR) maxR = r;
+      if (c > maxC) maxC = c;
+    }
+  };
+
+  // 1. Process 2D array data if present
+  if (Array.isArray(sheetObj?.data) && sheetObj.data.length > 0) {
     sheetObj.data.forEach((row: any, r: number) => {
       if (Array.isArray(row)) {
         row.forEach((cell: any, c: number) => {
-          if (cell && (cell.v !== undefined && cell.v !== null && cell.v !== "")) {
-            if (r > maxR) maxR = r;
-            if (c > maxC) maxC = c;
-            matrix.set(`${r}_${c}`, cell);
-          }
+          registerCell(r, c, cell);
         });
       }
     });
   }
 
-  // If celldata exists
-  if (Array.isArray(sheetObj.celldata) && sheetObj.celldata.length > 0) {
+  // 2. Process celldata if present
+  if (Array.isArray(sheetObj?.celldata) && sheetObj.celldata.length > 0) {
     sheetObj.celldata.forEach((item: any) => {
       if (item && typeof item.r === "number" && typeof item.c === "number") {
-        if (item.r > maxR) maxR = item.r;
-        if (item.c > maxC) maxC = item.c;
-        matrix.set(`${item.r}_${item.c}`, item.v || {});
+        registerCell(item.r, item.c, item.v);
       }
     });
   }
 
-  // If completely empty, return single fallback row
-  if (matrix.size === 0) {
+  // 3. Process config.merge to ensure maxR and maxC cover all merged ranges
+  const rawMerges: any[] = [];
+  if (sheetObj?.config?.merge) {
+    if (Array.isArray(sheetObj.config.merge)) {
+      rawMerges.push(...sheetObj.config.merge);
+    } else if (typeof sheetObj.config.merge === "object") {
+      rawMerges.push(...Object.values(sheetObj.config.merge));
+    }
+  }
+
+  for (const m of rawMerges) {
+    if (m && typeof m.r === "number" && typeof m.c === "number") {
+      const rowSpan = Math.max(m.rs || 1, 1);
+      const colSpan = Math.max(m.cs || 1, 1);
+      hasAnyData = true;
+      if (m.r + rowSpan - 1 > maxR) maxR = m.r + rowSpan - 1;
+      if (m.c + colSpan - 1 > maxC) maxC = m.c + colSpan - 1;
+    }
+  }
+
+  // 4. Process legacy columns / rows if present
+  if (Array.isArray(sheetObj?.columns) && sheetObj.columns.length > 0) {
+    hasAnyData = true;
+    if (sheetObj.columns.length - 1 > maxC) maxC = sheetObj.columns.length - 1;
+  }
+
+  // 5. Process cell.mc merges
+  for (const [key, cell] of matrix.entries()) {
+    if (cell && typeof cell === "object" && cell.mc) {
+      const [rStr, cStr] = key.split("_");
+      const r = parseInt(rStr, 10);
+      const c = parseInt(cStr, 10);
+      const mc = cell.mc;
+      const rootR = typeof mc.r === "number" ? mc.r : r;
+      const rootC = typeof mc.c === "number" ? mc.c : c;
+      const rs = Math.max(mc.rs || 1, 1);
+      const cs = Math.max(mc.cs || 1, 1);
+      hasAnyData = true;
+      if (rootR + rs - 1 > maxR) maxR = rootR + rs - 1;
+      if (rootC + cs - 1 > maxC) maxC = rootC + cs - 1;
+    }
+  }
+
+  // Fallback for completely empty sheet
+  if (!hasAnyData && matrix.size === 0) {
     return {
       head: [["Informasi"]],
       body: [["Lembar kerja belum memiliki data."]],
     };
   }
 
-  // 2. Build merge maps and skip coordinates
+  // 6. Build merge maps and skip coordinates
   const skipMap = new Set<string>();
   const mergeLookup = new Map<string, { rowSpan: number; colSpan: number }>();
 
-  if (sheetObj.config?.merge) {
-    for (const key of Object.keys(sheetObj.config.merge)) {
-      const m = sheetObj.config.merge[key];
-      if (m && typeof m.r === "number" && typeof m.c === "number") {
-        const rowSpan = Math.max(m.rs || 1, 1);
-        const colSpan = Math.max(m.cs || 1, 1);
+  // A. From config.merge
+  for (const m of rawMerges) {
+    if (m && typeof m.r === "number" && typeof m.c === "number") {
+      const rowSpan = Math.max(m.rs || 1, 1);
+      const colSpan = Math.max(m.cs || 1, 1);
+      if (rowSpan > 1 || colSpan > 1) {
         mergeLookup.set(`${m.r}_${m.c}`, { rowSpan, colSpan });
 
         for (let r = m.r; r < m.r + rowSpan; r++) {
@@ -361,91 +723,120 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
     }
   }
 
-  // 3. Find effective boundaries (strip trailing blank rows/cols)
-  let lastNonEmptyRow = 0;
-  for (let r = maxR; r >= 0; r--) {
-    let hasData = false;
-    for (let c = 0; c <= maxC; c++) {
-      const cell = matrix.get(`${r}_${c}`);
-      const val = cell?.m ?? cell?.v ?? "";
-      if (val !== "") {
-        hasData = true;
-        break;
+  // B. From cell.mc
+  for (const [key, cell] of matrix.entries()) {
+    if (cell && typeof cell === "object" && cell.mc) {
+      const [rStr, cStr] = key.split("_");
+      const r = parseInt(rStr, 10);
+      const c = parseInt(cStr, 10);
+      const mc = cell.mc;
+
+      const rootR = typeof mc.r === "number" ? mc.r : r;
+      const rootC = typeof mc.c === "number" ? mc.c : c;
+      const rowSpan = Math.max(mc.rs || 1, 1);
+      const colSpan = Math.max(mc.cs || 1, 1);
+
+      if (rowSpan > 1 || colSpan > 1) {
+        mergeLookup.set(`${rootR}_${rootC}`, { rowSpan, colSpan });
+
+        for (let mr = rootR; mr < rootR + rowSpan; mr++) {
+          for (let mcCol = rootC; mcCol < rootC + colSpan; mcCol++) {
+            if (mr !== rootR || mcCol !== rootC) {
+              skipMap.add(`${mr}_${mcCol}`);
+            }
+          }
+        }
+      } else if (rootR !== r || rootC !== c) {
+        // Subordinate cell pointing to another merge root
+        skipMap.add(`${r}_${c}`);
       }
-    }
-    if (hasData) {
-      lastNonEmptyRow = r;
-      break;
     }
   }
 
-  // 4. Construct Head (row 0) and Body (rows 1..N)
+  // 7. Construct Head (row 0) and Body (rows 1..N)
   const head: any[][] = [];
   const body: any[][] = [];
 
-  for (let r = 0; r <= lastNonEmptyRow; r++) {
+  for (let r = 0; r <= maxR; r++) {
     const rowCells: any[] = [];
     const isHeaderRow = r === 0;
 
     for (let c = 0; c <= maxC; c++) {
       const coordKey = `${r}_${c}`;
+
+      // Check if this cell is spanned/covered by a merge
       if (skipMap.has(coordKey)) {
-        // Skip cells covered by a previous merge root
+        // Subordinate cell: omit so autoTable expands the spanned cell into this slot!
         continue;
       }
 
-      const rawCell = matrix.get(coordKey);
-      const textVal =
-        rawCell && (rawCell.m !== undefined && rawCell.m !== null)
-          ? String(rawCell.m)
-          : rawCell && (rawCell.v !== undefined && rawCell.v !== null)
-          ? String(rawCell.v)
-          : "";
+      const rawCell = matrix.get(coordKey) ?? null;
+      let textVal = extractCellText(rawCell);
+      textVal = textVal.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-      const mergeInfo = mergeLookup.get(coordKey);
+      const mergeInfo = mergeLookup.get(coordKey) ?? null;
       const cellStyles: Record<string, any> = {};
 
-      // Parse background color (only for body cells; header row is strictly styled by headStyles)
-      if (!isHeaderRow && rawCell?.bg) {
+      // Background color (bg) for ALL cells (including row 0 header)
+      if (rawCell?.bg) {
         const rgb = hexToRgb(rawCell.bg);
         if (rgb) cellStyles.fillColor = rgb;
       }
 
-      // Parse text color (only for body cells; header row is strictly styled by headStyles)
-      if (!isHeaderRow && rawCell?.fc) {
+      // Font color (fc) for ALL cells (default to black if empty)
+      if (rawCell?.fc) {
         const rgb = hexToRgb(rawCell.fc);
-        if (rgb) cellStyles.textColor = rgb;
+        if (rgb) {
+          cellStyles.textColor = rgb;
+        } else {
+          cellStyles.textColor = [0, 0, 0];
+        }
+      } else {
+        cellStyles.textColor = [0, 0, 0];
       }
 
-      // Parse font styles (bold / italic)
-      if (rawCell?.bl === 1 && rawCell?.it === 1) {
+      // Bold status & Italic status
+      const isBold = rawCell?.bl === 1 || (isHeaderRow && rawCell?.bl !== 0);
+      const isItalic = rawCell?.it === 1;
+
+      if (isBold && isItalic) {
         cellStyles.fontStyle = "bolditalic";
-      } else if (rawCell?.bl === 1 || isHeaderRow) {
+      } else if (isBold) {
         cellStyles.fontStyle = "bold";
-      } else if (rawCell?.it === 1) {
+      } else if (isItalic) {
         cellStyles.fontStyle = "italic";
+      } else {
+        cellStyles.fontStyle = "normal";
       }
 
-      // Parse horizontal alignment
-      if (rawCell?.ht === 0) {
+      // Horizontal alignment (0 = center, 1 = left, 2 = right)
+      if (rawCell?.ht === 0 || rawCell?.ht === "0" || rawCell?.ht === "center") {
         cellStyles.halign = "center";
-      } else if (rawCell?.ht === 1) {
+      } else if (rawCell?.ht === 1 || rawCell?.ht === "1" || rawCell?.ht === "left") {
         cellStyles.halign = "left";
-      } else if (rawCell?.ht === 2) {
+      } else if (rawCell?.ht === 2 || rawCell?.ht === "2" || rawCell?.ht === "right") {
         cellStyles.halign = "right";
       }
 
-      // Construct autoTable cell
-      if (mergeInfo || Object.keys(cellStyles).length > 0) {
-        rowCells.push({
-          content: textVal,
-          rowSpan: mergeInfo?.rowSpan,
-          colSpan: mergeInfo?.colSpan,
-          styles: Object.keys(cellStyles).length > 0 ? cellStyles : undefined,
-        });
-      } else {
-        rowCells.push(textVal);
+      // Vertical alignment
+      if (rawCell?.vt === 0 || rawCell?.vt === "0" || rawCell?.vt === "center" || rawCell?.vt === "middle") {
+        cellStyles.valign = "middle";
+      } else if (rawCell?.vt === 1 || rawCell?.vt === "1" || rawCell?.vt === "top") {
+        cellStyles.valign = "top";
+      } else if (rawCell?.vt === 2 || rawCell?.vt === "2" || rawCell?.vt === "bottom") {
+        cellStyles.valign = "bottom";
       }
+
+      // Explicitly return structured cell object for EVERY cell (including null/empty cells)
+      // so the array length matches max columns perfectly and prevents data from shifting to the left!
+      rowCells.push({
+        content: textVal,
+        rowSpan: mergeInfo?.rowSpan,
+        colSpan: mergeInfo?.colSpan,
+        styles: Object.keys(cellStyles).length > 0 ? cellStyles : undefined,
+        _rawCell: rawCell || null,
+        _merge: mergeInfo || null,
+      });
     }
 
     if (isHeaderRow) {
@@ -464,7 +855,10 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
 export async function downloadSpreadsheetPdf(
   options: GenerateSpreadsheetPdfOptions
 ): Promise<{ fileName: string }> {
-  const doc = buildSpreadsheetPdf(options);
+  // Obtain official logo data URL via off-screen canvas if in browser
+  const logoDataUrl =
+    options.logoDataUrl !== undefined ? options.logoDataUrl : await getLogoDataUrl();
+  const doc = buildSpreadsheetPdf({ ...options, logoDataUrl });
 
   const cleanEvent = (options.eventTitle || "Event")
     .replace(/[^a-zA-Z0-9_\-\s]/g, "")

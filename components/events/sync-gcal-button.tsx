@@ -47,14 +47,14 @@ export function SyncGCalButton({
         if (res.success) {
           showToast("success", res.message, res.htmlLink);
         } else {
-          showToast("error", res.message || "Gagal menyinkronkan ke Google Calendar.");
+          showToast("error", res.error || res.message || "Gagal menyinkronkan ke Google Calendar.");
         }
       } else {
         const res = await syncAllEventsToGoogleCalendar();
         if (res.success) {
           showToast("success", res.message);
         } else {
-          showToast("error", res.message || "Gagal menyinkronkan seluruh acara.");
+          showToast("error", res.error || res.message || "Gagal menyinkronkan seluruh acara.");
         }
       }
     } catch (err: unknown) {
