@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, ExternalLink } from "lucide-react";
+import { toDateKey } from "@/lib/utils";
 
 interface EventItem {
   id: string;
@@ -49,11 +50,16 @@ export function MonthlyCalendar({
   // Map events to day numbers
   const eventsByDay: { [day: number]: EventItem[] } = {};
   events.forEach((ev) => {
-    const evDate = new Date(ev.start_date);
-    if (evDate.getFullYear() === year && evDate.getMonth() === month) {
-      const d = evDate.getDate();
-      if (!eventsByDay[d]) eventsByDay[d] = [];
-      eventsByDay[d].push(ev);
+    const startKey = toDateKey(ev.start_date);
+    let endKey = toDateKey(ev.end_date || ev.start_date);
+    if (endKey < startKey) endKey = startKey;
+    const mm = String(month + 1).padStart(2, "0");
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${year}-${mm}-${String(d).padStart(2, "0")}`;
+      if (key >= startKey && key <= endKey) {
+        if (!eventsByDay[d]) eventsByDay[d] = [];
+        eventsByDay[d].push(ev);
+      }
     }
   });
   const today = new Date();
@@ -122,11 +128,10 @@ export function MonthlyCalendar({
         {WEEK_DAYS.map((d) => (
           <div
             key={d}
-            className={`py-1.5 rounded-lg ${
-              d === "Min"
-                ? "text-rose-600 dark:text-rose-400 bg-rose-500/10"
-                : "text-muted-foreground bg-muted/60"
-            }`}
+            className={`py-1.5 rounded-lg ${d === "Min"
+              ? "text-rose-600 dark:text-rose-400 bg-rose-500/10"
+              : "text-muted-foreground bg-muted/60"
+              }`}
           >
             {d}
           </div>
@@ -152,25 +157,23 @@ export function MonthlyCalendar({
             <div
               key={day}
               onClick={() => hasEvents && setSelectedDayEvents(dayEvents)}
-              className={`min-h-[78px] p-2 rounded-xl border transition-all duration-150 flex flex-col justify-between ${
-                isDoubleBooked
-                  ? "bg-rose-500/10 border-rose-500 hover:border-rose-600 shadow-sm shadow-rose-500/20 hover:shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98] ring-1 ring-rose-500/40"
-                  : hasEvents
+              className={`min-h-[78px] p-2 rounded-xl border transition-all duration-150 flex flex-col justify-between ${isDoubleBooked
+                ? "bg-rose-500/10 border-rose-500 hover:border-rose-600 shadow-sm shadow-rose-500/20 hover:shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98] ring-1 ring-rose-500/40"
+                : hasEvents
                   ? "bg-[#007aff]/10 border-[#007aff] hover:border-[#007aff] shadow-sm shadow-[#007aff]/15 hover:shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98] ring-1 ring-[#007aff]/30"
                   : "bg-card border-border hover:border-primary/50"
-              } ${isToday ? "ring-2 ring-[#007aff] ring-offset-2 ring-offset-card font-bold" : ""}`}
+                } ${isToday ? "ring-2 ring-[#007aff] ring-offset-2 ring-offset-card font-bold" : ""}`}
             >
               <div className="flex items-center justify-between">
                 <span
-                  className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${
-                    isToday
-                      ? "bg-[#007aff] text-white shadow-sm shadow-[#007aff]/50"
-                      : isDoubleBooked
+                  className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${isToday
+                    ? "bg-[#007aff] text-white shadow-sm shadow-[#007aff]/50"
+                    : isDoubleBooked
                       ? "bg-rose-500 text-white shadow-xs"
                       : hasEvents
-                      ? "bg-[#007aff] text-white"
-                      : "text-foreground"
-                  }`}
+                        ? "bg-[#007aff] text-white"
+                        : "text-foreground"
+                    }`}
                 >
                   {day}
                 </span>
@@ -196,20 +199,18 @@ export function MonthlyCalendar({
                   <div
                     key={ev.id}
                     title={ev.title}
-                    className={`truncate text-[10px] font-bold px-1.5 py-0.5 rounded-md text-white shadow-xs transition-colors ${
-                      isDoubleBooked
-                        ? "bg-rose-600 border border-rose-700 hover:bg-rose-700"
-                        : "bg-[#007aff] border border-[#0066d6] hover:bg-[#0066d6]"
-                    }`}
+                    className={`truncate text-[10px] font-bold px-1.5 py-0.5 rounded-md text-white shadow-xs transition-colors ${isDoubleBooked
+                      ? "bg-rose-600 border border-rose-700 hover:bg-rose-700"
+                      : "bg-[#007aff] border border-[#0066d6] hover:bg-[#0066d6]"
+                      }`}
                   >
                     {ev.title}
                   </div>
                 ))}
                 {dayEvents.length > 2 && (
                   <span
-                    className={`text-[9px] font-bold block text-right ${
-                      isDoubleBooked ? "text-rose-600 dark:text-rose-400" : "text-[#007aff] dark:text-[#3894ff]"
-                    }`}
+                    className={`text-[9px] font-bold block text-right ${isDoubleBooked ? "text-rose-600 dark:text-rose-400" : "text-[#007aff] dark:text-[#3894ff]"
+                      }`}
                   >
                     +{dayEvents.length - 2} lagi
                   </span>
@@ -222,17 +223,15 @@ export function MonthlyCalendar({
 
       {selectedDayEvents && (
         <div
-          className={`p-4 rounded-2xl border-2 space-y-3 shadow-md ${
-            selectedDayEvents.length > 1
-              ? "bg-rose-500/10 border-rose-500"
-              : "bg-muted/50 border-[#007aff]"
-          }`}
+          className={`p-4 rounded-2xl border-2 space-y-3 shadow-md ${selectedDayEvents.length > 1
+            ? "bg-rose-500/10 border-rose-500"
+            : "bg-muted/50 border-[#007aff]"
+            }`}
         >
           <div className="flex items-center justify-between">
             <h3
-              className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                selectedDayEvents.length > 1 ? "text-rose-600 dark:text-rose-400" : "text-[#007aff]"
-              }`}
+              className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${selectedDayEvents.length > 1 ? "text-rose-600 dark:text-rose-400" : "text-[#007aff]"
+                }`}
             >
               <CalendarIcon className="w-3.5 h-3.5 stroke-[2.5]" />
               Acara Terpilih ({selectedDayEvents.length})

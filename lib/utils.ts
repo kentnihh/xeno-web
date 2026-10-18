@@ -40,7 +40,39 @@ export function formatDate(dateStr: string | null | undefined): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: APP_TIME_ZONE,
   }).format(date);
+}
+
+export const APP_TIME_ZONE = "Asia/Jakarta";
+
+/** Kunci tanggal "YYYY-MM-DD" di zona Asia/Jakarta (sama di server & browser). */
+export function toDateKey(input: string | Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(input));
+}
+
+/** Contoh: "23 Okt 2026, 09.00 – 17.00" atau "23 Okt 2026, 09.00 – 25 Okt 2026, 17.00" */
+export function formatDateRange(
+  start: string | null | undefined,
+  end: string | null | undefined
+): string {
+  if (!start) return "-";
+  if (!end || toDateKey(start) === toDateKey(end)) {
+    const endTime = end
+      ? new Intl.DateTimeFormat("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: APP_TIME_ZONE,
+      }).format(new Date(end))
+      : "";
+    return endTime ? `${formatDate(start)} – ${endTime}` : formatDate(start);
+  }
+  return `${formatDate(start)} – ${formatDate(end)}`;
 }
 
 /**
@@ -92,10 +124,14 @@ export function getEventCountdown(
   if (isNaN(target.getTime())) return { label: "-", tone: "past", diffDays: -9999 };
 
   const now = refDate || new Date();
-  const targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
-  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const keyToUtc = (k: string) => {
+    const [y, m, d] = k.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
   const oneDayMs = 24 * 60 * 60 * 1000;
-  const diffDays = Math.round((targetMidnight - todayMidnight) / oneDayMs);
+  const diffDays = Math.round(
+    (keyToUtc(toDateKey(target)) - keyToUtc(toDateKey(now))) / oneDayMs
+  );
 
   if (diffDays === 0) return { label: "Hari Ini", tone: "today", diffDays: 0 };
   if (diffDays === 1) return { label: "Besok", tone: "tomorrow", diffDays: 1 };

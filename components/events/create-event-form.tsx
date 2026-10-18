@@ -44,11 +44,10 @@ export function CreateEventForm({ clients }: CreateEventFormProps) {
   // Whenever the user selects or changes start_date, automatically update end_date
   // to match the exact same date and set time to exactly 1 hour after start_date.
   const handleStartDateChange = (newStart: Date) => {
+    // Pertahankan durasi yang sudah dipilih (mis. acara multi-hari)
+    const duration = endDate.getTime() - startDate.getTime();
     setStartDate(newStart);
-
-    // Calculate smart default: exactly 1 hour after the newly selected start_date
-    const autoCalculatedEnd = new Date(newStart.getTime() + 1 * 60 * 60 * 1000);
-    setEndDate(autoCalculatedEnd);
+    setEndDate(new Date(newStart.getTime() + (duration > 0 ? duration : 3600000)));
   };
 
   // 3. Keep it Editable:

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate } from "@/lib/utils";
+import { formatDateRange } from "@/lib/utils";
 import { deleteEvent } from "../actions";
 import { getEventSheets } from "../sheet-actions";
 import { getOrCreateEventPublicForm } from "../public-form-actions";
@@ -41,12 +41,12 @@ export default async function EventDetailPage({
       : resolvedSearchParams?.tab === "lembar-kerja" ||
         resolvedSearchParams?.tab === "spreadsheets" ||
         resolvedSearchParams?.tab === "sheets"
-      ? "lembar-kerja"
-      : resolvedSearchParams?.tab === "data-keluarga" ||
-        resolvedSearchParams?.tab === "family" ||
-        resolvedSearchParams?.tab === "keluarga"
-      ? "data-keluarga"
-      : "operations";
+        ? "lembar-kerja"
+        : resolvedSearchParams?.tab === "data-keluarga" ||
+          resolvedSearchParams?.tab === "family" ||
+          resolvedSearchParams?.tab === "keluarga"
+          ? "data-keluarga"
+          : "operations";
 
   const [canEditEvent, canDeleteEvent, canManageFinance, canManageDocs] = await Promise.all([
     hasPermission("events.edit"),
@@ -153,7 +153,7 @@ export default async function EventDetailPage({
           <div className="text-xs font-medium text-muted-foreground">Jadwal</div>
           <div className="text-xs font-bold text-foreground mt-1.5 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-[#007aff]" />
-            <span>{formatDate(event.start_date)}</span>
+            <span>{formatDateRange(event.start_date, event.end_date)}</span>
           </div>
         </div>
         <div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Calendar as CalIcon, Clock, ChevronLeft, ChevronRight, Check } from "lucide-react";
 
 interface Props {
@@ -28,8 +29,8 @@ export function DateTimePicker({
   const initialDate = value
     ? new Date(value)
     : defaultValue
-    ? new Date(defaultValue)
-    : new Date();
+      ? new Date(defaultValue)
+      : new Date();
   const init = !isNaN(initialDate.getTime()) ? initialDate : new Date();
 
   const [val, setVal] = useState<Date>(init);
@@ -39,6 +40,37 @@ export function DateTimePicker({
   const [h, setH] = useState(String(init.getHours()).padStart(2, "0"));
   const [min, setMin] = useState(String(Math.floor(init.getMinutes() / 15) * 15).padStart(2, "0"));
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  // Hitung posisi popup relatif ke viewport supaya tidak terpotong overflow modal
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const btn = btnRef.current;
+      const pop = popRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const w = pop?.offsetWidth ?? 288;
+      const h = pop?.offsetHeight ?? 380;
+      const gap = 8;
+      let left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+      let top = r.bottom + gap;
+      if (top + h > window.innerHeight - 8) {
+        const above = r.top - h - gap;
+        top = above >= 8 ? above : Math.max(8, window.innerHeight - h - 8);
+      }
+      setPos({ top, left });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
 
   // Sync state when controlled value prop changes
   useEffect(() => {
@@ -55,7 +87,11 @@ export function DateTimePicker({
   }, [value]);
 
   useEffect(() => {
-    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const fn = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (ref.current?.contains(t) || popRef.current?.contains(t)) return;
+      setOpen(false);
+    };
     if (open) document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, [open]);
@@ -86,6 +122,7 @@ export function DateTimePicker({
       )}
       <input type="hidden" name={name} value={val.toISOString()} required={required} />
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen(!open)}
         className="apple-input w-full flex items-center justify-between px-3.5 py-2.5 text-left text-sm cursor-pointer"
@@ -97,8 +134,12 @@ export function DateTimePicker({
         <Clock className="w-3.5 h-3.5 text-muted-foreground" />
       </button>
 
-      {open && (
-        <div className="absolute z-50 mt-2 p-3.5 rounded-2xl bg-card backdrop-blur-2xl border border-border shadow-2xl w-72 text-foreground">
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          ref={popRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left }}
+          className="z-[200] p-3.5 rounded-2xl bg-card backdrop-blur-2xl border border-border shadow-2xl w-72 text-foreground"
+        >
           <div className="flex items-center justify-between mb-2 pb-2 border-b border-border">
             <button
               type="button"
@@ -133,11 +174,10 @@ export function DateTimePicker({
                   key={d}
                   type="button"
                   onClick={() => { update(new Date(y, m, d), h, min); if (!withTime) setOpen(false); }}
-                  className={`h-6 w-6 mx-auto text-xs rounded-full flex items-center justify-center cursor-pointer transition-colors ${
-                    sel
-                      ? "bg-[#007aff] text-white font-bold shadow-sm shadow-[#007aff]/50"
-                      : "text-foreground hover:bg-muted font-semibold"
-                  }`}
+                  className={`h-6 w-6 mx-auto text-xs rounded-full flex items-center justify-center cursor-pointer transition-colors ${sel
+                    ? "bg-[#007aff] text-white font-bold shadow-sm shadow-[#007aff]/50"
+                    : "text-foreground hover:bg-muted font-semibold"
+                    }`}
                 >
                   {d}
                 </button>
@@ -180,7 +220,8 @@ export function DateTimePicker({
               <Check className="w-3 h-3 stroke-[2.5]" /> <span>OK</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -39,8 +39,9 @@ export function EditEventForm({ event, clients = [] }: { event: Event; clients?:
   const [endDate, setEndDate] = useState<Date>(new Date(defaultEndDate));
 
   const handleStartDateChange = (newStart: Date) => {
+    const duration = endDate.getTime() - startDate.getTime();
     setStartDate(newStart);
-    setEndDate(new Date(newStart.getTime() + 1 * 3600000));
+    setEndDate(new Date(newStart.getTime() + (duration > 0 ? duration : 3600000)));
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
