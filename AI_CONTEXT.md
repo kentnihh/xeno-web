@@ -155,6 +155,18 @@ Vector PDF generation is powered by `jspdf` + `jspdf-autotable` via [`lib/pdf/sp
 
 ---
 
+### E. Google Calendar Synchronization Subsystem
+
+1. **Event Sync**:
+   - High-level event synchronizations handled via `app/actions/gcal-sync.ts`.
+2. **Granular Task Sync (`lib/gcal-task.ts`)**:
+   - `event_tasks` table extended with columns: `gcal_event_id` (text), `gcal_start` (timestamptz), and `gcal_end` (timestamptz).
+   - Allows crew tasks to optionally publish directly to Google Calendar using service account JWT authentication.
+   - Non-blocking: failures emit user warnings without failing task creation/updates.
+   - Task deletion or event deletion automatically cascades cleanup deletions to Google Calendar events.
+
+---
+
 ## 5. Directory Structure & Navigation Map
 
 ```
