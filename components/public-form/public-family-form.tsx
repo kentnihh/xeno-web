@@ -211,52 +211,52 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
         const members: MemberItem[] =
           existingList.length > 0
             ? existingList.map((m) => {
-                const nameVal = m.name || m.nama_lengkap || (m as any).nama || "";
-                const roleVal =
-                  m.role || m.hubungan_peran || (m as any).hubungan || (m as any).peran || "";
-                const phoneVal =
-                  m.phone || m.no_whatsapp_hp || (m as any).no_hp || (m as any).telepon || "";
-                const notesVal = m.notes || m.catatan_khusus || (m as any).catatan || "";
-                const addressVal =
-                  (m as any).address || (m as any).alamat_lengkap || (m as any).alamat || "";
+              const nameVal = m.name || m.nama_lengkap || (m as any).nama || "";
+              const roleVal =
+                m.role || m.hubungan_peran || (m as any).hubungan || (m as any).peran || "";
+              const phoneVal =
+                m.phone || m.no_whatsapp_hp || (m as any).no_hp || (m as any).telepon || "";
+              const notesVal = m.notes || m.catatan_khusus || (m as any).catatan || "";
+              const addressVal =
+                (m as any).address || (m as any).alamat_lengkap || (m as any).alamat || "";
 
-                const row: Record<string, any> = {
-                  id:
-                    m.id ||
-                    (typeof crypto !== "undefined" && crypto.randomUUID
-                      ? crypto.randomUUID()
-                      : String(Math.random())),
-                  name: nameVal,
-                  nama_lengkap: nameVal,
-                  role: roleVal,
-                  hubungan_peran: roleVal,
-                  phone: phoneVal,
-                  no_whatsapp_hp: phoneVal,
-                  notes: notesVal,
-                  catatan_khusus: notesVal,
-                  address: addressVal,
-                  alamat_lengkap: addressVal,
-                };
+              const row: Record<string, any> = {
+                id:
+                  m.id ||
+                  (typeof crypto !== "undefined" && crypto.randomUUID
+                    ? crypto.randomUUID()
+                    : String(Math.random())),
+                name: nameVal,
+                nama_lengkap: nameVal,
+                role: roleVal,
+                hubungan_peran: roleVal,
+                phone: phoneVal,
+                no_whatsapp_hp: phoneVal,
+                notes: notesVal,
+                catatan_khusus: notesVal,
+                address: addressVal,
+                alamat_lengkap: addressVal,
+              };
 
-                // Copy all existing attributes
-                Object.entries(m).forEach(([k, v]) => {
-                  if (v !== undefined && v !== null) {
-                    row[k] = typeof v === "string" ? v : String(v);
+              // Copy all existing attributes
+              Object.entries(m).forEach(([k, v]) => {
+                if (v !== undefined && v !== null) {
+                  row[k] = typeof v === "string" ? v : String(v);
+                }
+              });
+
+              // Ensure all defined columns in category.fields have a defined value
+              if (Array.isArray(cat.fields)) {
+                cat.fields.forEach((f) => {
+                  if (row[f.id] === undefined) {
+                    const snakeFId = toSnakeCase(f.id);
+                    row[f.id] = row[snakeFId] !== undefined ? row[snakeFId] : "";
                   }
                 });
+              }
 
-                // Ensure all defined columns in category.fields have a defined value
-                if (Array.isArray(cat.fields)) {
-                  cat.fields.forEach((f) => {
-                    if (row[f.id] === undefined) {
-                      const snakeFId = toSnakeCase(f.id);
-                      row[f.id] = row[snakeFId] !== undefined ? row[snakeFId] : "";
-                    }
-                  });
-                }
-
-                return row as MemberItem;
-              })
+              return row as MemberItem;
+            })
             : [createEmptyRow(cat) as MemberItem];
 
         return {
@@ -527,7 +527,7 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
           )}
 
           <p className="text-xs text-muted-foreground leading-relaxed pt-1">
-            Silakan lengkapi daftar keluarga dan perwakilan pada kategori di bawah ini. Anda dapat menambahkan anggota sebanyak yang dibutuhkan dengan menekan tombol <strong>+ Tambah Anggota</strong>.
+            Silahkan lengkapi daftar keluarga dan perwakilan pada kategori di bawah ini. Anda dapat menambahkan anggota sebanyak yang dibutuhkan dengan menekan tombol <strong>+ Tambah Anggota</strong>.
           </p>
         </div>
 
@@ -701,15 +701,14 @@ function CategoryFieldArrayGroup({
                               (isName
                                 ? "Contoh: Bpk. Bambang Wijaya"
                                 : isPhone
-                                ? "Contoh: 08123456789"
-                                : `Masukkan ${col.label.toLowerCase()}`)
+                                  ? "Contoh: 08123456789"
+                                  : `Masukkan ${col.label.toLowerCase()}`)
                             }
                             {...register(
                               `categories.${catIndex}.members.${memberIdx}.${colKey}` as any
                             )}
-                            className={`w-full ${
-                              isName || isPhone ? "pl-8 pr-3" : "px-3"
-                            } py-2 text-xs rounded-xl border border-input bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all`}
+                            className={`w-full ${isName || isPhone ? "pl-8 pr-3" : "px-3"
+                              } py-2 text-xs rounded-xl border border-input bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all`}
                           />
                         </div>
                       </div>
