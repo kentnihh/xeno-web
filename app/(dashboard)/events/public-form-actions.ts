@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
+import { publicFormDataPayloadSchema } from "@/lib/validations/public-form";
 import type { EventPublicForm, EventFormData, FormCategorySchema } from "@/types/database";
 
 /**
@@ -268,6 +269,9 @@ export async function getPublicFormDataByToken(token: string): Promise<{
   }
 
   const form = data as EventPublicForm;
+  if (!form.form_data || typeof form.form_data !== "object") {
+    form.form_data = {};
+  }
   const isExpired = new Date() > new Date(form.expires_at);
 
   return {
@@ -286,6 +290,7 @@ export async function getPublicFormDataByToken(token: string): Promise<{
 /**
  * Public client submission handler.
  * Verifies token exists and is not expired before committing to form_data column.
+ * Performs an upsert/update into form_data, preserving user progress and existing categories.
  */
 export async function submitPublicFormData(
   token: string,
@@ -297,10 +302,10 @@ export async function submitPublicFormData(
 
   const adminClient = createAdminClient();
 
-  // 1. Verify existence and expiration
+  // 1. Verify existence and expiration, retrieving existing form_data
   const { data: existing, error: checkError } = await adminClient
     .from("event_public_forms")
-    .select("id, event_id, expires_at")
+    .select("id, event_id, expires_at, form_data")
     .eq("token", token)
     .maybeSingle();
 
@@ -315,11 +320,26 @@ export async function submitPublicFormData(
     };
   }
 
-  // 2. Commit data
+  // Validate submitted form data against dynamic public form schema (all fields optional)
+  const validation = publicFormDataPayloadSchema.safeParse(formData);
+  const validatedData = validation.success ? validation.data : formData;
+
+  // Perform an upsert/merge into form_data, preserving existing categories and updating modified ones
+  const existingFormData: EventFormData =
+    existing.form_data && typeof existing.form_data === "object"
+      ? existing.form_data
+      : {};
+
+  const mergedFormData: EventFormData = {
+    ...existingFormData,
+    ...validatedData,
+  };
+
+  // 2. Commit updated JSONB data
   const { error: updateError } = await adminClient
     .from("event_public_forms")
     .update({
-      form_data: formData,
+      form_data: mergedFormData,
       updated_at: new Date().toISOString(),
     })
     .eq("id", existing.id);
@@ -329,10 +349,11 @@ export async function submitPublicFormData(
     return { success: false, error: "Gagal menyimpan data ke sistem. Silakan coba kembali." };
   }
 
-  // Invalidate cache for the event detail dashboard so admin sees the new entries immediately
+  // Invalidate cache for both the event detail dashboard and the public client route
   if (existing.event_id) {
     revalidatePath(`/events/${existing.event_id}`);
   }
+  revalidatePath(`/p/${token}`);
 
   return { success: true };
 }

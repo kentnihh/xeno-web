@@ -34,6 +34,7 @@ import {
   applyMasterFamilyTemplateToEvent,
 } from "@/app/(dashboard)/events/public-form-actions";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { toSnakeCase } from "@/lib/utils";
 import type { EventPublicForm, EventFormData, FormMember, FormCategorySchema } from "@/types/database";
 
 interface EventFamilyDataSectionProps {
@@ -277,8 +278,8 @@ export function EventFamilyDataSection({
           name: categoryTitle.trim(),
           description: categoryDesc.trim(),
           fields: [
-            { id: "name", label: "Nama Lengkap", required: true },
-            { id: "role", label: "Hubungan / Peran", required: true },
+            { id: "name", label: "Nama Lengkap", required: false },
+            { id: "role", label: "Hubungan / Peran", required: false },
             { id: "phone", label: "No. WhatsApp / HP", required: false },
             { id: "notes", label: "Catatan Khusus", required: false },
           ],
@@ -448,10 +449,21 @@ export function EventFamilyDataSection({
     return <Users className="w-4 h-4 text-[#007aff]" />;
   };
 
+  const getCategoryMembers = (cat: FormCategorySchema): FormMember[] => {
+    return (
+      formData[cat.id] ||
+      formData[cat.name] ||
+      formData[cat.title || ""] ||
+      formData[toSnakeCase(cat.id || "")] ||
+      formData[toSnakeCase(cat.title || cat.name || "")] ||
+      []
+    );
+  };
+
   const calculateTotalMembers = () => {
     let count = 0;
     categories.forEach((cat) => {
-      count += (formData[cat.id] || []).length;
+      count += getCategoryMembers(cat).length;
     });
     return count;
   };
@@ -725,11 +737,7 @@ export function EventFamilyDataSection({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {categories.map((category) => {
             const title = category.title || category.name;
-            const members =
-              formData[category.id] ||
-              formData[category.name] ||
-              formData[category.title || ""] ||
-              [];
+            const members = getCategoryMembers(category);
 
             return (
               <div
@@ -823,7 +831,7 @@ export function EventFamilyDataSection({
                                 {idx + 1}
                               </span>
                               <span className="text-xs font-bold text-foreground truncate">
-                                {member.name}
+                                {member.name || member.role || "Tanpa Nama"}
                               </span>
                               {member.role && (
                                 <span className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[#007aff]/10 text-[#007aff] border border-[#007aff]/20 shrink-0">

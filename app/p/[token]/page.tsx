@@ -3,6 +3,9 @@ import { getPublicFormDataByToken } from "@/app/(dashboard)/events/public-form-a
 import { PublicFamilyForm } from "@/components/public-form/public-family-form";
 import { Clock, AlertTriangle, MessageCircle, Calendar, MapPin, Sparkles } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function generateMetadata({
   params,
 }: {

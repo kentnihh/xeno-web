@@ -157,4 +157,17 @@ export function sortTasksByPriority<T extends { priority?: string | null; due_da
   });
 }
 
-
+/**
+ * Normalizes any text string into a clean, safe snake_case identifier key.
+ * Example: "Nama Lengkap" -> "nama_lengkap", "No. WhatsApp / HP" -> "no_whatsapp_hp"
+ */
+export function toSnakeCase(str: string): string {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+}

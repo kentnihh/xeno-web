@@ -32,12 +32,27 @@ interface MasterFamilyTemplatesManagerProps {
   initialTemplate: MasterFamilyTemplate;
 }
 
+/**
+ * Derives safe snake_case identifier keys automatically from labels/titles
+ */
+function toSnakeCase(str: string): string {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_");
+}
+
 const COMMON_FIELD_PRESETS = [
-  { id: "name", label: "Nama Lengkap", required: true },
-  { id: "role", label: "Hubungan / Peran", required: true },
-  { id: "phone", label: "No. WhatsApp / HP", required: false },
-  { id: "address", label: "Alamat Lengkap", required: false },
-  { id: "notes", label: "Catatan Khusus", required: false },
+  { id: "nama_lengkap", label: "Nama Lengkap", required: false },
+  { id: "hubungan_peran", label: "Hubungan / Peran", required: false },
+  { id: "no_whatsapp_hp", label: "No. WhatsApp / HP", required: false },
+  { id: "alamat_lengkap", label: "Alamat Lengkap", required: false },
+  { id: "catatan_khusus", label: "Catatan Khusus", required: false },
 ];
 
 export function MasterFamilyTemplatesManager({
@@ -81,19 +96,28 @@ export function MasterFamilyTemplatesManager({
     });
   };
 
-  // Add new Category
+  // Add new Category with auto-generated snake_case key
   const addCategory = () => {
-    const baseId = `kategori_${Date.now()}`;
+    const title = "Kategori Baru";
+    const baseSlug = toSnakeCase(title) || "kategori_baru";
+    const existingIds = new Set(categories.map((c) => c.id));
+    let uniqueId = baseSlug;
+    let counter = 2;
+    while (existingIds.has(uniqueId)) {
+      uniqueId = `${baseSlug}_${counter}`;
+      counter++;
+    }
+
     const newCat: FormCategorySchema = {
-      id: baseId,
-      title: "Kategori Baru",
-      name: "Kategori Baru",
+      id: uniqueId,
+      title: title,
+      name: title,
       description: "Deskripsi singkat peruntukan kategori keluarga ini",
       fields: [
-        { id: "name", label: "Nama Lengkap", required: true },
-        { id: "role", label: "Hubungan / Peran", required: true },
-        { id: "phone", label: "No. WhatsApp / HP", required: false },
-        { id: "notes", label: "Catatan Khusus", required: false },
+        { id: "nama_lengkap", label: "Nama Lengkap", required: false },
+        { id: "hubungan_peran", label: "Hubungan / Peran", required: false },
+        { id: "no_whatsapp_hp", label: "No. WhatsApp / HP", required: false },
+        { id: "catatan_khusus", label: "Catatan Khusus", required: false },
       ],
     };
     setCategories((prev) => [...prev, newCat]);
@@ -104,25 +128,29 @@ export function MasterFamilyTemplatesManager({
     setCategories((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Add Field to Category
+  // Add Field to Category with auto-generated snake_case key & required: false by default
   const addFieldToCategory = (catIndex: number, preset?: FormFieldSchema) => {
     setCategories((prev) => {
       const next = [...prev];
       const cat = next[catIndex];
       const existingFields = cat.fields || [];
 
-      const newField: FormFieldSchema = preset
-        ? { ...preset }
-        : {
-            id: `field_${Date.now()}`,
-            label: "Kolom Tambahan",
-            required: false,
-          };
+      const label = preset ? preset.label : "Kolom Tambahan";
+      const baseSlug = toSnakeCase(preset?.id || label) || `kolom_${existingFields.length + 1}`;
 
-      // Avoid duplicate IDs within category
-      if (existingFields.some((f) => f.id === newField.id)) {
-        newField.id = `${newField.id}_${Date.now().toString().slice(-4)}`;
+      const existingIds = new Set(existingFields.map((f) => f.id));
+      let uniqueId = baseSlug;
+      let counter = 2;
+      while (existingIds.has(uniqueId)) {
+        uniqueId = `${baseSlug}_${counter}`;
+        counter++;
       }
+
+      const newField: FormFieldSchema = {
+        id: uniqueId,
+        label,
+        required: false, // Default to unchecked / false
+      };
 
       next[catIndex] = {
         ...cat,
@@ -160,13 +188,46 @@ export function MasterFamilyTemplatesManager({
     });
   };
 
-  // Save Blueprint
+  // Save Blueprint with auto-generated safe snake_case identifier keys
   const handleSave = () => {
     setSaveStatus("saving");
     setStatusMessage("");
 
     startTransition(async () => {
-      const res = await saveMasterFamilyTemplate(categories, template.name);
+      const sanitizedCategories: FormCategorySchema[] = categories.map((cat, catIdx) => {
+        const catTitle = (cat.title || cat.name || `Kategori ${catIdx + 1}`).trim();
+        const baseCatId = toSnakeCase(cat.id || catTitle) || `kategori_${catIdx + 1}`;
+
+        const seenFieldKeys = new Set<string>();
+        const fields = (cat.fields || []).map((fld, fldIdx) => {
+          const label = (fld.label || `Kolom ${fldIdx + 1}`).trim();
+          const baseFieldId = toSnakeCase(fld.id || label) || `kolom_${fldIdx + 1}`;
+          let uniqueFieldId = baseFieldId;
+          let counter = 2;
+          while (seenFieldKeys.has(uniqueFieldId)) {
+            uniqueFieldId = `${baseFieldId}_${counter}`;
+            counter++;
+          }
+          seenFieldKeys.add(uniqueFieldId);
+
+          return {
+            id: uniqueFieldId,
+            label,
+            type: fld.type || "text",
+            required: Boolean(fld.required),
+          };
+        });
+
+        return {
+          id: baseCatId,
+          title: catTitle,
+          name: catTitle,
+          description: cat.description || "",
+          fields,
+        };
+      });
+
+      const res = await saveMasterFamilyTemplate(sanitizedCategories, template.name);
       if (res.success && res.data) {
         setTemplate(res.data);
         setCategories(res.data.categories);
@@ -302,11 +363,8 @@ export function MasterFamilyTemplatesManager({
                     {catIdx + 1}
                   </span>
                   <div>
-                    <h3 className="text-xs font-bold text-foreground flex items-center gap-2">
-                      <span>{cat.title || cat.name || "Kategori Tanpa Nama"}</span>
-                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-normal">
-                        key: {cat.id}
-                      </span>
+                    <h3 className="text-xs font-bold text-foreground">
+                      {cat.title || cat.name || "Kategori Tanpa Nama"}
                     </h3>
                   </div>
                 </div>
@@ -357,6 +415,10 @@ export function MasterFamilyTemplatesManager({
                       const val = e.target.value;
                       updateCategory(catIdx, "name", val);
                       updateCategory(catIdx, "title", val);
+                      const autoKey = toSnakeCase(val);
+                      if (autoKey) {
+                        updateCategory(catIdx, "id", autoKey);
+                      }
                     }}
                     placeholder="Contoh: Keluarga Groom (Mempelai Pria)"
                     className="apple-input w-full px-3 py-2 text-xs"
@@ -364,25 +426,6 @@ export function MasterFamilyTemplatesManager({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-foreground mb-1">
-                    Identifier Kunci (ID Unik) *
-                  </label>
-                  <input
-                    type="text"
-                    value={cat.id}
-                    onChange={(e) =>
-                      updateCategory(
-                        catIdx,
-                        "id",
-                        e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_")
-                      )
-                    }
-                    placeholder="Contoh: groom_family"
-                    className="apple-input w-full px-3 py-2 text-xs font-mono"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
                   <label className="block text-[11px] font-bold text-foreground mb-1">
                     Keterangan / Panduan Klien
                   </label>
@@ -443,37 +486,27 @@ export function MasterFamilyTemplatesManager({
                   {fields.map((fld, fldIdx) => (
                     <div
                       key={fld.id || fldIdx}
-                      className="flex items-center gap-2 p-2 rounded-xl bg-muted/30 border border-border/70 text-xs"
+                      className="flex items-center gap-2.5 p-2 rounded-xl bg-muted/30 border border-border/70 text-xs"
                     >
                       <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
                         <input
                           type="text"
                           value={fld.label}
-                          onChange={(e) =>
-                            updateField(catIdx, fldIdx, "label", e.target.value)
-                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateField(catIdx, fldIdx, "label", val);
+                            const autoKey = toSnakeCase(val);
+                            if (autoKey) {
+                              updateField(catIdx, fldIdx, "id", autoKey);
+                            }
+                          }}
                           placeholder="Label Kolom (misal: Nama Lengkap)"
-                          className="apple-input px-2.5 py-1.5 text-xs"
+                          className="apple-input px-2.5 py-1.5 text-xs flex-1 min-w-[140px]"
                         />
 
-                        <input
-                          type="text"
-                          value={fld.id}
-                          onChange={(e) =>
-                            updateField(
-                              catIdx,
-                              fldIdx,
-                              "id",
-                              e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_")
-                            )
-                          }
-                          placeholder="ID Kolom (misal: phone)"
-                          className="apple-input px-2.5 py-1.5 text-xs font-mono text-muted-foreground"
-                        />
-
-                        <div className="flex items-center justify-between sm:justify-start gap-3 px-1">
+                        <div className="flex items-center gap-3 shrink-0">
                           <label className="flex items-center gap-1.5 text-[11px] text-foreground cursor-pointer select-none">
                             <input
                               type="checkbox"

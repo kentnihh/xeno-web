@@ -9,11 +9,11 @@ export const DEFAULT_PUBLIC_FORM_SCHEMA: FormCategorySchema[] = [
     name: "Keluarga Groom (Mempelai Pria)",
     description: "Keluarga inti & perwakilan keluarga besar dari pihak mempelai pria",
     fields: [
-      { id: "name", label: "Nama Lengkap", required: true },
-      { id: "role", label: "Hubungan / Peran", required: true },
-      { id: "phone", label: "No. WhatsApp / HP", required: false },
-      { id: "address", label: "Alamat Lengkap", required: false },
-      { id: "notes", label: "Catatan Khusus", required: false },
+      { id: "nama_lengkap", label: "Nama Lengkap", required: false },
+      { id: "hubungan_peran", label: "Hubungan / Peran", required: false },
+      { id: "no_whatsapp_hp", label: "No. WhatsApp / HP", required: false },
+      { id: "alamat_lengkap", label: "Alamat Lengkap", required: false },
+      { id: "catatan_khusus", label: "Catatan Khusus", required: false },
     ],
   },
   {
@@ -21,11 +21,11 @@ export const DEFAULT_PUBLIC_FORM_SCHEMA: FormCategorySchema[] = [
     name: "Keluarga Bride (Mempelai Wanita)",
     description: "Keluarga inti & perwakilan keluarga besar dari pihak mempelai wanita",
     fields: [
-      { id: "name", label: "Nama Lengkap", required: true },
-      { id: "role", label: "Hubungan / Peran", required: true },
-      { id: "phone", label: "No. WhatsApp / HP", required: false },
-      { id: "address", label: "Alamat Lengkap", required: false },
-      { id: "notes", label: "Catatan Khusus", required: false },
+      { id: "nama_lengkap", label: "Nama Lengkap", required: false },
+      { id: "hubungan_peran", label: "Hubungan / Peran", required: false },
+      { id: "no_whatsapp_hp", label: "No. WhatsApp / HP", required: false },
+      { id: "alamat_lengkap", label: "Alamat Lengkap", required: false },
+      { id: "catatan_khusus", label: "Catatan Khusus", required: false },
     ],
   },
   {
@@ -33,10 +33,10 @@ export const DEFAULT_PUBLIC_FORM_SCHEMA: FormCategorySchema[] = [
     name: "Wakil Foto & Sesi Foto",
     description: "Daftar perwakilan atau kelompok tamu untuk sesi foto panggung & VIP",
     fields: [
-      { id: "name", label: "Nama Lengkap / Grup", required: true },
-      { id: "role", label: "Hubungan / Peran", required: true },
-      { id: "phone", label: "No. WhatsApp / HP", required: false },
-      { id: "notes", label: "Catatan Khusus", required: false },
+      { id: "nama_lengkap", label: "Nama Lengkap / Grup", required: false },
+      { id: "hubungan_peran", label: "Hubungan / Peran", required: false },
+      { id: "no_whatsapp_hp", label: "No. WhatsApp / HP", required: false },
+      { id: "catatan_khusus", label: "Catatan Khusus", required: false },
     ],
   },
   {
@@ -44,10 +44,10 @@ export const DEFAULT_PUBLIC_FORM_SCHEMA: FormCategorySchema[] = [
     name: "Tamu Kehormatan & VIP Keluarga",
     description: "Kakek, nenek, sesepuh, dan tamu keluarga penting lainnya",
     fields: [
-      { id: "name", label: "Nama Lengkap", required: true },
-      { id: "role", label: "Hubungan / Gelar", required: true },
-      { id: "phone", label: "No. WhatsApp / HP", required: false },
-      { id: "notes", label: "Catatan Khusus", required: false },
+      { id: "nama_lengkap", label: "Nama Lengkap", required: false },
+      { id: "hubungan_peran", label: "Hubungan / Gelar", required: false },
+      { id: "no_whatsapp_hp", label: "No. WhatsApp / HP", required: false },
+      { id: "catatan_khusus", label: "Catatan Khusus", required: false },
     ],
   },
 ];

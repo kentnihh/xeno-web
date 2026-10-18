@@ -315,15 +315,57 @@ export async function saveMasterFamilyTemplate(
     const supabase = await createClient();
     const now = new Date().toISOString();
 
+    const toSnakeCase = (str: string): string => {
+      if (!str) return "";
+      return str
+        .toLowerCase()
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .replace(/_+/g, "_");
+    };
+
+    const seenCatIds = new Set<string>();
     const sanitizedCategories: FormCategorySchema[] = (Array.isArray(categories) ? categories : []).map(
       (cat, idx) => {
         const title = (cat.title || cat.name || `Kategori ${idx + 1}`).trim();
+        const baseCatId = toSnakeCase(cat.id || title) || `kategori_${idx + 1}`;
+        let uniqueCatId = baseCatId;
+        let cCounter = 2;
+        while (seenCatIds.has(uniqueCatId)) {
+          uniqueCatId = `${baseCatId}_${cCounter}`;
+          cCounter++;
+        }
+        seenCatIds.add(uniqueCatId);
+
+        const seenFieldIds = new Set<string>();
+        const fields = (Array.isArray(cat.fields) ? cat.fields : []).map((fld, fIdx) => {
+          const label = (fld.label || `Kolom ${fIdx + 1}`).trim();
+          const baseFieldId = toSnakeCase(fld.id || label) || `kolom_${fIdx + 1}`;
+          let uniqueFieldId = baseFieldId;
+          let fCounter = 2;
+          while (seenFieldIds.has(uniqueFieldId)) {
+            uniqueFieldId = `${baseFieldId}_${fCounter}`;
+            fCounter++;
+          }
+          seenFieldIds.add(uniqueFieldId);
+
+          return {
+            id: uniqueFieldId,
+            label,
+            type: fld.type || "text",
+            required: Boolean(fld.required),
+          };
+        });
+
         return {
-          id: cat.id || String(idx + 1),
+          id: uniqueCatId,
           title,
           name: title,
           description: cat.description || "",
-          fields: Array.isArray(cat.fields) ? cat.fields : [],
+          fields,
         };
       }
     );
