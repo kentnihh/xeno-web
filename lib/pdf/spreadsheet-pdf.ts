@@ -84,6 +84,8 @@ export interface GenerateSpreadsheetPdfOptions {
   includeFamilyData?: boolean;
   familyData?: EventPublicForm | null;
   doc?: jsPDF;
+  /** Kalau diisi, PDF ditampilkan di window ini (preview) dan tidak langsung di-download. */
+  previewWindow?: Window | null;
 }
 
 let cachedLogoDataUrl: string | null = null;
@@ -423,7 +425,16 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
 
     // Convert sheet data to FortuneSheet model for unified parsing
     const fortuneSheet = convertToFortuneSheet(sheet.data, sheet.sheet_name);
-    const { head, body } = parseFortuneSheetForAutoTable(fortuneSheet);
+    const { head, body, colPx, rowPx } = parseFortuneSheetForAutoTable(fortuneSheet);
+
+    // px -> mm (96 dpi). Perkecil proporsional hanya kalau lebar melebihi kertas.
+    const PX_TO_MM = 25.4 / 96;
+    const totalMm = (colPx || []).reduce((sum, w) => sum + w, 0) * PX_TO_MM;
+    const scale = totalMm > contentWidth ? contentWidth / totalMm : 1;
+    const columnStyles: Record<number, { cellWidth: number }> = {};
+    (colPx || []).forEach((w, i) => {
+      columnStyles[i] = { cellWidth: w * PX_TO_MM * scale };
+    });
 
     // Render table
     const tableOptions: UserOptions = {
@@ -431,6 +442,8 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       head: head.length > 0 ? head : undefined,
       body,
       theme: "grid",
+      columnStyles,
+      tableWidth: colPx && colPx.length > 0 ? totalMm * scale : "auto",
       styles: {
         font: "Montserrat",
         lineWidth: 0.15,
@@ -469,6 +482,26 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       },
       didParseCell: (data) => {
         data.cell.styles.font = "Montserrat";
+
+        // Samakan tinggi baris, ukuran font, dan padding dengan Excel
+        {
+          const rawObj: any = data.cell.raw;
+          const fs = Number(rawObj?._rawCell?.fs) || 11;
+          const hasRowSpan = Number(rawObj?._merge?.rowSpan) > 1;
+          const sheetRow = data.section === "head" ? 0 : data.row.index + 1;
+          const rowMm = (rowPx?.[sheetRow] ?? 19) * PX_TO_MM * scale;
+
+          data.cell.styles.fontSize = Math.max(fs * scale, 4.5);
+          data.cell.styles.cellPadding = {
+            top: 0.4 * scale,
+            bottom: 0.4 * scale,
+            left: 1 * scale,
+            right: 1 * scale,
+          };
+          if (!hasRowSpan) {
+            data.cell.styles.minCellHeight = rowMm;
+          }
+        }
 
         const raw = data.cell.raw;
         let rawCell: any = null;
@@ -797,6 +830,8 @@ function renderEmptyDocument(
 export function parseFortuneSheetForAutoTable(sheetObj: any): {
   head: any[][];
   body: any[][];
+  colPx?: number[];
+  rowPx?: number[];
 } {
   let maxR = 0;
   let maxC = 0;
@@ -1045,7 +1080,21 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
     }
   }
 
-  return { head, body };
+  // Ukuran asli dari Excel (FortuneSheet): default kolom 73px, baris 19px
+  const colLen = (sheetObj?.config?.columnlen || {}) as Record<string, number>;
+  const rowLen = (sheetObj?.config?.rowlen || {}) as Record<string, number>;
+  const colPx: number[] = [];
+  for (let c = 0; c <= maxC; c++) {
+    const w = Number(colLen[String(c)]);
+    colPx.push(Number.isFinite(w) && w > 0 ? w : 73);
+  }
+  const rowPx: number[] = [];
+  for (let r = 0; r <= maxR; r++) {
+    const h = Number(rowLen[String(r)]);
+    rowPx.push(Number.isFinite(h) && h > 0 ? h : 19);
+  }
+
+  return { head, body, colPx, rowPx };
 }
 
 /**
@@ -1341,7 +1390,15 @@ export async function downloadSpreadsheetPdf(
       : `${options.customFilename}.pdf`;
   }
 
-  doc.save(fileName);
+  if (options.previewWindow && !options.previewWindow.closed) {
+    // Preview: judul dokumen jadi nama file di tab / saat di-download dari viewer
+    doc.setProperties({ title: fileName.replace(/\.pdf$/i, "") });
+    const blobUrl = doc.output("bloburl") as unknown as string;
+    options.previewWindow.location.href = blobUrl;
+  } else {
+    // Fallback: kalau tab preview diblokir browser, download langsung
+    doc.save(fileName);
+  }
   return { fileName };
 }
 

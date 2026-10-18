@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useCallback, useSyncExternalStore } from "react";
 
-type Theme = "dark" | "light";
+type Theme = "light";
 
 interface ThemeContextType {
   theme: Theme;
@@ -11,12 +11,12 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: "dark",
+  theme: "light",
   toggleTheme: () => {},
   setTheme: () => {},
 });
 
-let currentTheme: Theme = "dark";
+const currentTheme: Theme = "light";
 const listeners = new Set<() => void>();
 
 function notify() {
@@ -24,11 +24,11 @@ function notify() {
 }
 
 function getSnapshot(): Theme {
-  return currentTheme;
+  return "light";
 }
 
 function getServerSnapshot(): Theme {
-  return "dark";
+  return "light";
 }
 
 function subscribe(callback: () => void) {
@@ -38,49 +38,36 @@ function subscribe(callback: () => void) {
   };
 }
 
-function applyThemeClass(t: Theme) {
+function forceLightTheme() {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  if (t === "dark") {
-    root.classList.add("dark");
-    root.classList.remove("light");
-    root.style.colorScheme = "dark";
-  } else {
-    root.classList.add("light");
-    root.classList.remove("dark");
-    root.style.colorScheme = "light";
-  }
+  root.classList.remove("dark");
+  root.classList.add("light");
+  root.style.colorScheme = "light";
+  root.setAttribute("data-theme", "light");
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     try {
-      const stored = localStorage.getItem("xeno-theme") as Theme | null;
-      if (stored === "light" || stored === "dark") {
-        currentTheme = stored;
-      } else {
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        currentTheme = prefersDark ? "dark" : "light";
-      }
-      applyThemeClass(currentTheme);
-      notify();
+      localStorage.setItem("xeno-theme", "light");
     } catch {}
+    forceLightTheme();
+    notify();
   }, []);
 
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  const setTheme = useCallback((t: Theme) => {
-    currentTheme = t;
+  const setTheme = useCallback((_t?: any) => {
     try {
-      localStorage.setItem("xeno-theme", t);
+      localStorage.setItem("xeno-theme", "light");
     } catch {}
-    applyThemeClass(t);
+    forceLightTheme();
     notify();
   }, []);
 
   const toggleTheme = useCallback(() => {
-    const next = currentTheme === "dark" ? "light" : "dark";
-    setTheme(next);
+    setTheme("light");
   }, [setTheme]);
 
   return (

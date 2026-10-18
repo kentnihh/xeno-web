@@ -40,7 +40,8 @@ export default function RootLayout({
     <html
       lang="id"
       suppressHydrationWarning
-      className={`${inter.variable} ${montserrat.variable} h-full antialiased`}
+      className={`${inter.variable} ${montserrat.variable} h-full antialiased light`}
+      data-theme="light"
     >
       <head>
         <script
@@ -48,24 +49,18 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var stored = localStorage.getItem('xeno-theme');
-                  var isDark = stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                  if (isDark) {
-                    document.documentElement.classList.add('dark');
-                    document.documentElement.classList.remove('light');
-                    document.documentElement.style.colorScheme = 'dark';
-                  } else {
-                    document.documentElement.classList.add('light');
-                    document.documentElement.classList.remove('dark');
-                    document.documentElement.style.colorScheme = 'light';
-                  }
+                  localStorage.setItem('xeno-theme', 'light');
+                  document.documentElement.classList.remove('dark');
+                  document.documentElement.classList.add('light');
+                  document.documentElement.style.colorScheme = 'light';
+                  document.documentElement.setAttribute('data-theme', 'light');
                 } catch(e) {}
               })();
             `,
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col font-sans selection:bg-[#007aff]/30 selection:text-white bg-background text-foreground transition-colors duration-150">
+      <body className="min-h-full flex flex-col font-sans selection:bg-[#007aff]/30 selection:text-white bg-[#f5f5f7] text-[#1d1d1f] transition-colors duration-150">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

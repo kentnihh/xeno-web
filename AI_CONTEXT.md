@@ -1,34 +1,55 @@
 # Xeno Entertainment Operations — AI Context & Architecture Blueprint
 
 > **Purpose of this Document**:  
-> This file is a high-density architectural context guide for AI coding assistants and developers onboarding to the **Xeno** codebase. It provides an immediate overview of the system design, tech stack, database schema, design rules, and core quirks so you never have to guess or scan the entire repository to implement features safely.
+> This file is a high-density architectural context guide for AI coding assistants and developers working on the **Xeno** codebase. It provides an immediate overview of system design, infrastructure, database schema, design rules, and core subsystem workflows so you never have to guess or scan the entire repository to implement features safely.
 
 ---
 
 ## 1. Tech Stack & Infrastructure
 
 - **Framework**: [Next.js](https://nextjs.org/) 16.4 (App Router) + [React](https://react.dev/) 19 (Server Components + Client Components).
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) v4 + [shadcn/ui](https://ui.shadcn.com/) primitives + Apple-inspired minimalist design tokens (`apple-card`, `apple-btn`, HSL colors, dark mode support).
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) v4 + Apple-inspired minimalist design tokens (`apple-card`, `apple-btn`, HSL colors, clean borders).
 - **Icons**: `lucide-react`.
 - **Backend & Database**: [Supabase](https://supabase.com/)
   - **Database**: PostgreSQL with Row Level Security (RLS) policies.
-  - **Auth**: Supabase GoTrue Auth (Session management via cookies via `@supabase/ssr`).
+  - **Auth**: Supabase GoTrue Auth (Session management via cookies using `@supabase/ssr`).
   - **Storage**: Supabase Storage buckets for event documents and media assets.
 - **Spreadsheet Engine**: `@fortune-sheet/react` + `@fortune-sheet/core` (Excel clone with bold, cell colors, font sizing, cell merging, and formula bar).
 - **Export Engines**:
   - `xlsx` for native Excel spreadsheet export.
   - `jspdf` + `jspdf-autotable` for vector PDF document export.
-- **Deployment & Hosting**:
-  - **Target**: Oracle Cloud Ubuntu VPS (Self-Hosted via Docker & Caddy reverse-proxy).
-  - **Production Domain**: `xenoent.my.id` (Automatic SSL/TLS managed by Caddy).
-  - **Production Build**: Multi-stage Docker build with Next.js `output: 'standalone'` (`docker compose up -d --build`).
+- **Hosting & Infrastructure**:
+  - **Target**: Self-hosted on an **Oracle Cloud Ubuntu VPS**.
+  - **Containerization & Reverse Proxy**: Deployed via **Docker & Caddy** (`docker-compose.yml`).
+  - **Production Domain**: `xenoent.my.id` (Automatic SSL/TLS provisioning and renewal managed by Caddy).
+  - **Production Build**: Multi-stage Docker build utilizing Next.js `output: 'standalone'`.
   - **Local Development**: Native Node.js execution without Docker (`pnpm run dev`).
+  - *Note*: Cloudflare Pages and Edge Runtime are **not** used. All routes run in standard Node.js runtime.
 
 ---
 
-## 2. Database Schema Overview
+## 2. Theme Architecture: Locked to Light Mode
 
-All database schema types are strictly defined in [`types/database.ts`](file:///Users/jonathankent/Documents/Code/xeno/types/database.ts).
+To eliminate all contrast issues, illegible cell-editing text in spreadsheets, and theme-switching glitches, **Dark Mode has been temporarily disabled and the entire application is permanently locked to Light Mode**:
+
+1. **Global HTML & Head Injection ([`app/layout.tsx`](file:///Users/jonathankent/Documents/Code/xeno/app/layout.tsx))**:
+   - The root `<html>` element is locked to `className="... light"` and `data-theme="light"`.
+   - An inline pre-hydration script in `<head>` immediately strips any existing `.dark` class from `document.documentElement`, applies `.light`, sets `colorScheme = 'light'`, and overwrites `localStorage.setItem('xeno-theme', 'light')`.
+   - The `<body>` element explicitly applies the light canvas background (`bg-[#f5f5f7]` and `text-[#1d1d1f]`).
+2. **State & Provider Locking ([`components/theme-provider.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/theme-provider.tsx))**:
+   - `ThemeProvider` context is locked strictly to `"light"`.
+   - `getSnapshot()` and `getServerSnapshot()` return `"light"`.
+   - Any invocation of `setTheme()` or `toggleTheme()` safely enforces `"light"` and strips `.dark` from the DOM.
+3. **Theme Switcher Disabled ([`components/theme-toggle.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/theme-toggle.tsx))**:
+   - `<ThemeToggle />` returns `null`, cleanly hiding the *Terang / Gelap* switch from the navbar and login screen.
+4. **Spreadsheet Container Isolation**:
+   - The FortuneSheet wrapper is isolated with forced light-theme styling (`background: #ffffff`, text `#1d1d1f`), ensuring formula bars and cell overlays maintain crisp readability.
+
+---
+
+## 3. Database Schema Overview
+
+All database schema types and interfaces are strictly defined in [`types/database.ts`](file:///Users/jonathankent/Documents/Code/xeno/types/database.ts).
 
 ### Core Entities
 
@@ -38,7 +59,7 @@ All database schema types are strictly defined in [`types/database.ts`](file:///
 | `events` | Core event records (weddings, corporate, concerts) | `id`, `title`, `description`, `venue`, `start_date`, `end_date`, `status`, `pic`, `client_id` (FK to clients) |
 | `clients` | Clients/customers commissioning events | `id`, `name`, `company`, `email`, `phone`, `address`, `notes` |
 | `vendors` | Master directory of third-party vendors | `id`, `name`, `category`, `pic_name`, `phone`, `email`, `address`, `notes` |
-| `event_tasks` | Operational task checklist assigned to crew | `id`, `event_id` (FK to events), `title`, `description`, `assigned_to` (FK to profiles), `status`, `priority` |
+| `event_tasks` | Operational task checklist assigned to crew | `id`, `event_id` (FK to events), `title`, `description`, `assigned_to` (FK to profiles), `status`, `priority`, `due_date` |
 | `event_crew` | Crew / staff assigned to specific events | `id`, `event_id` (FK), `profile_id` (FK to profiles), `role_in_event`, `notes` |
 | `event_vendors`| Vendors hired for an event with contracted cost | `id`, `event_id` (FK), `vendor_id` (FK to vendors), `service_name`, `cost`, `status` |
 | `event_documents`| Uploaded files/attachments for events | `id`, `event_id` (FK), `file_name`, `file_url`, `file_type`, `file_size`, `uploaded_by` |
@@ -48,71 +69,93 @@ All database schema types are strictly defined in [`types/database.ts`](file:///
 | `role_permissions` | Junction mapping roles to permissions | `id`, `role_id` (FK), `permission_id` (FK) |
 | `user_roles` | Junction mapping users to roles | `id`, `user_id` (FK to profiles), `role_id` (FK) |
 
-### Dynamic Spreadsheet System (`event_sheets` & `master_templates`)
+### Spreadsheet Tables
 
-The application features a flexible, multi-tab Excel-like spreadsheet engine stored in PostgreSQL:
+| Table | Description | Key Columns / Relationships |
+|---|---|---|
+| `master_templates` | Blueprint operational sheets for new events | `id`, `sheet_name`, `order_index`, `jsonb_structure` (JSONB), `created_at`, `updated_at` |
+| `event_sheets` | Per-event operational sheets | `id`, `event_id` (FK to events), `sheet_name`, `order_index`, `data` (JSONB), `created_at`, `updated_at` |
 
-1. **`master_templates`**:
-   - Acts as the blueprint library for new events.
-   - Columns: `id`, `sheet_name`, `order_index`, `jsonb_structure` (JSONB), `created_at`, `updated_at`.
-   - When an event is created, the system copies all master templates into `event_sheets`.
-2. **`event_sheets`**:
-   - Individual operational sheets for an event (e.g., `CHECKLIST`, `Meja VIP resepsi`, `Reception Rundown`, `List Teapai`, `LO Resepsi`, `F&B Resepsi`).
-   - Columns: `id`, `event_id` (FK to events), `sheet_name`, `order_index`, `data` (JSONB), `created_at`, `updated_at`.
-3. **Flexible JSONB Storage**:
-   - The database does **not** use fixed schema columns for spreadsheet rows. Instead, `jsonb_structure` and `data` store either:
-     - **Rich FortuneSheet Format**: `{ name, row, column, celldata: [{ r, c, v: { v, m, bl, bg, fs, ... } }], config: { merge: {...}, rowlen: {...} } }`
-     - **Legacy Grid Format**: `{ columns: [...], rows: [...] }`
-   - The adapter [`lib/spreadsheet-adapter.ts`](file:///Users/jonathankent/Documents/Code/xeno/lib/spreadsheet-adapter.ts) automatically normalizes either format bidirectionally.
+### Family Data & Public Form Tables
+
+| Table | Description | Key Columns / Relationships |
+|---|---|---|
+| `master_family_templates` | Blueprint family categories and column definitions | `id`, `name`, `categories` (JSONB array of `FormCategorySchema`), `is_active`, `created_at`, `updated_at` |
+| `event_public_forms` | Event tokenized public family data forms | `id`, `event_id` (FK to events), `token` (32-char hex), `expires_at` (timestamptz), `form_schema` (JSONB), `form_data` (JSONB), `created_at`, `updated_at` |
 
 ---
 
-## 3. Core Application Flows & Critical Architectural Rules
+## 4. Subsystem Architectures
 
-### A. Role-Based Access Control (RBAC) & User Management
-
-1. **Server-Side Enforcement**:
-   - Role and permission checks are strictly validated on the server using [`lib/auth.ts`](file:///Users/jonathankent/Documents/Code/xeno/lib/auth.ts) (`isAdmin()`, `hasPermission()`, `requirePermission()`).
-   - The admin role (`admin`) bypasses granular checks and holds all permissions automatically.
-2. **Admin API Only for Users & Passwords**:
-   - Normal users cannot register themselves or change passwords directly via public endpoints.
-   - All user creation (`createUser`) and password resets (`resetUserPassword`) are executed via Server Actions in [`app/(dashboard)/settings/rbac/actions.ts`](file:///Users/jonathankent/Documents/Code/xeno/app/(dashboard)/settings/rbac/actions.ts) using the **Supabase Admin Service Role Client** (`createAdminClient()` from `lib/supabase/admin.ts`).
-   - **SECURITY RULE**: `SUPABASE_SERVICE_ROLE_KEY` must **never** be imported or exposed to client-side code (`use client`). It is strictly used in server actions.
-
-### B. Rich Spreadsheets & Strict Lazy Loading Rules
+### A. Dynamic Spreadsheets (`@fortune-sheet/react`)
 
 1. **Bundle Protection & Lazy Loading**:
-   - Libraries like `@fortune-sheet/react`, `jspdf`, `jspdf-autotable`, and `xlsx` are large dependencies.
-   - **Rule**: Spreadsheets and PDF generators **MUST** be loaded dynamically:
-     - In [`components/events/spreadsheet/dynamic-sheet-grid.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/events/spreadsheet/dynamic-sheet-grid.tsx), `<Workbook>` is imported via `next/dynamic` with `ssr: false`.
-     - In [`components/events/spreadsheet/export-spreadsheet-pdf-modal.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/events/spreadsheet/export-spreadsheet-pdf-modal.tsx), PDF generator functions are imported dynamically inside the click handler (`await import("@/lib/pdf/spreadsheet-pdf")`).
-2. **Uncontrolled Component Architecture & Manual Save**:
-   - FortuneSheet fires internal update events on initialization, mouse movements, scrolling, and selection changes.
-   - **Rule**: Never bind auto-save or debounced saves to FortuneSheet's internal `onChange`. Doing so triggers infinite re-renders and network request storms.
-   - **Pattern**: The spreadsheet is uncontrolled. Edits are held in FortuneSheet's canvas. Data is retrieved on-demand via an imperative ref handle (`gridRef.current.getData()`) when the user explicitly clicks the pinned **"Simpan Perubahan"** or **"Simpan Template"** button.
-3. **Canvas Hydration & Remounting via `key` Prop**:
-   - FortuneSheet initializes cell state **exclusively from `celldata`** (`[{ r, c, v }]`). Once mounted, it deletes `celldata` and maintains an internal 2D matrix (`data`).
-   - To prevent blank canvases when switching tabs, [`lib/spreadsheet-adapter.ts`](file:///Users/jonathankent/Documents/Code/xeno/lib/spreadsheet-adapter.ts) provides `matrixToCelldata` to reconstruct `celldata` before saving or passing state.
-   - **Rule**: Whenever rendering `<DynamicSheetGrid>`, always supply a unique dynamic `key` that incorporates the tab identifier and revision (e.g., `key={`${activeSheet.sheet_name}_rev${gridRevision}`}`). This forces React to unmount the previous canvas and mount a fresh instance with the new sheet's data.
-4. **Tab Placement**:
-   - On the Event Detail page ([`/events/[id]`](file:///Users/jonathankent/Documents/Code/xeno/app/(dashboard)/events/[id]/page.tsx)), the spreadsheet is strictly contained inside the **"Lembar Kerja"** tab in [`components/events/event-detail-tabs.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/events/event-detail-tabs.tsx) and does not clutter the default operational overview.
-
-### C. Standardized Data Mutations & Confirmations
-
-1. **Server Actions Standard**:
-   - All server actions return a typed object:
-     ```ts
-     type ActionResult<T = unknown> = { success?: boolean; error?: string; data?: T };
-     ```
-   - Actions wrap mutations in `try...catch`, log errors to the console, and return `{ error: err.message }` instead of swallowing errors.
-   - Every mutation calls `revalidatePath(...)` to purge and update Next.js Server Component caches.
-2. **Global Destructive Confirmation Modal**:
-   - All deletion flows (Events, Clients, Vendors, Crew, Tasks, Sheets, Templates, Users) **must** use the centralized [`ConfirmModal`](file:///Users/jonathankent/Documents/Code/xeno/components/ui/confirm-modal.tsx) or [`DeleteConfirmButton`](file:///Users/jonathankent/Documents/Code/xeno/components/ui/confirm-modal.tsx).
-   - `ConfirmModal` uses `createPortal` to `document.body` with a full-viewport backdrop (`fixed inset-0 z-50 bg-black/50 backdrop-blur-sm`) and centered dialog (`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 max-w-md`), preventing clipping from transformed parent elements.
+   - `@fortune-sheet/react` and `@fortune-sheet/core` are code-split.
+   - Imported dynamically with `ssr: false` in [`dynamic-sheet-grid.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/events/spreadsheet/dynamic-sheet-grid.tsx).
+2. **Uncontrolled Architecture & Manual Save**:
+   - FortuneSheet holds mutations internally on its canvas.
+   - **Critical Rule**: Never bind auto-save or debounced saves to FortuneSheet's `onChange`.
+   - Data is retrieved on-demand via an imperative ref handle (`gridRef.current.getData()`) when the user explicitly clicks the pinned **"Simpan Perubahan"** button.
+3. **Matrix vs Celldata Bidirectional Normalization**:
+   - FortuneSheet initializes exclusively from `celldata: [{ r, c, v }]` and discards it after mount.
+   - [`lib/spreadsheet-adapter.ts`](file:///Users/jonathankent/Documents/Code/xeno/lib/spreadsheet-adapter.ts) provides `matrixToCelldata` to reconstruct cell objects before saving or switching tabs.
+   - Always supply a dynamic `key` containing the sheet identifier and revision (e.g. `key={`${activeSheet.sheet_name}_rev${gridRevision}`}`) to force proper remounting.
+4. **No Family Data in Spreadsheets**:
+   - Family Data has been completely migrated out of spreadsheets into the dedicated Public Form subsystem.
 
 ---
 
-## 4. Directory Structure & Navigation Map
+### B. Family Data & Public Form Subsystem
+
+To give wedding and event clients an effortless mobile-friendly experience, Family Data is managed as a standalone, dynamic public web form rather than a spreadsheet:
+
+1. **Master Blueprint Management ([`master-family-templates-manager.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/settings/master-family-templates-manager.tsx))**:
+   - Admins define default category groups (e.g., *Keluarga Groom*, *Keluarga Bride*, *Saksi & VIP*) and custom columns (e.g., *Nama Lengkap*, *Hubungan*, *No. HP*, *Catatan*).
+   - **Fully Automated Identifiers**: Both Category Keys (`ID Unik Kategori`) and Member Column Keys (`ID Kolom`) are **completely hidden from the UI**. Safe `snake_case` keys are derived automatically in the background via `toSnakeCase(label)`.
+   - **Default to Optional**: New member columns default to `required: false` ("Wajib Diisi" unchecked).
+2. **Secure Expiring Token Links (`/p/[token]`)**:
+   - Each event can issue a public link backed by `event_public_forms`.
+   - Default expiration is **3 days** from generation.
+   - Admins can extend (+3 days, +7 days, custom date) or invalidate/regenerate tokens at any time from the Event Detail **"Data Keluarga"** tab.
+3. **Dynamic Public Form (`app/p/[token]/page.tsx` & [`public-family-form.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/public-form/public-family-form.tsx))**:
+   - Configured with `export const dynamic = "force-dynamic"` and `export const revalidate = 0` to prevent stale caches.
+   - **All Fields Strictly Optional**: Validated via [`lib/validations/public-form.ts`](file:///Users/jonathankent/Documents/Code/xeno/lib/validations/public-form.ts). Every field is optional (`z.string().optional().default("")`), with `.passthrough()` for dynamic columns. Clients can submit partial data without being blocked.
+   - **Pre-filling Existing Data**: When opened, the form loads existing `form_data` JSONB from Supabase. `findExistingMembersForCategory()` maps saved rows into React Hook Form and `useFieldArray`.
+   - **Editable & Incremental Upsert**: Submissions perform an upsert merge in [`public-form-actions.ts`](file:///Users/jonathankent/Documents/Code/xeno/app/(dashboard)/events/public-form-actions.ts), preserving untouched categories and updating edited ones. Clients can revisit the link anytime to make corrections.
+4. **Admin Dashboard Integration ([`event-family-data-section.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/events/event-family-data-section.tsx))**:
+   - Dedicated tab on `/events/[id]`. Displays category cards, member counts, quick WhatsApp links, and direct edit modals.
+   - Admins can apply or reset schemas directly from the active Master Family Template.
+
+---
+
+### C. PDF Generation & Vector Export Subsystem
+
+Vector PDF generation is powered by `jspdf` + `jspdf-autotable` via [`lib/pdf/spreadsheet-pdf.ts`](file:///Users/jonathankent/Documents/Code/xeno/lib/pdf/spreadsheet-pdf.ts):
+
+1. **Direct Tab / Blob URL Preview (No Iframe)**:
+   - PDF documents open directly in a new browser tab/window as a Blob URL (`window.open(blobUrl, "_blank")`) or trigger an immediate download (`doc.save(filename)`).
+   - Modal iframes have been removed to eliminate rendering clipping, cross-origin security blocks, and mobile view glitches.
+2. **Multi-Sheet & Family Data Compilation**:
+   - Users can select which spreadsheet tabs to compile into a single consolidated PDF document via [`export-spreadsheet-pdf-modal.tsx`](file:///Users/jonathankent/Documents/Code/xeno/components/events/spreadsheet/export-spreadsheet-pdf-modal.tsx).
+   - Can optionally append the **Data Keluarga** section at the end of the PDF, styled with elegant Apple-inspired table layouts.
+3. **Layout & Orientation**:
+   - Supports both **Landscape** (recommended for wide multi-column schedules and rundown sheets) and **Portrait** (standard A4 vertical document).
+   - Dynamically imports PDF libraries inside user click handlers to protect client bundle size.
+
+---
+
+### D. Role-Based Access Control (RBAC) & Security
+
+1. **Server-Side Enforcement ([`lib/auth.ts`](file:///Users/jonathankent/Documents/Code/xeno/lib/auth.ts))**:
+   - `isAdmin()`, `hasPermission(key)`, and `requirePermission(key)` guard all server actions and dashboard views.
+   - Users with the `admin` role bypass granular checks and possess all permissions.
+2. **Service Role Security**:
+   - Privileged mutations (creating user accounts, resetting passwords, managing roles) are performed via [`lib/supabase/admin.ts`](file:///Users/jonathankent/Documents/Code/xeno/lib/supabase/admin.ts) using `createAdminClient()`.
+   - **SECURITY RULE**: `SUPABASE_SERVICE_ROLE_KEY` must **never** be imported or exposed to client-side code (`use client`). It is strictly used in server actions.
+
+---
+
+## 5. Directory Structure & Navigation Map
 
 ```
 xeno/
@@ -124,87 +167,107 @@ xeno/
 │   │   ├── dashboard/                   # High-level operational metrics & active events
 │   │   │   └── page.tsx
 │   │   ├── events/                      # Event management
-│   │   │   ├── [id]/page.tsx            # Event Detail page (Tabs: Operasional, Dokumen, Lembar Kerja)
+│   │   │   ├── [id]/                    # Event Detail tabs (Operasional, Dokumen, Lembar Kerja, Data Keluarga)
+│   │   │   │   ├── edit/page.tsx        # Event edit wizard
+│   │   │   │   └── page.tsx             # Main event workspace
 │   │   │   ├── new/page.tsx             # New event creation wizard
 │   │   │   ├── actions.ts               # Event CRUD server actions
-│   │   │   ├── expense-actions.ts       # Event expense server actions
 │   │   │   ├── document-actions.ts      # Event file upload & storage actions
+│   │   │   ├── expense-actions.ts       # Event expense server actions
+│   │   │   ├── public-form-actions.ts   # Public family form token generation & upsert actions
 │   │   │   └── sheet-actions.ts         # Spreadsheet tab CRUD & reset server actions
 │   │   ├── settings/
 │   │   │   ├── rbac/                    # User accounts, roles, & permission matrices
 │   │   │   │   ├── actions.ts           # Admin API user creation, password reset, role assignment
 │   │   │   │   └── page.tsx
-│   │   │   └── templates/               # Blueprint spreadsheet master templates
-│   │   │       ├── actions.ts           # Master template CRUD & reset server actions
+│   │   │   └── templates/               # Master templates manager (Spreadsheets & Family Data)
+│   │   │       ├── actions.ts           # Master template CRUD server actions
 │   │   │       └── page.tsx
 │   │   ├── team/                        # Internal crew directory
 │   │   └── vendors/                     # External vendor directory
 │   ├── auth/                            # Auth routes (callback, actions)
 │   ├── login/                           # Login page
-│   ├── layout.tsx                       # Root HTML & body font layout
+│   ├── p/[token]/                       # Public Client Family Data Form
+│   │   └── page.tsx                     # Server-rendered dynamic public form route
+│   ├── globals.css                      # Tailwind CSS v4 design tokens & base rules
+│   ├── layout.tsx                       # Root HTML & body font layout (Light Mode locked)
 │   └── page.tsx                         # Landing / redirect to dashboard
 │
 ├── components/
 │   ├── clients/                         # Client modal forms & tables
 │   ├── dashboard/                       # Metric cards, quick actions, event feed
-│   ├── events/                          # Event sections
-│   │   ├── event-detail-tabs.tsx        # Segmented tabs controller (Operasional, Dokumen, Lembar Kerja)
+│   ├── events/                          # Event components
+│   │   ├── event-detail-tabs.tsx        # Segmented tabs controller
+│   │   ├── event-family-data-section.tsx# Admin Family Data view, token manager, & category cards
 │   │   ├── event-crew-section.tsx       # Crew roster & role assignment
 │   │   ├── event-tasks-section.tsx      # Task board with status badges
 │   │   ├── event-vendors-section.tsx    # Hired vendor agreements & cost tracking
 │   │   ├── event-documents-section.tsx  # File attachment manager (Supabase Storage)
-│   │   └── spreadsheet/                 # Rich Spreadsheet subsystem
+│   │   ├── event-finance-section.tsx    # Event expense tracking & budget summary
+│   │   └── spreadsheet/                 # FortuneSheet subsystem
 │   │       ├── dynamic-sheet-grid.tsx   # Lazy-loaded FortuneSheet wrapper (uncontrolled via ref)
 │   │       ├── event-spreadsheet-tabs.tsx # Multi-sheet tab bar with pinned manual save button
 │   │       ├── export-excel-button.tsx  # Client-side XLSX workbook exporter
-│   │       ├── export-spreadsheet-pdf-button.tsx # PDF export button & toast feedback
-│   │       └── export-spreadsheet-pdf-modal.tsx  # PDF sheet selection modal with layout options
+│   │       ├── export-spreadsheet-pdf-button.tsx # PDF export button
+│   │       └── export-spreadsheet-pdf-modal.tsx  # PDF sheet selection modal
+│   ├── public-form/                     # Public Client Form components
+│   │   └── public-family-form.tsx       # Responsive public form with pre-filling & dynamic rows
 │   ├── settings/
-│   │   └── master-templates-manager.tsx # Master templates spreadsheet editor & tab selector
-│   └── ui/                              # Reusable atomic UI components
-│       ├── confirm-modal.tsx            # Portaled confirmation dialog for deletions
-│       ├── modal-shell.tsx              # Generic modal wrapper
-│       └── ...                          # Badges, buttons, input primitives
+│   │   ├── master-templates-manager.tsx # Master spreadsheet templates editor
+│   │   └── master-family-templates-manager.tsx # Master family blueprint categories & columns editor
+│   ├── ui/                              # Reusable atomic UI components
+│   │   ├── confirm-modal.tsx            # Portaled confirmation dialog for deletions
+│   │   ├── custom-combobox.tsx          # Accessible search-and-select combobox
+│   │   └── ...                          # Badges, buttons, input primitives
+│   ├── navbar.tsx                       # Header navigation bar
+│   ├── sidebar.tsx                      # Collapsible side navigation
+│   ├── theme-provider.tsx               # Locked light mode context provider
+│   └── theme-toggle.tsx                 # Disabled / hidden theme toggle
 │
 ├── lib/
 │   ├── auth.ts                          # Server-side RBAC verification (isAdmin, hasPermission, etc.)
 │   ├── constants/
-│   │   └── event-sheets.ts              # 10 initial preset templates (CHECKLIST, VIP, Rundown, etc.)
+│   │   ├── event-sheets.ts              # Preset master spreadsheet templates
+│   │   └── public-forms.ts              # Default family form schemas & presets
 │   ├── pdf/
-│   │   └── spreadsheet-pdf.ts           # jsPDF + autotable multi-sheet vector PDF generation
-│   ├── spreadsheet-adapter.ts           # Formats, parses, and normalizes legacy grid <-> FortuneSheet
-│   └── supabase/
-│       ├── client.ts                    # Browser Supabase client (createBrowserClient)
-│       ├── server.ts                    # Server component / Server Action client (cookies)
-│       └── admin.ts                     # Admin service role client (createAdminClient)
-│
-├── scripts/
-│   ├── seed-database.ts                 # Clean production database seeder (TypeScript)
-│   ├── seed_database.py                 # Clean production database seeder (Python)
-│   ├── test_confirm_modal.ts            # Unit tests for confirm modal portal & accessibility
-│   ├── test_fortune_spreadsheet.ts      # Unit tests for spreadsheet conversion, styles, & XLSX
-│   └── test_pdf_export.ts               # Unit tests for vector PDF generation & orientation
+│   │   ├── spreadsheet-pdf.ts           # Vector PDF generator for spreadsheets & family data
+│   │   └── event-summary-pdf.ts         # Single-page executive summary PDF generator
+│   ├── fortune-sheet-fonts.ts           # Custom font registration for FortuneSheet canvas
+│   ├── spreadsheet-adapter.ts           # Grid <-> FortuneSheet matrix normalizer
+│   ├── supabase/
+│   │   ├── client.ts                    # Browser Supabase client (createBrowserClient)
+│   │   ├── server.ts                    # Server component / action client (cookies)
+│   │   └── admin.ts                     # Admin service role client (createAdminClient)
+│   ├── utils.ts                         # Utility functions (cn, formatIDR, toSnakeCase, etc.)
+│   └── validations/
+│       └── public-form.ts               # Optional Zod schemas for public form submissions
 │
 ├── types/
-│   └── database.ts                      # Complete TypeScript definitions for Supabase tables & payloads
+│   └── database.ts                      # Complete TypeScript definitions for Supabase entities
 │
-├── supabase/
-│   ├── migrations/                      # Versioned SQL migration files
-│   └── seed.sql                         # SQL seed script
-│
+├── docker-compose.yml                   # Production Docker Compose definition (App + Caddy)
+├── Dockerfile                           # Multi-stage production Next.js Dockerfile
+├── Caddyfile                            # Caddy reverse-proxy & SSL configuration
+├── DEPLOY.md                            # Comprehensive Oracle Cloud deployment guide
 └── package.json                         # Scripts & dependency definitions
 ```
 
 ---
 
-## 5. Development & Deployment Cheatsheet
+## 6. Development & Deployment Cheatsheet
 
 ### Running Locally
 ```bash
 pnpm install
 pnpm run dev
 ```
-Dev server runs at `http://localhost:3000`.
+Development server runs locally at `http://localhost:3000`.
+
+### Type-Checking & Building
+```bash
+# Verify TypeScript types and compile Next.js production build:
+pnpm build
+```
 
 ### Running Automated Test Suites
 ```bash
@@ -215,9 +278,11 @@ Executes all TypeScript validation scripts in `scripts/`:
 - `test_confirm_modal.ts`: Portal accessibility and DOM isolation test.
 - `test_fortune_spreadsheet.ts`: JSON string parsing, matrix reconstruction, styles, and merges.
 - `test_pdf_export.ts`: Multi-sheet vector PDF formatting and table compilation.
+- `test_dynamic_family_data_schema.ts`: Dynamic public form schema and validation tests.
+- `test_master_family_template_and_event_creation.ts`: Blueprint propagation and token link tests.
 
 ### Production Database Seeding
-To reset the database to a clean production state (only Initial Roles, Permissions, Master Templates, and two production Admin accounts, with zero mock events/clients/vendors):
+To reset the database to a clean production state (roles, permissions, default master templates, and production admin accounts, with zero mock events):
 ```bash
 pnpm run seed
 # or
@@ -225,10 +290,10 @@ pnpm run seed:py
 ```
 
 ### Deploying to Production (Oracle Cloud VPS)
-Full step-by-step instructions are available in [DEPLOY.md](file:///Users/jonathankent/Documents/Code/xeno/DEPLOY.md).
+Full deployment instructions are documented in [`DEPLOY.md`](file:///Users/jonathankent/Documents/Code/xeno/DEPLOY.md).
 ```bash
 # On the Oracle Ubuntu VPS:
 git pull origin main
 docker compose up -d --build
 ```
-This builds the Next.js standalone container, restarts the application, and Caddy automatically manages HTTPS certificates for `xenoent.my.id`.
+This builds the Next.js standalone container, restarts the app service, and Caddy automatically manages HTTPS certificates for `xenoent.my.id`.

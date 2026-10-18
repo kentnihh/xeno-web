@@ -22,15 +22,26 @@ export function extractCellText(cell: any): string {
  * are configured with inlineStr and text wrap (tb: "2") so they display visual line breaks
  * and never lose data across serialization/deserialization cycles.
  */
+function defaultCt(raw: unknown) {
+  return { fa: "General", t: typeof raw === "number" ? "n" : "g" };
+}
+
 export function normalizeCellForFortuneSheet(cell: any): any {
   if (cell === null || cell === undefined) return null;
   if (typeof cell !== "object") {
     const str = String(cell);
-    return { v: cell, m: str };
+    return { v: cell, m: str, ct: defaultCt(cell) };
   }
 
   const clone: Record<string, any> = { ...cell };
   const text = extractCellText(clone);
+
+  // Pastikan cell yang punya isi selalu punya ct, v, dan m
+  if (text !== "") {
+    if (!clone.ct) clone.ct = defaultCt(clone.v);
+    if (clone.v === undefined || clone.v === null) clone.v = text;
+    if (clone.m === undefined || clone.m === null) clone.m = text;
+  }
 
   // If text contains newline characters (\n or \r\n), ensure FortuneSheet inlineStr & text-wrap
   if (typeof text === "string" && (text.includes("\n") || text.includes("\r"))) {
@@ -242,8 +253,8 @@ export function convertToFortuneSheet(
       showGridLines !== undefined
         ? showGridLines
         : obj.showGridLines !== undefined
-        ? Boolean(obj.showGridLines)
-        : true;
+          ? Boolean(obj.showGridLines)
+          : true;
 
     return {
       name: (obj.name as string) || sheetName,
@@ -253,7 +264,7 @@ export function convertToFortuneSheet(
       row: defaultRows,
       column: defaultCols,
       celldata,
-      data: Array.isArray(obj.data) ? (obj.data as any[][]) : undefined,
+      data: undefined, // biarkan FortuneSheet membangun matrix dari celldata
       config: obj.config ? JSON.parse(JSON.stringify(obj.config)) : {},
       showGridLines: gridLines,
     };

@@ -104,6 +104,14 @@ export function ExportSpreadsheetPdfModal({
     setIsGenerating(true);
     setError(null);
 
+    // Harus dibuka sinkron saat klik supaya tidak diblokir popup blocker
+    const previewWindow = window.open("", "_blank");
+    if (previewWindow) {
+      previewWindow.document.title = "Menyiapkan PDF...";
+      previewWindow.document.body.innerHTML =
+        '<p style="font-family:system-ui,sans-serif;padding:24px;color:#555">Menyiapkan PDF...</p>';
+    }
+
     try {
       const selectedSheets = sheets.filter((s) =>
         selectedSheetNames.includes(s.sheet_name)
@@ -136,12 +144,14 @@ export function ExportSpreadsheetPdfModal({
         orientation,
         includeFamilyData,
         familyData: familyFormData,
+        previewWindow,
       });
 
-      onSuccess?.(`Dokumen "${fileName}" berhasil diunduh!`);
+      onSuccess?.(`Dokumen "${fileName}" dibuka di tab baru.`);
       onClose();
     } catch (err: unknown) {
       console.error("[ExportPdf] Failed to build spreadsheet PDF:", err);
+      if (previewWindow && !previewWindow.closed) previewWindow.close();
       setError(
         err instanceof Error
           ? err.message
@@ -228,13 +238,12 @@ export function ExportSpreadsheetPdfModal({
                 aria-hidden="true"
               />
               <div
-                className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors border ${
-                  allSelected
-                    ? "bg-[#007aff] border-[#007aff] text-white"
-                    : selectedSheetNames.length > 0
+                className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors border ${allSelected
+                  ? "bg-[#007aff] border-[#007aff] text-white"
+                  : selectedSheetNames.length > 0
                     ? "bg-[#007aff]/15 border-[#007aff] text-[#007aff]"
                     : "border-muted-foreground/40 bg-card text-transparent group-hover:border-[#007aff]/60"
-                }`}
+                  }`}
               >
                 {allSelected ? (
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -258,8 +267,8 @@ export function ExportSpreadsheetPdfModal({
               const dataRows = Array.isArray(sheet.data?.rows)
                 ? sheet.data.rows.length
                 : Array.isArray(sheet.data?.celldata)
-                ? sheet.data.celldata.length
-                : 0;
+                  ? sheet.data.celldata.length
+                  : 0;
 
               const safeId = sheet.sheet_name.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
 
@@ -268,28 +277,25 @@ export function ExportSpreadsheetPdfModal({
                   key={sheet.sheet_name}
                   id={`sheet-item-${safeId}`}
                   onClick={() => toggleSheet(sheet.sheet_name)}
-                  className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                    isChecked
-                      ? "bg-[#007aff]/5 dark:bg-[#007aff]/10 border-[#007aff]/40 text-foreground shadow-2xs"
-                      : "bg-muted/30 border-border/80 hover:bg-muted/60 text-muted-foreground"
-                  }`}
+                  className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer select-none ${isChecked
+                    ? "bg-[#007aff]/5 dark:bg-[#007aff]/10 border-[#007aff]/40 text-foreground shadow-2xs"
+                    : "bg-muted/30 border-border/80 hover:bg-muted/60 text-muted-foreground"
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors border ${
-                        isChecked
-                          ? "bg-[#007aff] border-[#007aff] text-white"
-                          : "border-muted-foreground/40 bg-card"
-                      }`}
+                      className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors border ${isChecked
+                        ? "bg-[#007aff] border-[#007aff] text-white"
+                        : "border-muted-foreground/40 bg-card"
+                        }`}
                     >
                       {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                     </div>
 
                     <div className="flex items-center gap-2">
                       <FileSpreadsheet
-                        className={`w-4 h-4 ${
-                          isChecked ? "text-[#007aff]" : "text-muted-foreground"
-                        }`}
+                        className={`w-4 h-4 ${isChecked ? "text-[#007aff]" : "text-muted-foreground"
+                          }`}
                       />
                       <span className="text-xs font-bold text-foreground">
                         {sheet.sheet_name}
@@ -329,11 +335,10 @@ export function ExportSpreadsheetPdfModal({
                   setIncludeFamilyData((prev) => !prev);
                 }
               }}
-              className={`flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none group ${
-                includeFamilyData
-                  ? "bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/40 text-foreground shadow-2xs"
-                  : "bg-muted/30 border-border/80 hover:bg-muted/60 text-muted-foreground"
-              }`}
+              className={`flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none group ${includeFamilyData
+                ? "bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/40 text-foreground shadow-2xs"
+                : "bg-muted/30 border-border/80 hover:bg-muted/60 text-muted-foreground"
+                }`}
             >
               <div className="flex items-center gap-3">
                 <input
@@ -346,22 +351,20 @@ export function ExportSpreadsheetPdfModal({
                   aria-hidden="true"
                 />
                 <div
-                  className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors border ${
-                    includeFamilyData
-                      ? "bg-rose-600 border-rose-600 text-white"
-                      : "border-muted-foreground/40 bg-card group-hover:border-rose-500/60"
-                  }`}
+                  className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors border ${includeFamilyData
+                    ? "bg-rose-600 border-rose-600 text-white"
+                    : "border-muted-foreground/40 bg-card group-hover:border-rose-500/60"
+                    }`}
                 >
                   {includeFamilyData && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                 </div>
 
                 <div className="flex items-center gap-2.5">
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                      includeFamilyData
-                        ? "bg-rose-500/20 text-rose-600 dark:text-rose-400"
-                        : "bg-muted text-muted-foreground"
-                    }`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${includeFamilyData
+                      ? "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                      : "bg-muted text-muted-foreground"
+                      }`}
                   >
                     <Users className="w-4 h-4" />
                   </div>
@@ -378,11 +381,10 @@ export function ExportSpreadsheetPdfModal({
 
               <div className="flex items-center gap-2 text-[11px]">
                 <span
-                  className={`px-2 py-0.5 rounded-full border font-medium ${
-                    includeFamilyData
-                      ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
-                      : "bg-card border-border text-muted-foreground"
-                  }`}
+                  className={`px-2 py-0.5 rounded-full border font-medium ${includeFamilyData
+                    ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                    : "bg-card border-border text-muted-foreground"
+                    }`}
                 >
                   Formulir Publik
                 </span>
@@ -400,11 +402,10 @@ export function ExportSpreadsheetPdfModal({
                 type="button"
                 id="orientation-landscape-btn"
                 onClick={() => setOrientation("landscape")}
-                className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                  orientation === "landscape"
-                    ? "bg-[#007aff]/10 border-[#007aff] text-foreground ring-1 ring-[#007aff]"
-                    : "bg-muted/30 border-border hover:bg-muted/60 text-muted-foreground"
-                }`}
+                className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${orientation === "landscape"
+                  ? "bg-[#007aff]/10 border-[#007aff] text-foreground ring-1 ring-[#007aff]"
+                  : "bg-muted/30 border-border hover:bg-muted/60 text-muted-foreground"
+                  }`}
               >
                 <div className="flex items-center gap-1.5 font-bold text-xs">
                   <Columns className="w-3.5 h-3.5 text-[#007aff]" />
@@ -419,11 +420,10 @@ export function ExportSpreadsheetPdfModal({
                 type="button"
                 id="orientation-portrait-btn"
                 onClick={() => setOrientation("portrait")}
-                className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                  orientation === "portrait"
-                    ? "bg-[#007aff]/10 border-[#007aff] text-foreground ring-1 ring-[#007aff]"
-                    : "bg-muted/30 border-border hover:bg-muted/60 text-muted-foreground"
-                }`}
+                className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${orientation === "portrait"
+                  ? "bg-[#007aff]/10 border-[#007aff] text-foreground ring-1 ring-[#007aff]"
+                  : "bg-muted/30 border-border hover:bg-muted/60 text-muted-foreground"
+                  }`}
               >
                 <div className="flex items-center gap-1.5 font-bold text-xs">
                   <Rows className="w-3.5 h-3.5 text-[#007aff]" />
@@ -463,7 +463,7 @@ export function ExportSpreadsheetPdfModal({
             <span>
               {isGenerating
                 ? "Menyiapkan PDF..."
-                : `Download PDF (${totalSelectedCount})`}
+                : `Lihat PDF (${totalSelectedCount})`}
             </span>
           </button>
         </div>
