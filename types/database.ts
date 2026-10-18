@@ -111,6 +111,9 @@ export interface EventTask {
   description: string | null;
   assigned_to: string | null;
   due_date: string | null;
+  gcal_event_id?: string | null;
+  gcal_start?: string | null;
+  gcal_end?: string | null;
   status: TaskStatus;
   priority: TaskPriority;
   created_at: string;

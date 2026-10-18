@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { ModalShell } from "@/components/users/modal-shell";
 import { Combobox } from "@/components/ui/combobox";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Loader2, CheckSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { EventCrew, EventTask, Profile, TaskPriority, TaskStatus } from "@/types/database";
@@ -19,6 +20,19 @@ const STATUS_OPTIONS = [
   { value: "in_progress", label: "In Progress" },
   { value: "done", label: "Done" },
 ];
+
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function defaultGcalStart(): Date {
+  const d = new Date();
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + 1);
+  return d;
+}
 
 export interface TaskModalProps {
   isOpen: boolean;
@@ -42,7 +56,7 @@ export function TaskModal({
   isPending,
 }: TaskModalProps) {
   const isEditing = !!task;
-  const initialDueDate = task?.due_date ? new Date(task.due_date).toISOString().slice(0, 16) : "";
+  const initialDueDate = task?.due_date ? toLocalInput(task.due_date) : "";
 
   const [title, setTitle] = useState(task?.title || "");
   const [description, setDescription] = useState(task?.description || "");
@@ -50,6 +64,15 @@ export function TaskModal({
   const [priority, setPriority] = useState<TaskPriority>(task?.priority || "medium");
   const [status, setStatus] = useState<TaskStatus>(task?.status || "todo");
   const [dueDate, setDueDate] = useState(initialDueDate);
+  const [addToGcal, setAddToGcal] = useState(!!task?.gcal_event_id);
+  const [gcalStart, setGcalStart] = useState<Date>(() =>
+    task?.gcal_start ? new Date(task.gcal_start) : defaultGcalStart()
+  );
+  const [gcalEnd, setGcalEnd] = useState<Date>(() =>
+    task?.gcal_end
+      ? new Date(task.gcal_end)
+      : new Date((task?.gcal_start ? new Date(task.gcal_start) : defaultGcalStart()).getTime() + 3600000)
+  );
 
   // Fallback client-side fetch from event_crew if assignedCrew prop was not supplied and no crewProfiles
   const [fetchedCrew, setFetchedCrew] = useState<EventCrew[] | null>(null);
@@ -90,7 +113,11 @@ export function TaskModal({
       setAssignedTo(task?.assigned_to || "");
       setPriority(task?.priority || "medium");
       setStatus(task?.status || "todo");
-      setDueDate(task?.due_date ? new Date(task.due_date).toISOString().slice(0, 16) : "");
+      setDueDate(task?.due_date ? toLocalInput(task.due_date) : "");
+      setAddToGcal(!!task?.gcal_event_id);
+      const s = task?.gcal_start ? new Date(task.gcal_start) : defaultGcalStart();
+      setGcalStart(s);
+      setGcalEnd(task?.gcal_end ? new Date(task.gcal_end) : new Date(s.getTime() + 3600000));
     }
   }, [isOpen, task]);
 
@@ -139,6 +166,21 @@ export function TaskModal({
 
   if (!isOpen) return null;
 
+  const handleToggleGcal = (checked: boolean) => {
+    setAddToGcal(checked);
+    if (checked && !task?.gcal_start) {
+      const s = dueDate ? new Date(dueDate) : defaultGcalStart();
+      setGcalStart(s);
+      setGcalEnd(new Date(s.getTime() + 3600000));
+    }
+  };
+
+  const handleGcalStartChange = (next: Date) => {
+    const duration = gcalEnd.getTime() - gcalStart.getTime();
+    setGcalStart(next);
+    setGcalEnd(new Date(next.getTime() + (duration > 0 ? duration : 3600000)));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -151,7 +193,12 @@ export function TaskModal({
     if (assignedTo) fd.append("assigned_to", assignedTo);
     fd.append("priority", priority);
     fd.append("status", status);
-    if (dueDate) fd.append("due_date", dueDate);
+    if (dueDate) fd.append("due_date", new Date(dueDate).toISOString());
+    fd.append("gcal_enabled", addToGcal ? "1" : "0");
+    if (addToGcal) {
+      fd.append("gcal_start", gcalStart.toISOString());
+      fd.append("gcal_end", gcalEnd.toISOString());
+    }
 
     onSubmit(fd);
   };
@@ -223,6 +270,44 @@ export function TaskModal({
             onChange={(e) => setDueDate(e.target.value)}
             className="apple-input w-full px-3.5 py-2 text-sm"
           />
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/40 p-3.5 space-y-3">
+          <label className="flex items-start gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={addToGcal}
+              onChange={(e) => handleToggleGcal(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-border cursor-pointer"
+            />
+            <span className="text-xs font-medium text-foreground">
+              <span className="font-bold block">Tambahkan ke Google Calendar</span>
+              <span className="text-muted-foreground text-[11px] block mt-0.5">
+                {isEditing
+                  ? "Hilangkan centang untuk menghapus tugas ini dari Google Calendar."
+                  : "Tugas akan muncul di kalender tim pada tanggal dan jam yang dipilih."}
+              </span>
+            </span>
+          </label>
+
+          {addToGcal && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <DateTimePicker
+                name="gcal_start_picker"
+                label="Mulai"
+                value={gcalStart}
+                onChange={handleGcalStartChange}
+                withTime
+              />
+              <DateTimePicker
+                name="gcal_end_picker"
+                label="Selesai"
+                value={gcalEnd}
+                onChange={setGcalEnd}
+                withTime
+              />
+            </div>
+          )}
         </div>
 
         <div>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
+import { upsertTaskCalendarEvent, deleteTaskCalendarEvent } from "@/lib/gcal-task";
 import {
   createEventSchema,
   updateEventSchema,
@@ -37,200 +38,200 @@ export async function createEvent(
     await requirePermission("events.create");
     const supabase = await createClient();
 
-  const rawExpenses = formData.get("expenses");
-  const rawDocuments = formData.get("documents");
-  let parsedExpenses: unknown[] = [];
-  let parsedDocuments: unknown[] = [];
+    const rawExpenses = formData.get("expenses");
+    const rawDocuments = formData.get("documents");
+    let parsedExpenses: unknown[] = [];
+    let parsedDocuments: unknown[] = [];
 
-  if (typeof rawExpenses === "string" && rawExpenses.trim()) {
-    try {
-      parsedExpenses = JSON.parse(rawExpenses);
-    } catch {
-      parsedExpenses = [];
+    if (typeof rawExpenses === "string" && rawExpenses.trim()) {
+      try {
+        parsedExpenses = JSON.parse(rawExpenses);
+      } catch {
+        parsedExpenses = [];
+      }
     }
-  }
 
-  if (typeof rawDocuments === "string" && rawDocuments.trim()) {
-    try {
-      parsedDocuments = JSON.parse(rawDocuments);
-    } catch {
-      parsedDocuments = [];
+    if (typeof rawDocuments === "string" && rawDocuments.trim()) {
+      try {
+        parsedDocuments = JSON.parse(rawDocuments);
+      } catch {
+        parsedDocuments = [];
+      }
     }
-  }
 
-  const hasFamilyPresentFlag = formData.has("use_family_template_present");
-  const rawFamilyTemplate = formData.get("use_family_template");
-  const parsedUseFamilyTemplate = hasFamilyPresentFlag
-    ? formData.has("use_family_template") && (rawFamilyTemplate === "true" || rawFamilyTemplate === "on" || rawFamilyTemplate === "1")
-    : rawFamilyTemplate !== null ? Boolean(rawFamilyTemplate) : true;
+    const hasFamilyPresentFlag = formData.has("use_family_template_present");
+    const rawFamilyTemplate = formData.get("use_family_template");
+    const parsedUseFamilyTemplate = hasFamilyPresentFlag
+      ? formData.has("use_family_template") && (rawFamilyTemplate === "true" || rawFamilyTemplate === "on" || rawFamilyTemplate === "1")
+      : rawFamilyTemplate !== null ? Boolean(rawFamilyTemplate) : true;
 
-  const validated = createEventSchema.parse({
-    title: formData.get("title"),
-    venue: formData.get("venue"),
-    start_date: formData.get("start_date"),
-    end_date: formData.get("end_date"),
-    pic: formData.get("pic"),
-    client_id: formData.get("client_id") || null,
-    use_template: formData.get("use_template") !== null ? formData.get("use_template") : true,
-    use_family_template: parsedUseFamilyTemplate,
-    description: formData.get("description") || null,
-    expenses: parsedExpenses,
-    documents: parsedDocuments,
-  });
+    const validated = createEventSchema.parse({
+      title: formData.get("title"),
+      venue: formData.get("venue"),
+      start_date: formData.get("start_date"),
+      end_date: formData.get("end_date"),
+      pic: formData.get("pic"),
+      client_id: formData.get("client_id") || null,
+      use_template: formData.get("use_template") !== null ? formData.get("use_template") : true,
+      use_family_template: parsedUseFamilyTemplate,
+      description: formData.get("description") || null,
+      expenses: parsedExpenses,
+      documents: parsedDocuments,
+    });
 
-  const { data, error } = await supabase
-    .from("events")
-    .insert({
-      title: validated.title,
-      venue: validated.venue,
-      start_date: new Date(validated.start_date).toISOString(),
-      end_date: new Date(validated.end_date).toISOString(),
-      pic: validated.pic || null,
-      description: validated.description,
-      client_id: validated.client_id,
-      status: "planning" as EventStatus,
-    })
-    .select("id")
-    .single();
+    const { data, error } = await supabase
+      .from("events")
+      .insert({
+        title: validated.title,
+        venue: validated.venue,
+        start_date: new Date(validated.start_date).toISOString(),
+        end_date: new Date(validated.end_date).toISOString(),
+        pic: validated.pic || null,
+        description: validated.description,
+        client_id: validated.client_id,
+        status: "planning" as EventStatus,
+      })
+      .select("id")
+      .single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+    if (error) {
+      throw new Error(error.message);
+    }
 
-  if (Array.isArray(validated.expenses) && validated.expenses.length > 0) {
-    const expenseRows = validated.expenses.map((exp: { amount: number; category?: string; expense_date?: string; status?: string; notes?: string }) => ({
-      event_id: data.id,
-      amount: exp.amount,
-      category: exp.category || "Others",
-      expense_date: exp.expense_date || new Date().toISOString().split("T")[0],
-      status: exp.status || "Unpaid",
-      notes: exp.notes || null,
-    }));
-    await supabase.from("event_expenses").insert(expenseRows);
-  }
+    if (Array.isArray(validated.expenses) && validated.expenses.length > 0) {
+      const expenseRows = validated.expenses.map((exp: { amount: number; category?: string; expense_date?: string; status?: string; notes?: string }) => ({
+        event_id: data.id,
+        amount: exp.amount,
+        category: exp.category || "Others",
+        expense_date: exp.expense_date || new Date().toISOString().split("T")[0],
+        status: exp.status || "Unpaid",
+        notes: exp.notes || null,
+      }));
+      await supabase.from("event_expenses").insert(expenseRows);
+    }
 
-  if (Array.isArray(validated.documents) && validated.documents.length > 0) {
-    const docRows = validated.documents.map((doc: { file_name: string; file_url: string; file_type?: string; file_size?: number }) => ({
-      event_id: data.id,
-      file_name: doc.file_name,
-      file_url: doc.file_url,
-      file_type: doc.file_type || "application/octet-stream",
-      file_size: doc.file_size || 0,
-    }));
-    await supabase.from("event_documents").insert(docRows);
-  }
+    if (Array.isArray(validated.documents) && validated.documents.length > 0) {
+      const docRows = validated.documents.map((doc: { file_name: string; file_url: string; file_type?: string; file_size?: number }) => ({
+        event_id: data.id,
+        file_name: doc.file_name,
+        file_url: doc.file_url,
+        file_type: doc.file_type || "application/octet-stream",
+        file_size: doc.file_size || 0,
+      }));
+      await supabase.from("event_documents").insert(docRows);
+    }
 
-  if (validated.use_template) {
-    // Fetch master templates from database table instead of hardcoded file
-    const { data: dbTemplates } = await supabase
-      .from("master_templates")
-      .select("sheet_name, order_index, jsonb_structure")
-      .order("order_index", { ascending: true });
+    if (validated.use_template) {
+      // Fetch master templates from database table instead of hardcoded file
+      const { data: dbTemplates } = await supabase
+        .from("master_templates")
+        .select("sheet_name, order_index, jsonb_structure")
+        .order("order_index", { ascending: true });
 
-    const sheetRows =
-      dbTemplates && dbTemplates.length > 0
-        ? (dbTemplates as MasterTemplate[]).map((tpl, idx) => ({
+      const sheetRows =
+        dbTemplates && dbTemplates.length > 0
+          ? (dbTemplates as MasterTemplate[]).map((tpl, idx) => ({
             event_id: data.id,
             sheet_name: tpl.sheet_name,
             order_index: tpl.order_index ?? idx,
             data: tpl.jsonb_structure,
           }))
-        : INITIAL_EVENT_SHEETS.map((tpl, idx) => ({
+          : INITIAL_EVENT_SHEETS.map((tpl, idx) => ({
             event_id: data.id,
             sheet_name: tpl.name,
             order_index: idx,
             data: tpl.data,
           }));
 
-    if (sheetRows.length > 0) {
-      const { error: sheetsError } = await supabase.from("event_sheets").insert(sheetRows);
-      if (sheetsError) {
-        console.warn(`[createEvent] Warning seeding event_sheets for ${data.id}:`, sheetsError.message);
-      }
-    }
-  } else {
-    // Insert single blank sheet
-    const blankSheet = {
-      event_id: data.id,
-      sheet_name: "Sheet 1",
-      order_index: 0,
-      data: {
-        columns: [
-          { id: "col_1", name: "Kolom 1", width: 180 },
-          { id: "col_2", name: "Kolom 2", width: 240 },
-        ],
-        rows: [
-          { id: "row_1", col_1: "", col_2: "" },
-        ],
-      },
-    };
-    const { error: blankSheetErr } = await supabase.from("event_sheets").insert([blankSheet]);
-    if (blankSheetErr) {
-      console.warn(`[createEvent] Warning inserting blank sheet for ${data.id}:`, blankSheetErr.message);
-    }
-  }
-
-  // Initialize event_public_forms record for this event based on use_family_template setting
-  try {
-    let familySchema: FormCategorySchema[] = [];
-    if (validated.use_family_template) {
-      // Fetch schema from Master Family Template
-      const { data: familyTemplate } = await supabase
-        .from("master_family_templates")
-        .select("categories")
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (
-        familyTemplate &&
-        Array.isArray(familyTemplate.categories) &&
-        familyTemplate.categories.length > 0
-      ) {
-        familySchema = familyTemplate.categories;
-      } else {
-        familySchema = DEFAULT_PUBLIC_FORM_SCHEMA;
+      if (sheetRows.length > 0) {
+        const { error: sheetsError } = await supabase.from("event_sheets").insert(sheetRows);
+        if (sheetsError) {
+          console.warn(`[createEvent] Warning seeding event_sheets for ${data.id}:`, sheetsError.message);
+        }
       }
     } else {
-      // If FALSE, initialize with empty schema so admin builds categories manually
-      familySchema = [];
+      // Insert single blank sheet
+      const blankSheet = {
+        event_id: data.id,
+        sheet_name: "Sheet 1",
+        order_index: 0,
+        data: {
+          columns: [
+            { id: "col_1", name: "Kolom 1", width: 180 },
+            { id: "col_2", name: "Kolom 2", width: 240 },
+          ],
+          rows: [
+            { id: "row_1", col_1: "", col_2: "" },
+          ],
+        },
+      };
+      const { error: blankSheetErr } = await supabase.from("event_sheets").insert([blankSheet]);
+      if (blankSheetErr) {
+        console.warn(`[createEvent] Warning inserting blank sheet for ${data.id}:`, blankSheetErr.message);
+      }
     }
 
-    // Generate 32-character hex token and 3-day default expiry
-    const bytes = new Uint8Array(16);
-    globalThis.crypto.getRandomValues(bytes);
-    const initialToken = Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    // Initialize event_public_forms record for this event based on use_family_template setting
+    try {
+      let familySchema: FormCategorySchema[] = [];
+      if (validated.use_family_template) {
+        // Fetch schema from Master Family Template
+        const { data: familyTemplate } = await supabase
+          .from("master_family_templates")
+          .select("categories")
+          .eq("is_active", true)
+          .maybeSingle();
 
-    const initialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+        if (
+          familyTemplate &&
+          Array.isArray(familyTemplate.categories) &&
+          familyTemplate.categories.length > 0
+        ) {
+          familySchema = familyTemplate.categories;
+        } else {
+          familySchema = DEFAULT_PUBLIC_FORM_SCHEMA;
+        }
+      } else {
+        // If FALSE, initialize with empty schema so admin builds categories manually
+        familySchema = [];
+      }
 
-    const { error: formInsertErr } = await supabase
-      .from("event_public_forms")
-      .insert({
-        event_id: data.id,
-        token: initialToken,
-        expires_at: initialExpiresAt,
-        form_schema: familySchema,
-        form_data: {},
-      });
+      // Generate 32-character hex token and 3-day default expiry
+      const bytes = new Uint8Array(16);
+      globalThis.crypto.getRandomValues(bytes);
+      const initialToken = Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
 
-    if (formInsertErr) {
+      const initialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { error: formInsertErr } = await supabase
+        .from("event_public_forms")
+        .insert({
+          event_id: data.id,
+          token: initialToken,
+          expires_at: initialExpiresAt,
+          form_schema: familySchema,
+          form_data: {},
+        });
+
+      if (formInsertErr) {
+        console.warn(
+          `[createEvent] Warning creating event_public_forms for ${data.id}:`,
+          formInsertErr.message
+        );
+      }
+    } catch (pubFormErr) {
       console.warn(
-        `[createEvent] Warning creating event_public_forms for ${data.id}:`,
-        formInsertErr.message
+        `[createEvent] Non-fatal error initializing public form for ${data.id}:`,
+        pubFormErr
       );
     }
-  } catch (pubFormErr) {
-    console.warn(
-      `[createEvent] Non-fatal error initializing public form for ${data.id}:`,
-      pubFormErr
-    );
-  }
 
-  // Invalidate event listings and return new event ID
-  revalidatePath("/events");
-  revalidatePath("/");
-  return { success: true, eventId: data.id };
+    // Invalidate event listings and return new event ID
+    revalidatePath("/events");
+    revalidatePath("/");
+    return { success: true, eventId: data.id };
   } catch (err: unknown) {
     console.error("[createEvent] Error creating event:", err);
     return {
@@ -384,9 +385,85 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
 }
 
 /**
+ * Sinkronisasi tugas ke Google Calendar. Tidak pernah melempar error:
+ * kegagalan dikembalikan sebagai `warning` supaya penyimpanan tugas tidak ikut gagal.
+ */
+async function applyTaskGcal(opts: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  task: EventTask;
+  eventId: string;
+  formData: FormData;
+  existingGcalId: string | null;
+}): Promise<{ task: EventTask; warning?: string }> {
+  const { supabase, task, eventId, formData, existingGcalId } = opts;
+  const enabled = formData.get("gcal_enabled") === "1";
+
+  try {
+    if (!enabled) {
+      if (existingGcalId) {
+        await deleteTaskCalendarEvent(existingGcalId);
+        await supabase
+          .from("event_tasks")
+          .update({ gcal_event_id: null, gcal_start: null, gcal_end: null })
+          .eq("id", task.id);
+        return { task: { ...task, gcal_event_id: null, gcal_start: null, gcal_end: null } };
+      }
+      return { task };
+    }
+
+    const start = new Date(String(formData.get("gcal_start") || ""));
+    let end = new Date(String(formData.get("gcal_end") || ""));
+    if (isNaN(start.getTime())) {
+      return { task, warning: "Tugas tersimpan, tapi waktu Google Calendar tidak valid." };
+    }
+    if (isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
+      end = new Date(start.getTime() + 60 * 60 * 1000);
+    }
+
+    const { data: ev } = await supabase
+      .from("events")
+      .select("title")
+      .eq("id", eventId)
+      .maybeSingle();
+
+    const res = await upsertTaskCalendarEvent({
+      title: task.title,
+      description: task.description,
+      assigneeName: task.assignee?.full_name ?? null,
+      priority: task.priority,
+      eventTitle: ev?.title ?? null,
+      start,
+      end,
+      existingId: existingGcalId,
+    });
+
+    if (!res.ok) {
+      return { task, warning: `Tugas tersimpan, tapi gagal sync ke Google Calendar. ${res.error}` };
+    }
+
+    const patch = {
+      gcal_event_id: res.id,
+      gcal_start: start.toISOString(),
+      gcal_end: end.toISOString(),
+    };
+    const { error: patchErr } = await supabase.from("event_tasks").update(patch).eq("id", task.id);
+    if (patchErr) {
+      return {
+        task,
+        warning: "Tugas tersimpan dan masuk ke Google Calendar, tapi ID event gagal disimpan. Jalankan migration kolom gcal di database.",
+      };
+    }
+    return { task: { ...task, ...patch } };
+  } catch (err) {
+    console.error("[applyTaskGcal]", err);
+    return { task, warning: "Tugas tersimpan, tapi gagal sync ke Google Calendar." };
+  }
+}
+
+/**
  * Inserts a new operational task associated with an event.
  */
-export async function createEventTask(formData: FormData): Promise<{ success: boolean; error?: string; task?: EventTask }> {
+export async function createEventTask(formData: FormData): Promise<{ success: boolean; error?: string; task?: EventTask; gcalWarning?: string }> {
   await requirePermission("events.edit");
   const supabase = await createClient();
   const eventId = formData.get("event_id") as string;
@@ -421,8 +498,16 @@ export async function createEventTask(formData: FormData): Promise<{ success: bo
     return { success: false, error: error.message };
   }
 
+  const synced = await applyTaskGcal({
+    supabase,
+    task: data as EventTask,
+    eventId,
+    formData,
+    existingGcalId: null,
+  });
+
   revalidatePath(`/events/${eventId}`);
-  return { success: true, task: data as EventTask };
+  return { success: true, task: synced.task, gcalWarning: synced.warning };
 }
 
 /**
@@ -438,7 +523,7 @@ export async function addEventTask(formData: FormData): Promise<void> {
 /**
  * Updates an existing operational task.
  */
-export async function updateEventTask(formData: FormData): Promise<{ success: boolean; error?: string; task?: EventTask }> {
+export async function updateEventTask(formData: FormData): Promise<{ success: boolean; error?: string; task?: EventTask; gcalWarning?: string }> {
   await requirePermission("events.edit");
   const supabase = await createClient();
   const taskId = formData.get("task_id") as string;
@@ -455,6 +540,12 @@ export async function updateEventTask(formData: FormData): Promise<{ success: bo
   }
 
   const dueDate = dueDateRaw ? new Date(dueDateRaw).toISOString() : null;
+
+  const { data: existingTask } = await supabase
+    .from("event_tasks")
+    .select("gcal_event_id")
+    .eq("id", taskId)
+    .maybeSingle();
 
   const { data, error } = await supabase
     .from("event_tasks")
@@ -475,8 +566,16 @@ export async function updateEventTask(formData: FormData): Promise<{ success: bo
     return { success: false, error: error.message };
   }
 
+  const synced = await applyTaskGcal({
+    supabase,
+    task: data as EventTask,
+    eventId,
+    formData,
+    existingGcalId: existingTask?.gcal_event_id ?? null,
+  });
+
   revalidatePath(`/events/${eventId}`);
-  return { success: true, task: data as EventTask };
+  return { success: true, task: synced.task, gcalWarning: synced.warning };
 }
 
 /**
@@ -506,7 +605,17 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string, ev
 export async function deleteEvent(eventId: string): Promise<void> {
   await requirePermission("events.delete");
   const supabase = await createClient();
+  const { data: gcalTasks } = await supabase
+    .from("event_tasks")
+    .select("gcal_event_id")
+    .eq("event_id", eventId)
+    .not("gcal_event_id", "is", null);
   const { error } = await supabase.from("events").delete().eq("id", eventId);
+  if (!error && gcalTasks) {
+    for (const t of gcalTasks) {
+      if (t.gcal_event_id) await deleteTaskCalendarEvent(t.gcal_event_id);
+    }
+  }
   if (error) {
     throw new Error(error.message);
   }
@@ -521,7 +630,15 @@ export async function deleteEvent(eventId: string): Promise<void> {
 export async function deleteEventTask(taskId: string, eventId: string): Promise<{ success: boolean; error?: string }> {
   await requirePermission("events.edit");
   const supabase = await createClient();
+  const { data: existingTask } = await supabase
+    .from("event_tasks")
+    .select("gcal_event_id")
+    .eq("id", taskId)
+    .maybeSingle();
   const { error } = await supabase.from("event_tasks").delete().eq("id", taskId).eq("event_id", eventId);
+  if (!error && existingTask?.gcal_event_id) {
+    await deleteTaskCalendarEvent(existingTask.gcal_event_id);
+  }
   if (error) {
     return { success: false, error: error.message };
   }
