@@ -4,7 +4,7 @@ import { formatDateRange } from "@/lib/utils";
 import { deleteEvent } from "../actions";
 import { getEventSheets } from "../sheet-actions";
 import { getOrCreateEventPublicForm } from "../public-form-actions";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission, getUserRoles } from "@/lib/auth";
 import { ArrowLeft, Calendar, MapPin, User, Trash2 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/ui/confirm-modal";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
@@ -48,12 +48,14 @@ export default async function EventDetailPage({
           ? "data-keluarga"
           : "operations";
 
-  const [canEditEvent, canDeleteEvent, canManageFinance, canManageDocs] = await Promise.all([
+  const [canEditEvent, canDeleteEvent, canManageFinance, canManageDocs, userRoles] = await Promise.all([
     hasPermission("events.edit"),
     hasPermission("events.delete"),
     hasPermission("finances.manage"),
     hasPermission("documents.manage"),
+    getUserRoles(),
   ]);
+  const canSyncGCal = userRoles.includes("admin") || userRoles.includes("manager");
   const supabase = await createClient();
 
   const [
@@ -116,6 +118,7 @@ export default async function EventDetailPage({
             tasks={tasks}
             expenses={expenses}
             canEdit={canEditEvent}
+            canSync={canSyncGCal}
             publicForm={publicForm}
           />
 

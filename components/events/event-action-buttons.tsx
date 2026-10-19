@@ -31,6 +31,7 @@ interface EventActionButtonsProps {
   tasks: EventTask[];
   expenses: EventExpense[];
   canEdit?: boolean;
+  canSync?: boolean;
   publicForm?: EventPublicForm | null;
 }
 
@@ -41,11 +42,12 @@ export function EventActionButtons({
   tasks,
   expenses,
   canEdit = true,
+  canSync = true,
   publicForm,
 }: EventActionButtonsProps) {
   return (
     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-      <SyncGCalButton eventId={event.id} eventTitle={event.title} />
+      {canSync && <SyncGCalButton eventId={event.id} eventTitle={event.title} canSync={canSync} />}
       <ExportExcelButton eventTitle={event.title} sheets={sheets} />
       <ExportSpreadsheetPdfButton
         eventId={event.id}

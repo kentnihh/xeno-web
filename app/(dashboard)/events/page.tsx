@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission, getUserRoles } from "@/lib/auth";
 import { formatDate, sortEventsUpcomingFirst } from "@/lib/utils";
 import {
   CalendarDays,
@@ -19,7 +19,7 @@ import {
   EventCountdownBadge,
 } from "@/components/events/event-status-badge";
 import { SyncGCalButton } from "@/components/events/sync-gcal-button";
-import type { Event } from "@/types/database";
+import type { Event, Profile } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -95,12 +95,47 @@ export default async function EventsPage({
   const viewMode = resolved?.view === "calendar" ? "calendar" : "list";
   const isPastFilter = statusFilter === "past" || statusFilter === "terlewat";
 
+  const supabase = await createClient();
+
+  // 1. Identify current logged-in user and role
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let userProfile: Profile | null = null;
+  let userRoles: string[] = [];
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+    userProfile = profile as Profile | null;
+    userRoles = await getUserRoles(user.id);
+  }
+
+  const isAdminUser = userProfile?.role === "admin" || userRoles.includes("admin");
+  const isManagerUser = userProfile?.role === "manager" || userRoles.includes("manager");
+  const isPrivileged = isAdminUser || isManagerUser;
+  const isStaff = !isPrivileged;
+  const canSyncGCal = isPrivileged;
+
+  // 2. If user is STAFF: fetch assigned event IDs from event_crew
+  let assignedEventIds: string[] = [];
+  if (isStaff && user?.id) {
+    const { data: crewData } = await supabase
+      .from("event_crew")
+      .select("event_id")
+      .eq("profile_id", user.id);
+
+    assignedEventIds = (crewData || []).map((c) => c.event_id).filter(Boolean);
+  }
+
   const [canCreateEvent, canEditEvent] = await Promise.all([
     hasPermission("events.create"),
     hasPermission("events.edit"),
   ]);
-
-  const supabase = await createClient();
 
   // Timezone-safe start of today (beginning of day at 00:00:00.000)
   // Stripping the time so events happening today are considered "Aktif" and not "Terlewat"
@@ -121,6 +156,14 @@ export default async function EventsPage({
     .select("*, client:clients(*)", { count: "exact" })
     .order("start_date", { ascending: isPastFilter ? false : true });
 
+  if (isStaff) {
+    if (assignedEventIds.length > 0) {
+      query = query.in("id", assignedEventIds);
+    } else {
+      query = query.eq("id", "00000000-0000-0000-0000-000000000000");
+    }
+  }
+
   if (isPastFilter) {
     query = query.lt("start_date", todayStartISO);
   } else if (statusFilter === "active") {
@@ -137,15 +180,25 @@ export default async function EventsPage({
 
   const { data: rawEvents, count } = await query;
 
-  const { data: allSearchEvents } = await supabase
+  let allSearchQuery = supabase
     .from("events")
     .select("id, title, start_date, venue, status, pic")
     .order("start_date", { ascending: true });
 
+  if (isStaff) {
+    if (assignedEventIds.length > 0) {
+      allSearchQuery = allSearchQuery.in("id", assignedEventIds);
+    } else {
+      allSearchQuery = allSearchQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+    }
+  }
+
+  const { data: allSearchEvents } = await allSearchQuery;
+
   let eventsList: Event[] = [];
   if (rawEvents && rawEvents.length > 0) {
     eventsList = rawEvents as Event[];
-  } else {
+  } else if (!isStaff) {
     eventsList = FALLBACK_EVENTS.filter((ev) => {
       const isPast = new Date(ev.start_date).getTime() < todayStart.getTime();
 
@@ -160,6 +213,8 @@ export default async function EventsPage({
       }
       return true;
     });
+  } else {
+    eventsList = [];
   }
 
   const events = sortEventsUpcomingFirst(eventsList);
@@ -167,7 +222,9 @@ export default async function EventsPage({
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const searchableList = (allSearchEvents && allSearchEvents.length > 0
     ? allSearchEvents
-    : FALLBACK_EVENTS) as Event[];
+    : isStaff
+      ? []
+      : FALLBACK_EVENTS) as Event[];
 
   return (
     <div className="space-y-6">
@@ -182,7 +239,7 @@ export default async function EventsPage({
           </p>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-          <SyncGCalButton />
+          {canSyncGCal && <SyncGCalButton canSync={canSyncGCal} />}
           {canCreateEvent && (
             <Link
               href="/events/new"

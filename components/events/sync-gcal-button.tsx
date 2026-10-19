@@ -8,13 +8,16 @@ interface SyncGCalButtonProps {
   eventId?: string;
   eventTitle?: string;
   className?: string;
+  canSync?: boolean;
 }
 
 export function SyncGCalButton({
   eventId,
   eventTitle,
   className = "",
+  canSync = true,
 }: SyncGCalButtonProps) {
+  if (!canSync) return null;
   const [isSyncing, setIsSyncing] = useState(false);
   const [toast, setToast] = useState<{
     type: "success" | "error";

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission, getUserRoles } from "@/lib/auth";
 import { formatDate, sortEventsUpcomingFirst, sortTasksByPriority } from "@/lib/utils";
-import { CalendarDays, Plus, MapPin, ChevronRight, CheckCircle2 } from "lucide-react";
+import { CalendarDays, Plus, MapPin, ChevronRight, CheckCircle2, Clock } from "lucide-react";
 import { MonthlyCalendar } from "@/components/dashboard/monthly-calendar";
 import { EventSearchBar } from "@/components/dashboard/event-search-bar";
 import { PriorityTasksWidget } from "@/components/dashboard/priority-tasks-widget";
 import { EventStatusBadge, EventCountdownBadge } from "@/components/events/event-status-badge";
+import type { Profile } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,41 @@ const FALLBACK_TASKS = [
 export default async function DashboardPage() {
   const supabase = await createClient();
 
+  // 1. Fetch Current User & Role
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let userProfile: Profile | null = null;
+  let userRoles: string[] = [];
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+    userProfile = profile as Profile | null;
+    userRoles = await getUserRoles(user.id);
+  }
+
+  const isAdminUser = userProfile?.role === "admin" || userRoles.includes("admin");
+  const isManagerUser = userProfile?.role === "manager" || userRoles.includes("manager");
+  const isPrivileged = isAdminUser || isManagerUser;
+  const isStaff = !isPrivileged;
+  const currentUserId = user?.id;
+
+  // 2. If user is STAFF: fetch assigned event IDs from event_crew
+  let assignedEventIds: string[] = [];
+  if (isStaff && currentUserId) {
+    const { data: crewData } = await supabase
+      .from("event_crew")
+      .select("event_id")
+      .eq("profile_id", currentUserId);
+
+    assignedEventIds = (crewData || []).map((c) => c.event_id).filter(Boolean);
+  }
+
   // Timezone-safe start of today (beginning of day at 00:00:00.000)
   // Ensures events happening today are included and not prematurely excluded as past events.
   const now = new Date();
@@ -78,24 +114,71 @@ export default async function DashboardPage() {
   const jakartaTodayStart = new Date(`${jakartaDate}T00:00:00+07:00`);
   const todayStart = localTodayStart < jakartaTodayStart ? localTodayStart : jakartaTodayStart;
 
-  const { data: rawEvents } = await supabase
+  // 3. Active Events query (filter for STAFF: only assigned events)
+  let eventsQuery = supabase
     .from("events")
     .select("*, client:clients(*)")
     .neq("status", "completed")
     .gte("start_date", todayStart.toISOString())
     .order("start_date", { ascending: true });
 
-  const { data: rawTasks } = await supabase
+  if (isStaff) {
+    if (assignedEventIds.length > 0) {
+      eventsQuery = eventsQuery.in("id", assignedEventIds);
+    } else {
+      eventsQuery = eventsQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+    }
+  }
+
+  const { data: rawEvents } = await eventsQuery;
+
+  // 4. Pending Events query (status in planning or draft; for STAFF: only assigned events)
+  let pendingEventsQuery = supabase
+    .from("events")
+    .select("id, title, status, start_date")
+    .in("status", ["planning", "draft"]);
+
+  if (isStaff) {
+    if (assignedEventIds.length > 0) {
+      pendingEventsQuery = pendingEventsQuery.in("id", assignedEventIds);
+    } else {
+      pendingEventsQuery = pendingEventsQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+    }
+  }
+
+  const { data: rawPendingEvents } = await pendingEventsQuery;
+  const pendingEventsCount = rawPendingEvents ? rawPendingEvents.length : 0;
+
+  // 5. Tasks query (for STAFF: assigned ONLY to current user, incomplete/pending, ordered by priority)
+  let tasksQuery = supabase
     .from("event_tasks")
     .select("*, event:events(id, title), assignee:profiles(id, full_name, role)");
 
-  const eventsList = rawEvents && rawEvents.length > 0 ? rawEvents : FALLBACK_EVENTS;
+  if (isStaff) {
+    if (currentUserId) {
+      tasksQuery = tasksQuery
+        .eq("assigned_to", currentUserId)
+        .neq("status", "done")
+        .order("priority", { ascending: false });
+    } else {
+      tasksQuery = tasksQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+    }
+  }
+
+  const { data: rawTasks } = await tasksQuery;
+
+  // For staff: strictly show only their assigned data, never fall back to mock demo data
+  const eventsList = isStaff
+    ? (rawEvents || [])
+    : (rawEvents && rawEvents.length > 0 ? rawEvents : FALLBACK_EVENTS);
   const events = sortEventsUpcomingFirst(eventsList);
-  const tasksList = rawTasks && rawTasks.length > 0 ? rawTasks : FALLBACK_TASKS;
+
+  const tasksList = isStaff
+    ? (rawTasks || [])
+    : (rawTasks && rawTasks.length > 0 ? rawTasks : FALLBACK_TASKS);
   const tasks = sortTasksByPriority(tasksList);
 
   const canCreateEvent = await hasPermission("events.create");
-
   const pendingTasksCount = tasks.filter((t) => t.status !== "done").length;
 
   return (
@@ -106,7 +189,9 @@ export default async function DashboardPage() {
             Dashboard Operasional
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Ringkasan acara, kru, dan vendor Xeno Entertainment
+            {isStaff
+              ? "Ringkasan penugasan acara dan tugas kru Anda di Xeno Entertainment"
+              : "Ringkasan acara, kru, dan vendor Xeno Entertainment"}
           </p>
         </div>
         {canCreateEvent && (
@@ -125,10 +210,10 @@ export default async function DashboardPage() {
         <EventSearchBar events={events} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="apple-card p-5 space-y-2 border border-border shadow-xs">
           <div className="flex justify-between items-center text-xs font-medium text-muted-foreground">
-            <span>Acara Aktif</span>
+            <span>{isStaff ? "Acara Ditugaskan (Aktif)" : "Acara Aktif"}</span>
             <div className="w-7 h-7 rounded-lg bg-[#007aff]/15 flex items-center justify-center text-[#007aff]">
               <CalendarDays className="w-3.5 h-3.5" />
             </div>
@@ -140,7 +225,19 @@ export default async function DashboardPage() {
 
         <div className="apple-card p-5 space-y-2 border border-border shadow-xs">
           <div className="flex justify-between items-center text-xs font-medium text-muted-foreground">
-            <span>Tugas Pending</span>
+            <span>Acara Pending</span>
+            <div className="w-7 h-7 rounded-lg bg-[#bf5af2]/15 flex items-center justify-center text-[#bf5af2]">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-foreground tracking-tight">
+            {pendingEventsCount}
+          </div>
+        </div>
+
+        <div className="apple-card p-5 space-y-2 border border-border shadow-xs">
+          <div className="flex justify-between items-center text-xs font-medium text-muted-foreground">
+            <span>{isStaff ? "Tugas Saya (Pending)" : "Tugas Pending"}</span>
             <div className="w-7 h-7 rounded-lg bg-[#ff9f0a]/15 flex items-center justify-center text-[#ff9f0a]">
               <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
@@ -157,7 +254,7 @@ export default async function DashboardPage() {
         <div className="lg:col-span-2 apple-card p-6 space-y-4">
           <div className="flex justify-between items-center pb-2 border-b border-border">
             <h2 className="text-sm font-bold text-foreground tracking-tight">
-              Jadwal Acara Terdekat
+              {isStaff ? "Jadwal Acara Saya Terdekat" : "Jadwal Acara Terdekat"}
             </h2>
             <Link
               href="/events"
@@ -168,37 +265,45 @@ export default async function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {events.slice(0, 5).map((ev) => (
-              <Link
-                key={ev.id}
-                href={`/events/${ev.id}`}
-                className="apple-card-interactive block p-4 rounded-xl border border-border shadow-xs hover:shadow-md hover:border-[#007aff] transition-all group"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-foreground text-sm group-hover:text-[#007aff] transition-colors truncate">
-                        {ev.title}
-                      </span>
-                      <EventCountdownBadge startDate={ev.start_date} />
-                      <EventStatusBadge status={ev.status} />
-                    </div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
-                      <MapPin className="w-3.5 h-3.5 text-[#007aff] shrink-0" />
-                      <span className="truncate">{ev.venue}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right space-y-0.5">
-                      <div className="text-xs font-medium text-muted-foreground">
-                        {formatDate(ev.start_date)}
+            {events.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground">
+                {isStaff
+                  ? "Belum ada jadwal acara yang ditugaskan kepada Anda saat ini."
+                  : "Tidak ada jadwal acara aktif saat ini."}
+              </div>
+            ) : (
+              events.slice(0, 5).map((ev) => (
+                <Link
+                  key={ev.id}
+                  href={`/events/${ev.id}`}
+                  className="apple-card-interactive block p-4 rounded-xl border border-border shadow-xs hover:shadow-md hover:border-[#007aff] transition-all group"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-foreground text-sm group-hover:text-[#007aff] transition-colors truncate">
+                          {ev.title}
+                        </span>
+                        <EventCountdownBadge startDate={ev.start_date} />
+                        <EventStatusBadge status={ev.status} />
+                      </div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
+                        <MapPin className="w-3.5 h-3.5 text-[#007aff] shrink-0" />
+                        <span className="truncate">{ev.venue}</span>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#007aff] group-hover:translate-x-1 transition-all shrink-0" />
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right space-y-0.5">
+                        <div className="text-xs font-medium text-muted-foreground">
+                          {formatDate(ev.start_date)}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#007aff] group-hover:translate-x-1 transition-all shrink-0" />
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              ))
+            )}
           </div>
         </div>
 

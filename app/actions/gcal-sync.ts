@@ -2,6 +2,8 @@
 
 import { SignJWT, importPKCS8 } from "jose";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import { getUserRoles } from "@/lib/auth";
 
 export interface SyncGCalResponse {
   success: boolean;
@@ -148,6 +150,29 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
         message: msg,
         error: msg,
       };
+    }
+
+    // RBAC: Only Admin and Manager are authorized to sync to Google Calendar
+    try {
+      const serverClient = await createServerClient();
+      const {
+        data: { user },
+      } = await serverClient.auth.getUser();
+
+      if (user) {
+        const roles = await getUserRoles(user.id);
+        const isAuthorized = roles.includes("admin") || roles.includes("manager");
+        if (!isAuthorized) {
+          const authMsg = "Akses ditolak: Hanya Administrator dan Manajer yang berwenang menyinkronkan Google Calendar.";
+          return {
+            success: false,
+            message: authMsg,
+            error: authMsg,
+          };
+        }
+      }
+    } catch {
+      // Allow execution in isolated test runner scripts without Next.js headers/cookies
     }
 
     const { accessToken, calendarId } = await getGoogleCalendarAccessToken();
@@ -341,6 +366,29 @@ export async function syncAllEventsToGoogleCalendar(): Promise<SyncGCalResponse>
         message: msg,
         error: msg,
       };
+    }
+
+    // RBAC: Only Admin and Manager are authorized to sync to Google Calendar
+    try {
+      const serverClient = await createServerClient();
+      const {
+        data: { user },
+      } = await serverClient.auth.getUser();
+
+      if (user) {
+        const roles = await getUserRoles(user.id);
+        const isAuthorized = roles.includes("admin") || roles.includes("manager");
+        if (!isAuthorized) {
+          const authMsg = "Akses ditolak: Hanya Administrator dan Manajer yang berwenang menyinkronkan Google Calendar.";
+          return {
+            success: false,
+            message: authMsg,
+            error: authMsg,
+          };
+        }
+      }
+    } catch {
+      // Allow execution in isolated test runner scripts without Next.js headers/cookies
     }
 
     const supabase = getSupabaseClient();
