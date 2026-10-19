@@ -38,7 +38,7 @@ const SHOWCASE_SLIDES: SlideData[] = [
     title: "Where Every Celebration Becomes Iconic.",
     subtitle:
       "Dari tata panggung megah, confetti shower, hingga lighting spektakuler—kami merangkai setiap detik menjadi momen tak terlupakan.",
-    location: "Ballroom Grand Runway",
+    location: "",
   },
   {
     src: "/content2.jpeg",
@@ -47,7 +47,7 @@ const SHOWCASE_SLIDES: SlideData[] = [
     title: "Candid Joy, Perfectly Captured.",
     subtitle:
       "Ekspresi tawa dan kebahagiaan sejati pengantin yang diabadikan dalam estetika vintage yang hangat dan berkelas.",
-    location: "Vintage Kombi Editorial",
+    location: "",
   },
   {
     src: "/content3.jpeg",
@@ -56,7 +56,7 @@ const SHOWCASE_SLIDES: SlideData[] = [
     title: "Dramatic Elegance Under the Spotlight.",
     subtitle:
       "Pencahayaan presisi dan atmosfer malam yang memukau menghadirkan visual sinematik eksklusif untuk acara Anda.",
-    location: "Twilight Starlight Production",
+    location: "",
   },
   {
     src: "/content4.jpeg",
@@ -65,7 +65,7 @@ const SHOWCASE_SLIDES: SlideData[] = [
     title: "Radiant Smiles, Flawless Coordination.",
     subtitle:
       "Kenyamanan pasangan adalah prioritas utama kami. Seluruh rundown panggung dan operasional berjalan mulus tanpa celah.",
-    location: "Golden Hour Tailgate",
+    location: "",
   },
   {
     src: "/content5.jpeg",
@@ -74,7 +74,7 @@ const SHOWCASE_SLIDES: SlideData[] = [
     title: "Crafting Stories That Resonate Forever.",
     subtitle:
       "Perjalanan awal babak baru kehidupan Anda dimulai dengan harmoni sempurna dan eksekusi acara berstandar tertinggi.",
-    location: "Scenic Pine Route",
+    location: "",
   },
 ];
 
@@ -166,9 +166,8 @@ export default function LoginPage() {
           return (
             <div
               key={slide.src}
-              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-              }`}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+                }`}
             >
               <Image
                 src={slide.src}
@@ -176,9 +175,8 @@ export default function LoginPage() {
                 fill
                 priority={idx === 0}
                 sizes="(max-width: 1024px) 100vw, 62vw"
-                className={`object-cover object-center transition-transform duration-[6000ms] ease-out will-change-transform ${
-                  isActive ? "scale-105" : "scale-100"
-                }`}
+                className={`object-cover object-center transition-transform duration-[6000ms] ease-out will-change-transform ${isActive ? "scale-105" : "scale-100"
+                  }`}
               />
               {/* Dynamic Atmospheric Gradients for Uncompromising Legibility */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/70" />
@@ -300,11 +298,10 @@ export default function LoginPage() {
                     key={slide.src}
                     type="button"
                     onClick={() => goToSlide(idx)}
-                    className={`relative w-12 h-9 sm:w-14 sm:h-10 rounded-lg overflow-hidden shrink-0 border-2 transition-all duration-300 cursor-pointer ${
-                      isSelected
+                    className={`relative w-12 h-9 sm:w-14 sm:h-10 rounded-lg overflow-hidden shrink-0 border-2 transition-all duration-300 cursor-pointer ${isSelected
                         ? "border-white ring-2 ring-[#007aff] scale-105 opacity-100 shadow-md"
                         : "border-white/30 opacity-60 hover:opacity-100 hover:border-white/60"
-                    }`}
+                      }`}
                     aria-label={`Pilih foto ${idx + 1}: ${slide.title}`}
                   >
                     <Image
