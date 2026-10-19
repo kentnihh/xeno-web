@@ -309,3 +309,9 @@ git pull origin main
 docker compose up -d --build
 ```
 This builds the Next.js standalone container, restarts the app service, and Caddy automatically manages HTTPS certificates for `xenoent.my.id`.
+
+
+<!-- LAST_ARCH_SYNC -->
+> **Last Architecture Sync**: fa0a52f feat(rbac): implement strict staff data isolation and protect google calendar sync
+bbdf1fa refactor: remove location text from login page carousel slides
+914486d feat: enhance login page with responsive event photography carousel and split-screen UI
