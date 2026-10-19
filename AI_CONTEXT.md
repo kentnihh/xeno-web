@@ -312,6 +312,6 @@ This builds the Next.js standalone container, restarts the app service, and Cadd
 
 
 <!-- LAST_ARCH_SYNC -->
-> **Last Architecture Sync**: fa0a52f feat(rbac): implement strict staff data isolation and protect google calendar sync
-bbdf1fa refactor: remove location text from login page carousel slides
-914486d feat: enhance login page with responsive event photography carousel and split-screen UI
+> **Last Architecture Sync**: b0d0575 feat(ui): implement global mobile responsiveness across layouts, forms, modals, tables, and spreadsheet
+987c8d3 chore: update ai_context.md with latest architecture sync [skip ci]
+d758f91 feat(ui): implement role-based avatar icons and custom admin colors
