@@ -35,6 +35,7 @@ create table if not exists public.profiles (
   role user_role not null default 'staff',
   phone text,
   avatar_url text,
+  avatar_color text,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );

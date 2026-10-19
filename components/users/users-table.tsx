@@ -1,6 +1,7 @@
 "use client";
 
 import { Pencil, Trash2, ShieldCheck, Shield, KeyRound } from "lucide-react";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import type { UserWithRBAC } from "@/types/database";
 
 export function UsersTable({
@@ -45,9 +46,7 @@ export function UsersTable({
                 <tr key={u.id} className="hover:bg-muted/40 transition-colors">
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#007aff] to-[#0051d5] flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-[#007aff]/30">
-                        {u.full_name?.charAt(0)?.toUpperCase() || "U"}
-                      </div>
+                      <UserAvatar user={u} size="md" />
                       <div>
                         <div className="font-bold text-foreground flex items-center gap-1.5">
                           <span>{u.full_name}</span>

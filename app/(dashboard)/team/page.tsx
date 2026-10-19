@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/auth";
 import { TeamMemberActions } from "@/components/team/team-member-actions";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Mail, ShieldCheck, Shield } from "lucide-react";
 import type { UserRole } from "@/types/database";
 
 const FALLBACK_TEAM = [
-  { id: "1", full_name: "Jonathan Admin", role: "admin" as UserRole, email: "admin@xenoent.com" },
-  { id: "2", full_name: "Rian Kru Operasional", role: "staff" as UserRole, email: "staf@xenoent.com" },
+  { id: "1", full_name: "Jonathan Admin", role: "admin" as UserRole, email: "admin@xenoent.com", avatar_color: "#007aff" },
+  { id: "2", full_name: "Rian Kru Operasional", role: "staff" as UserRole, email: "staf@xenoent.com", avatar_color: null },
 ];
 
 export default async function TeamPage() {
@@ -29,9 +30,7 @@ export default async function TeamPage() {
           <div key={member.id} className="apple-card-interactive p-5 space-y-3.5 rounded-2xl border border-border shadow-xs hover:shadow-md transition-all">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#007aff] to-[#0051d5] flex items-center justify-center text-white font-bold text-sm shadow-sm shadow-[#007aff]/30">
-                  {member.full_name?.charAt(0) || "U"}
-                </div>
+                <UserAvatar user={member} size="md" />
                 <div>
                   <h3 className="text-sm font-bold text-foreground">{member.full_name}</h3>
                   <div className="flex items-center gap-1.5 mt-1">

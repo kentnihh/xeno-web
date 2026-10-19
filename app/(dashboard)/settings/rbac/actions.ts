@@ -32,6 +32,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
     const password = formData.get("password") as string;
     const phone = (formData.get("phone") as string)?.trim() || null;
     const roleId = ((formData.get("roleId") as string)?.trim() || "staff").toLowerCase();
+    const avatarColor = (formData.get("avatarColor") as string)?.trim() || null;
 
     if (!fullName || !email || !password) {
       return { error: "Nama lengkap, email, dan kata sandi wajib diisi." };
@@ -70,6 +71,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
         email,
         phone,
         role: roleId as "admin" | "manager" | "staff",
+        avatar_color: roleId === "admin" ? avatarColor : null,
       },
       { onConflict: "id" }
     );
@@ -101,13 +103,20 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
     const fullName = (formData.get("fullName") as string)?.trim();
     const phone = (formData.get("phone") as string)?.trim() || null;
     const roleId = ((formData.get("roleId") as string)?.trim() || "staff").toLowerCase();
+    const avatarColor = (formData.get("avatarColor") as string)?.trim() || null;
 
     if (!id || !fullName) return { error: "ID dan nama lengkap wajib diisi." };
 
     const supabase = await getRBACClient();
     const { error: profileError } = await supabase
       .from("profiles")
-      .update({ full_name: fullName, phone, role: roleId as "admin" | "manager" | "staff" })
+      .update({
+        full_name: fullName,
+        phone,
+        role: roleId as "admin" | "manager" | "staff",
+        avatar_color: roleId === "admin" ? avatarColor : null,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", id);
 
     if (profileError) return { error: profileError.message };

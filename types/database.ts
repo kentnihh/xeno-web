@@ -49,6 +49,7 @@ export interface Profile {
   role: UserRole;
   phone: string | null;
   avatar_url: string | null;
+  avatar_color?: string | null;
   created_at: string;
   updated_at: string;
 }

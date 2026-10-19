@@ -10,21 +10,31 @@ import type { UserRole } from "@/types/database";
 const updateMemberRoleSchema = z.object({
   userId: z.string().min(1, "ID pengguna wajib diisi"),
   newRole: z.enum(["admin", "manager", "staff"]),
+  avatarColor: z.string().optional().nullable(),
 });
 
 export async function updateMemberRoleAction(
   userId: string,
-  newRole: UserRole
+  newRole: UserRole,
+  avatarColor?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requirePermission("team.manage");
 
-    const validated = updateMemberRoleSchema.parse({ userId, newRole });
+    const validated = updateMemberRoleSchema.parse({ userId, newRole, avatarColor });
     const supabase = await createClient();
+
+    const updatePayload: Record<string, unknown> = {
+      role: validated.newRole,
+      updated_at: new Date().toISOString(),
+    };
+    if (validated.newRole === "admin" && validated.avatarColor) {
+      updatePayload.avatar_color = validated.avatarColor;
+    }
 
     const { error } = await supabase
       .from("profiles")
-      .update({ role: validated.newRole, updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq("id", validated.userId);
 
     if (error) {
@@ -44,6 +54,40 @@ export async function updateMemberRoleAction(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Gagal memperbarui peran anggota tim.",
+    };
+  }
+}
+
+const updateAvatarColorSchema = z.object({
+  userId: z.string().min(1, "ID pengguna wajib diisi"),
+  avatarColor: z.string().min(1, "Warna avatar wajib diisi"),
+});
+
+export async function updateMemberAvatarColorAction(
+  userId: string,
+  avatarColor: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requirePermission("team.manage");
+    const validated = updateAvatarColorSchema.parse({ userId, avatarColor });
+    const supabase = await createClient();
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ avatar_color: validated.avatarColor, updated_at: new Date().toISOString() })
+      .eq("id", validated.userId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/team");
+    revalidatePath("/settings/rbac");
+    revalidatePath("/users");
+
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal memperbarui warna avatar.",
     };
   }
 }

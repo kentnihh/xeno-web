@@ -22,8 +22,8 @@ const FALLBACK_EVENT = {
 };
 
 const FALLBACK_CREW_PROFILES: Profile[] = [
-  { id: "usr-1", full_name: "Jonathan Admin", email: "admin@xenoent.com", role: "admin", phone: "+62 812-1111-2222", avatar_url: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
-  { id: "usr-2", full_name: "Rian Kru Operasional", email: "staf@xenoent.com", role: "staff", phone: "+62 813-3333-4444", avatar_url: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
+  { id: "usr-1", full_name: "Jonathan Admin", email: "admin@xenoent.com", role: "admin", phone: "+62 812-1111-2222", avatar_url: null, avatar_color: "#007aff", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
+  { id: "usr-2", full_name: "Rian Kru Operasional", email: "staf@xenoent.com", role: "staff", phone: "+62 813-3333-4444", avatar_url: null, avatar_color: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
 ];
 
 export default async function EventDetailPage({

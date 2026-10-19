@@ -17,6 +17,7 @@ import {
 import { PRESET_ROLES } from "./assign-crew-modal";
 import { Combobox } from "@/components/ui/combobox";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import type { EventCrew, Profile } from "@/types/database";
 
 interface ManageCrewModalProps {
@@ -293,15 +294,15 @@ export function ManageCrewModal({
                         className={"p-3 rounded-2xl border " + (isEditing ? "bg-[#007aff]/5 border-[#007aff]/40" : "bg-card border-border")}
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                              <span>{p?.full_name || "Anggota Tim"}</span>
-                              {p?.role === "admin" && (
-                                <Shield className="w-3 h-3 text-[#ff9f0a]" />
-                              )}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground truncate">
-                              {p?.email}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <UserAvatar user={p} size="sm" />
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-foreground truncate">
+                                {p?.full_name || "Anggota Tim"}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground truncate">
+                                {p?.email}
+                              </div>
                             </div>
                           </div>
 
@@ -402,11 +403,14 @@ export function ManageCrewModal({
                         onClick={() => setSelectedStaffId(p.id)}
                         className={"w-full text-left p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer " + ((selectedStaffId || filteredAvailableProfiles[0]?.id) === p.id ? "bg-[#007aff]/15 text-[#007aff] font-semibold" : "hover:bg-muted text-foreground")}
                       >
-                        <div>
-                          <div>{p.full_name}</div>
-                          <div className="text-[10px] text-muted-foreground">{p.email}</div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <UserAvatar user={p} size="xs" showTooltip={false} />
+                          <div className="min-w-0">
+                            <div className="truncate">{p.full_name}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">{p.email}</div>
+                          </div>
                         </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted uppercase tracking-wider shrink-0 font-bold">
                           {p.role}
                         </span>
                       </button>

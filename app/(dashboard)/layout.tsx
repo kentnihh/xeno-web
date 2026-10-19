@@ -21,15 +21,19 @@ export default async function DashboardLayout({
   }
 
   let userRole = "Staff";
+  let avatarColor: string | null = null;
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, avatar_color")
       .eq("id", user.id)
       .single();
     if (profile?.role === "admin") {
       userRole = "Admin";
+    } else if (profile?.role === "manager") {
+      userRole = "Manager";
     }
+    avatarColor = profile?.avatar_color || null;
   }
 
   const [isAdminUser, hasRbacManage, hasTemplatesManage, hasUsersManage, canCreateEvent] =
@@ -51,6 +55,7 @@ export default async function DashboardLayout({
         <Navbar
           userEmail={user?.email || "staf@xenoent.com"}
           userRole={userRole}
+          avatarColor={avatarColor}
           canCreateEvent={canCreateEvent}
         />
         <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">{children}</main>

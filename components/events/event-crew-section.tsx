@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { UserCheck, Plus, Trash2, Shield, User, Loader2 } from "lucide-react";
+import { UserCheck, Plus, Trash2, User, Loader2 } from "lucide-react";
 import { assignEventCrew, removeEventCrew } from "@/app/(dashboard)/events/actions";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { AssignCrewModal } from "./assign-crew-modal";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import type { EventCrew, Profile } from "@/types/database";
@@ -127,12 +128,6 @@ export function EventCrewSection({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {crew.map((m) => {
             const p = m.profile;
-            const initials = (p?.full_name || "K")
-              .split(" ")
-              .slice(0, 2)
-              .map((w) => w[0])
-              .join("")
-              .toUpperCase();
 
             return (
               <div
@@ -140,13 +135,10 @@ export function EventCrewSection({
                 className="p-3.5 rounded-xl bg-card border border-border hover:border-[#007aff] transition-all flex items-center justify-between gap-3 shadow-xs"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#007aff] to-[#0051d5] flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm shadow-[#007aff]/30">
-                    {initials}
-                  </div>
+                  <UserAvatar user={p} size="sm" />
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
                       <span>{p?.full_name || "Staf"}</span>
-                      {p?.role === "admin" && <Shield className="w-3 h-3 text-[#ff9f0a] shrink-0" />}
                     </div>
                     <div className="text-[11px] text-[#007aff] dark:text-[#3894ff] font-semibold truncate">{m.role_in_event}</div>
                   </div>

@@ -3,19 +3,22 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { User, Plus, LogOut } from "lucide-react";
+import { Plus, LogOut } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { createClient } from "@/lib/supabase/client";
 
 interface NavbarProps {
   userEmail?: string;
   userRole?: string;
+  avatarColor?: string | null;
   canCreateEvent?: boolean;
 }
 
 export function Navbar({
   userEmail = "staf@xenoent.com",
   userRole = "Staff",
+  avatarColor,
   canCreateEvent = false,
 }: NavbarProps) {
   const router = useRouter();
@@ -70,15 +73,19 @@ export function Navbar({
         <ThemeToggle />
 
         {/* User Pill */}
-        <div className="hidden sm:flex items-center gap-2.5 bg-muted/70 hover:bg-muted px-3 py-1.5 rounded-full border border-border shadow-xs transition-colors">
-          <div className="w-5 h-5 rounded-full bg-[#007aff]/20 flex items-center justify-center text-[#007aff]">
-            <User className="w-3 h-3 stroke-[2.5]" />
-          </div>
+        <div className="hidden sm:flex items-center gap-2 bg-muted/70 hover:bg-muted pl-2 pr-3 py-1.5 rounded-full border border-border shadow-xs transition-colors">
+          <UserAvatar
+            role={userRole}
+            avatarColor={avatarColor}
+            size="xs"
+            name={userEmail}
+            showTooltip={false}
+          />
           <div className="flex items-center gap-2 text-xs">
             <span className="font-semibold text-foreground max-w-[140px] truncate">
               {userEmail}
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#007aff]/15 text-[#007aff] dark:text-[#3894ff] uppercase border border-[#007aff]/30">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border text-foreground uppercase tracking-wider">
               {userRole}
             </span>
           </div>
