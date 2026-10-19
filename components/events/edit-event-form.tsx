@@ -62,7 +62,7 @@ export function EditEventForm({ event, clients = [] }: { event: Event; clients?:
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="apple-card p-6 md:p-8 space-y-5 border border-border shadow-xs">
+      <form onSubmit={handleSubmit} className="apple-card p-4 sm:p-6 md:p-8 space-y-5 border border-border shadow-xs">
         <input type="hidden" name="id" value={event.id} />
 
         {errorMsg && (
@@ -178,17 +178,17 @@ export function EditEventForm({ event, clients = [] }: { event: Event; clients?:
           />
         </div>
 
-        <div className="pt-2 flex justify-end gap-3 border-t border-border">
+        <div className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-border">
           <Link
             href={`/events/${event.id}`}
-            className="apple-btn-secondary px-4 py-2.5 text-xs font-medium"
+            className="apple-btn-secondary w-full sm:w-auto px-4 py-2.5 text-xs font-medium justify-center text-center"
           >
             Batal
           </Link>
           <button
             type="submit"
             disabled={isPending}
-            className="apple-btn-primary px-5 py-2.5 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center gap-1.5 disabled:opacity-50"
+            className="apple-btn-primary w-full sm:w-auto px-5 py-2.5 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             {isPending ? (
               <>

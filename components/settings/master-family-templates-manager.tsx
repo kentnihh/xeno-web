@@ -278,13 +278,13 @@ export function MasterFamilyTemplatesManager({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           <button
             type="button"
             id="reset-family-template-btn"
             onClick={() => setShowResetConfirm(true)}
             disabled={isPending}
-            className="apple-btn-secondary px-3 py-2 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="apple-btn-secondary w-full sm:w-auto justify-center px-3 py-2 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-center"
             title="Reset ke struktur kategori bawaan"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -296,7 +296,7 @@ export function MasterFamilyTemplatesManager({
             id="add-family-category-btn"
             onClick={addCategory}
             disabled={isPending}
-            className="apple-btn-secondary px-3.5 py-2 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="apple-btn-secondary w-full sm:w-auto justify-center px-3.5 py-2 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-center"
           >
             <Plus className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
             <span>Tambah Kategori</span>
@@ -307,7 +307,7 @@ export function MasterFamilyTemplatesManager({
             id="save-family-template-btn"
             onClick={handleSave}
             disabled={isPending || saveStatus === "saving"}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 text-center"
           >
             {saveStatus === "saving" ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />

@@ -59,7 +59,7 @@ export function Sidebar({ canAccessSettings = false }: SidebarProps) {
   };
 
   return (
-    <aside className="w-64 bg-sidebar text-sidebar-foreground backdrop-blur-2xl border-r border-sidebar-border flex flex-col justify-between shrink-0 h-screen sticky top-0 z-40 transition-colors duration-150">
+    <aside className="w-64 bg-sidebar text-sidebar-foreground backdrop-blur-2xl border-r border-sidebar-border hidden md:flex flex-col justify-between shrink-0 h-screen sticky top-0 z-40 transition-colors duration-150">
       <div className="overflow-y-auto">
         {/* macOS Traffic Lights + Brand */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-sidebar-border sticky top-0 bg-sidebar/80 backdrop-blur-md z-10">

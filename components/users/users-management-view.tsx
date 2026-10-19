@@ -76,11 +76,11 @@ export function UsersManagementView({
           </p>
         </div>
 
-        <div>
+        <div className="w-full sm:w-auto">
           {tab === "users" && (
             <button
               onClick={() => setDialog({ type: "create_user" })}
-              className="apple-btn-primary px-3.5 py-2 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
+              className="apple-btn-primary w-full sm:w-auto justify-center px-3.5 py-2 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" /> <span>Tambah Staf</span>
             </button>
@@ -88,7 +88,7 @@ export function UsersManagementView({
           {tab === "roles" && (
             <button
               onClick={() => setDialog({ type: "create_role" })}
-              className="apple-btn-primary px-3.5 py-2 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
+              className="apple-btn-primary w-full sm:w-auto justify-center px-3.5 py-2 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" /> <span>Buat Peran</span>
             </button>
@@ -96,7 +96,7 @@ export function UsersManagementView({
           {tab === "permissions" && (
             <button
               onClick={() => setDialog({ type: "create_perm" })}
-              className="apple-btn-primary px-3.5 py-2 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
+              className="apple-btn-primary w-full sm:w-auto justify-center px-3.5 py-2 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" /> <span>Tambah Izin</span>
             </button>
@@ -104,7 +104,7 @@ export function UsersManagementView({
         </div>
       </div>
 
-      <div className="flex border-b border-border gap-6 text-xs font-semibold">
+      <div className="flex border-b border-border gap-6 text-xs font-semibold overflow-x-auto scrollbar-none whitespace-nowrap">
         {(["users", "roles", "permissions"] as const).map((t) => (
           <button
             key={t}

@@ -179,11 +179,11 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
               />
             </div>
 
-            <div className="pt-2 flex justify-end gap-2 border-t border-border">
-              <button type="button" onClick={onClose} disabled={isPending} className="apple-btn-secondary px-4 py-2 text-xs font-medium cursor-pointer">
+            <div className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-border">
+              <button type="button" onClick={onClose} disabled={isPending} className="apple-btn-secondary w-full sm:w-auto px-4 py-2 text-xs font-medium cursor-pointer justify-center text-center">
                 Batal
               </button>
-              <button type="submit" disabled={isPending} className="apple-btn-primary px-5 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+              <button type="submit" disabled={isPending} className="apple-btn-primary w-full sm:w-auto px-5 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50">
                 {isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Menyimpan...</span></> : <span>Simpan Perubahan</span>}
               </button>
             </div>

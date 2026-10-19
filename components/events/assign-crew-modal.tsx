@@ -81,8 +81,8 @@ export function AssignCrewModal({
   }));
 
   const content = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-full max-w-md rounded-3xl bg-card backdrop-blur-2xl border border-border shadow-2xl p-6 space-y-4 text-foreground">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="w-[calc(100%-1.5rem)] sm:w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-card backdrop-blur-2xl border border-border shadow-2xl p-4 sm:p-6 space-y-4 text-foreground">
         <div className="flex items-center justify-between pb-3 border-b border-border">
           <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
             <Sparkles className="w-4 h-4 text-[#007aff]" />
@@ -145,18 +145,18 @@ export function AssignCrewModal({
             />
           </div>
 
-          <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 pt-3 border-t border-border">
             <button
               type="button"
               onClick={onClose}
-              className="apple-btn-secondary px-4 py-2 text-xs"
+              className="apple-btn-secondary w-full sm:w-auto px-4 py-2 text-xs justify-center text-center"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={availableProfiles.length === 0 || isPending}
-              className="apple-btn-primary px-4 py-2 text-xs gap-1.5 disabled:opacity-50"
+              className="apple-btn-primary w-full sm:w-auto px-4 py-2 text-xs justify-center gap-1.5 disabled:opacity-50"
             >
               {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>Tugaskan</span>

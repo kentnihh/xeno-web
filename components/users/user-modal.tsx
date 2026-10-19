@@ -151,7 +151,7 @@ export function UserModal({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-foreground mb-1.5">
               Nomor Telepon
@@ -244,19 +244,19 @@ export function UserModal({
           </div>
         )}
 
-        <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 pt-3 border-t border-border">
           <button
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="apple-btn-secondary px-4 py-2 text-xs"
+            className="apple-btn-secondary w-full sm:w-auto px-4 py-2 text-xs justify-center text-center"
           >
             Batal
           </button>
           <button
             type="submit"
             disabled={isPending}
-            className="apple-btn-primary px-4 py-2 text-xs gap-1.5 disabled:opacity-50"
+            className="apple-btn-primary w-full sm:w-auto px-4 py-2 text-xs justify-center gap-1.5 disabled:opacity-50"
           >
             {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             <span>{isEdit ? "Simpan Perubahan" : "Buat Pengguna"}</span>

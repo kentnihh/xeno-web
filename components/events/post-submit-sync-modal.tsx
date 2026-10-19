@@ -114,7 +114,7 @@ export function PostSubmitSyncModal({
 
       {/* Centered Modal Container */}
       <div
-        className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-2rem)] max-w-md rounded-3xl bg-card border border-border shadow-2xl p-6 text-foreground transform animate-in zoom-in-95 duration-200 focus:outline-hidden"
+        className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-md max-h-[85vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-card border border-border shadow-2xl p-4 sm:p-6 text-foreground transform animate-in zoom-in-95 duration-200 focus:outline-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="sync-modal-title"
@@ -176,13 +176,13 @@ export function PostSubmitSyncModal({
         </div>
 
         {/* Modal Action Buttons */}
-        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-3 border-t border-border">
           <button
             type="button"
             id="sync-modal-later-btn"
             onClick={handleSkip}
             disabled={isSyncing}
-            className="px-4 py-2 rounded-xl bg-muted/80 hover:bg-muted active:bg-muted/60 text-foreground text-xs font-semibold transition-all cursor-pointer disabled:opacity-40"
+            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-muted/80 hover:bg-muted active:bg-muted/60 text-foreground text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 text-center"
           >
             Nanti Saja
           </button>
@@ -192,7 +192,7 @@ export function PostSubmitSyncModal({
             id="sync-modal-confirm-btn"
             onClick={handleSync}
             disabled={isSyncing}
-            className="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-[#007aff] hover:bg-[#0066d6] active:bg-[#0051ab] text-white text-xs font-semibold shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-[#007aff] hover:bg-[#0066d6] active:bg-[#0051ab] text-white text-xs font-semibold shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isSyncing ? (
               <>

@@ -173,7 +173,7 @@ export function ExportSpreadsheetPdfModal({
 
       {/* 2. Centered Modal Container */}
       <div
-        className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-2rem)] max-w-lg rounded-2xl bg-card border border-border shadow-2xl p-6 text-foreground transform animate-in zoom-in-95 duration-150 focus:outline-hidden"
+        className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-lg max-h-[85vh] flex flex-col rounded-2xl bg-card border border-border shadow-2xl p-4 sm:p-6 text-foreground transform animate-in zoom-in-95 duration-150 focus:outline-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-pdf-modal-title"
@@ -397,7 +397,7 @@ export function ExportSpreadsheetPdfModal({
             <label className="text-xs font-bold text-foreground block mb-2">
               Orientasi Halaman PDF:
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 id="orientation-landscape-btn"
@@ -438,13 +438,13 @@ export function ExportSpreadsheetPdfModal({
         </div>
 
         {/* Modal Footer Buttons */}
-        <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-4 border-t border-border">
           <button
             type="button"
             id="cancel-export-pdf-btn"
             onClick={onClose}
             disabled={isGenerating}
-            className="px-5 py-2 rounded-xl bg-muted/80 hover:bg-muted text-foreground text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto px-5 py-2 rounded-xl bg-muted/80 hover:bg-muted text-foreground text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 text-center"
           >
             Batal
           </button>
@@ -453,7 +453,7 @@ export function ExportSpreadsheetPdfModal({
             id="download-spreadsheet-pdf-btn"
             onClick={handleDownload}
             disabled={totalSelectedCount === 0 || isGenerating}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />

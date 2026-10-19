@@ -87,7 +87,7 @@ export function ConfirmModal({
 
       {/* 2. Perfectly Centered Modal Container */}
       <div
-        className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-2rem)] max-w-md rounded-2xl bg-card border border-border shadow-2xl p-6 text-foreground transform animate-in zoom-in-95 duration-150 focus:outline-hidden"
+        className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-md max-h-[85vh] overflow-y-auto rounded-2xl bg-card border border-border shadow-2xl p-5 sm:p-6 text-foreground transform animate-in zoom-in-95 duration-150 focus:outline-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
@@ -124,13 +124,13 @@ export function ConfirmModal({
           </div>
         </div>
 
-        {/* Footer buttons aligned to the right */}
-        <div className="flex items-center justify-end gap-2.5 pt-3">
+        {/* Footer buttons aligned to the right (full-width on mobile) */}
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5 pt-3">
           <button
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="px-5 py-2 rounded-full bg-muted/80 hover:bg-muted text-foreground text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto px-5 py-2.5 text-center rounded-full bg-muted/80 hover:bg-muted text-foreground text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
           >
             {cancelLabel}
           </button>
@@ -138,7 +138,7 @@ export function ConfirmModal({
             type="button"
             onClick={handleConfirm}
             disabled={isPending}
-            className="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-full bg-[#ff453a] hover:bg-[#ff3b30] text-white text-xs font-semibold shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-[#ff453a] hover:bg-[#ff3b30] text-white text-xs font-semibold shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
           >
             {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             <span>{confirmLabel}</span>

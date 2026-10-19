@@ -217,7 +217,7 @@ export function AssignVendorModal({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-foreground block mb-1.5">Nilai Kontrak (IDR)</label>
                   <input
@@ -256,19 +256,19 @@ export function AssignVendorModal({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 pt-3 border-t border-border">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isPending}
-                className="apple-btn-secondary px-4 py-2 text-xs"
+                className="apple-btn-secondary w-full sm:w-auto px-4 py-2 text-xs justify-center text-center"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={!selectedVendorId || !serviceName.trim() || isPending}
-                className="apple-btn-primary px-4 py-2 text-xs gap-1.5 disabled:opacity-40"
+                className="apple-btn-primary w-full sm:w-auto px-4 py-2 text-xs justify-center gap-1.5 disabled:opacity-40"
               >
                 {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Briefcase className="w-3.5 h-3.5" />}
                 <span>Tugaskan Vendor</span>
@@ -284,7 +284,7 @@ export function AssignVendorModal({
               <span>Vendor baru akan disimpan ke Master Data dan langsung dihubungkan ke acara ini.</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Nama Vendor *</label>
                 <input
@@ -309,7 +309,7 @@ export function AssignVendorModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Nama PIC *</label>
                 <input
@@ -334,7 +334,7 @@ export function AssignVendorModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Email</label>
                 <input
@@ -370,7 +370,7 @@ export function AssignVendorModal({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-foreground block mb-1.5">Biaya (IDR)</label>
                   <input
@@ -398,19 +398,19 @@ export function AssignVendorModal({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 pt-3 border-t border-border">
               <button
                 type="button"
                 onClick={() => setMode("select")}
                 disabled={isPending}
-                className="apple-btn-secondary px-4 py-2 text-xs"
+                className="apple-btn-secondary w-full sm:w-auto px-4 py-2 text-xs justify-center text-center"
               >
                 Kembali
               </button>
               <button
                 type="submit"
                 disabled={isPending}
-                className="apple-btn-primary px-4 py-2 text-xs gap-1.5 disabled:opacity-40"
+                className="apple-btn-primary w-full sm:w-auto px-4 py-2 text-xs justify-center gap-1.5 disabled:opacity-40"
               >
                 {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                 <span>Buat & Hubungkan</span>

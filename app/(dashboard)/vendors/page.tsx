@@ -76,7 +76,7 @@ export default async function VendorsPage() {
             <input name="notes" placeholder="Catatan spesifikasi/alat" className="apple-input px-3.5 py-2 text-xs" />
           </div>
           <div className="flex justify-end pt-1">
-            <button type="submit" className="apple-btn-primary px-4 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30">
+            <button type="submit" className="apple-btn-primary w-full sm:w-auto px-4 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30">
               Simpan Vendor
             </button>
           </div>

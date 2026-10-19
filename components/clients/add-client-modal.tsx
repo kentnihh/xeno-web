@@ -407,19 +407,19 @@ export function AddClientModal({ isOpen, onClose, onSuccess, clientToEdit }: Add
         )}
 
         {/* Action Buttons */}
-        <div className="pt-3 flex justify-end gap-2.5 border-t border-border">
+        <div className="pt-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 border-t border-border">
           <button
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="apple-btn-secondary px-4 py-2 text-xs font-medium cursor-pointer"
+            className="apple-btn-secondary w-full sm:w-auto px-4 py-2 text-xs font-medium cursor-pointer justify-center text-center"
           >
             Batal
           </button>
           <button
             type="submit"
             disabled={isPending}
-            className="apple-btn-primary px-5 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="apple-btn-primary w-full sm:w-auto px-5 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             {isPending ? (
               <>

@@ -69,7 +69,7 @@ export function MonthlyCalendar({
   const doubleBookedDaysCount = Object.values(eventsByDay).filter((arr) => arr.length > 1).length;
 
   return (
-    <div className="apple-card p-6 space-y-4">
+    <div className="apple-card p-4 sm:p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-[#007aff]/15 border border-[#007aff]/30 flex items-center justify-center text-[#007aff]">
@@ -124,7 +124,7 @@ export function MonthlyCalendar({
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1.5 text-center font-bold text-[11px] py-1 border-b border-border uppercase tracking-wider">
+      <div className="grid grid-cols-7 gap-1 sm:gap-1.5 text-center font-bold text-[10px] sm:text-[11px] py-1 border-b border-border uppercase tracking-wider">
         {WEEK_DAYS.map((d) => (
           <div
             key={d}
@@ -138,11 +138,11 @@ export function MonthlyCalendar({
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-2 min-h-[280px]">
+      <div className="grid grid-cols-7 gap-1 sm:gap-2 min-h-[220px] sm:min-h-[280px]">
         {Array.from({ length: firstDayIndex }).map((_, i) => (
           <div
             key={`blank-${i}`}
-            className="min-h-[78px] rounded-xl bg-muted/30 border border-dashed border-border/60 opacity-40"
+            className="min-h-[52px] sm:min-h-[78px] rounded-lg sm:rounded-xl bg-muted/30 border border-dashed border-border/60 opacity-40"
           />
         ))}
 
@@ -157,7 +157,7 @@ export function MonthlyCalendar({
             <div
               key={day}
               onClick={() => hasEvents && setSelectedDayEvents(dayEvents)}
-              className={`min-h-[78px] p-2 rounded-xl border transition-all duration-150 flex flex-col justify-between ${isDoubleBooked
+              className={`min-h-[52px] sm:min-h-[78px] p-1.5 sm:p-2 rounded-lg sm:rounded-xl border transition-all duration-150 flex flex-col justify-between ${isDoubleBooked
                 ? "bg-rose-500/10 border-rose-500 hover:border-rose-600 shadow-sm shadow-rose-500/20 hover:shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98] ring-1 ring-rose-500/40"
                 : hasEvents
                   ? "bg-[#007aff]/10 border-[#007aff] hover:border-[#007aff] shadow-sm shadow-[#007aff]/15 hover:shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98] ring-1 ring-[#007aff]/30"
@@ -166,7 +166,7 @@ export function MonthlyCalendar({
             >
               <div className="flex items-center justify-between">
                 <span
-                  className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${isToday
+                  className={`text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full ${isToday
                     ? "bg-[#007aff] text-white shadow-sm shadow-[#007aff]/50"
                     : isDoubleBooked
                       ? "bg-rose-500 text-white shadow-xs"

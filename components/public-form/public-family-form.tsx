@@ -407,7 +407,7 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
             <div className="p-3.5 rounded-xl bg-muted/40 border border-border/70 text-left">
               <div className="text-[11px] text-muted-foreground">Total Anggota Terdata</div>
               <div className="text-base font-bold text-foreground mt-0.5">

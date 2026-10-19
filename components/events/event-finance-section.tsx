@@ -289,7 +289,7 @@ export function EventFinanceSection({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[580px] text-left text-xs">
               <thead>
                 <tr className="border-b border-border text-muted-foreground font-semibold">
                   <th className="pb-2.5 font-bold">Tanggal</th>

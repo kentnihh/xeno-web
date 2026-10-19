@@ -77,7 +77,7 @@ export function CreateEventForm({ clients }: CreateEventFormProps) {
     <>
       <form
         onSubmit={handleSubmit}
-        className="apple-card p-6 md:p-8 space-y-5 border border-border shadow-xs"
+        className="apple-card p-4 sm:p-6 md:p-8 space-y-5 border border-border shadow-xs"
       >
         {errorMsg && (
           <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold">
@@ -216,17 +216,17 @@ export function CreateEventForm({ clients }: CreateEventFormProps) {
           />
         </div>
 
-        <div className="pt-2 flex justify-end gap-3 border-t border-border">
+        <div className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-border">
           <Link
             href="/events"
-            className="apple-btn-secondary px-4 py-2.5 text-xs font-medium"
+            className="apple-btn-secondary w-full sm:w-auto px-4 py-2.5 text-xs font-medium justify-center text-center"
           >
             Batal
           </Link>
           <button
             type="submit"
             disabled={isPending}
-            className="apple-btn-primary px-5 py-2.5 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center gap-1.5 disabled:opacity-50"
+            className="apple-btn-primary w-full sm:w-auto px-5 py-2.5 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             {isPending ? (
               <>

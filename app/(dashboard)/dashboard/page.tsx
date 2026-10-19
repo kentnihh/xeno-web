@@ -197,7 +197,7 @@ export default async function DashboardPage() {
         {canCreateEvent && (
           <Link
             href="/events/new"
-            className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-fit shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
+            className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-full sm:w-fit justify-center shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Buat Acara</span>

@@ -163,7 +163,7 @@ export function ClientsView({
           <button
             type="button"
             onClick={handleOpenAdd}
-            className="apple-btn-primary px-4 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+            className="apple-btn-primary w-full sm:w-auto justify-center px-4 py-2 text-xs font-semibold shadow-md shadow-[#007aff]/30 flex items-center gap-1.5 cursor-pointer text-center"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Tambah Klien</span>

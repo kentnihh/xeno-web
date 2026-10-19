@@ -31,7 +31,7 @@ const Workbook = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-full h-[620px] sm:h-[680px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
+      <div className="w-full h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
         <Loader2 className="w-7 h-7 animate-spin text-[#007aff]" />
         <span className="text-xs font-semibold tracking-tight">Memuat Lembar Kerja Excel...</span>
       </div>
@@ -149,7 +149,7 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
 
     if (!mounted) {
       return (
-        <div className="w-full h-[620px] sm:h-[680px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
+        <div className="w-full h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
           <Loader2 className="w-7 h-7 animate-spin text-[#007aff]" />
           <span className="text-xs font-semibold tracking-tight">Memuat Lembar Kerja Excel...</span>
         </div>
@@ -178,7 +178,7 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
         </div>
 
         {/* Rich FortuneSheet Canvas Container */}
-        <div className="w-full h-[620px] sm:h-[680px] rounded-2xl border border-border bg-card shadow-xs overflow-hidden relative fortune-sheet-wrapper">
+        <div className="w-full h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px] rounded-2xl border border-border bg-card shadow-xs overflow-hidden relative fortune-sheet-wrapper">
           <Workbook
             key={initialSheets[0]?.id || sheetName}
             ref={workbookRef}

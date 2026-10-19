@@ -19,7 +19,7 @@ export function UsersTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-2xl apple-card border border-border shadow-xs">
-      <table className="w-full text-left text-xs text-foreground">
+      <table className="w-full min-w-[640px] text-left text-xs text-foreground">
         <thead className="bg-muted/60 text-[11px] uppercase tracking-wider text-muted-foreground font-bold border-b border-border">
           <tr>
             <th className="py-3.5 px-4 font-bold">Staf & Pengguna</th>

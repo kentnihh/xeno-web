@@ -19,6 +19,9 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "Xeno Entertainment — Operations",
   description: "Sistem Manajemen Acara dan Kru Xeno Entertainment",
+  icons: {
+    icon: "/logo-xeno.png",
+  },
 };
 
 

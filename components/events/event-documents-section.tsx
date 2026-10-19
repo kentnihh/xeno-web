@@ -429,7 +429,7 @@ export function EventDocumentsSection({
       {viewMode === "list" && filteredDocuments.length > 0 && (
         <div className="apple-card rounded-2xl border border-border overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[600px] text-left text-xs">
               <thead className="bg-muted/50 border-b border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Nama Berkas</th>

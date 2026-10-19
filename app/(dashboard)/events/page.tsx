@@ -238,12 +238,12 @@ export default async function EventsPage({
             Kelola seluruh portofolio produksi dan jadwal panggung Xeno Entertainment.
           </p>
         </div>
-        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
           {canSyncGCal && <SyncGCalButton canSync={canSyncGCal} />}
           {canCreateEvent && (
             <Link
               href="/events/new"
-              className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-fit shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
+              className="apple-btn-primary px-4 py-2 text-xs font-bold gap-2 w-full sm:w-fit justify-center shadow-lg shadow-[#007aff]/30 hover:shadow-[#007aff]/50"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Buat Acara Baru</span>
