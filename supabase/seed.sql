@@ -2,7 +2,7 @@
 -- Clean Production Seed Data for Xeno Entertainment
 -- 
 -- Configures:
--- 1. Production Users Sync: Jonathan Kent & Edja (Admin)
+-- 1. Production Users Sync: Jonathan Kent, Edja & Vinna (Admin)
 -- 2. RBAC System: Roles, Permissions, Role-Permission mappings
 -- 3. Production Master Templates: 10 operational spreadsheet master templates
 -- 
@@ -22,15 +22,16 @@ select
   case 
     when email = 'admin@admin.com' then 'Jonathan Kent'
     when email = 'edjamoo@xenoent.com' then 'Edja'
+    when email = 'vinna@xenoent.com' then 'Vinna'
     else coalesce(raw_user_meta_data->>'full_name', split_part(email, '@', 1))
   end, 
   email, 
   case 
-    when email in ('admin@admin.com', 'edjamoo@xenoent.com') then 'admin'::user_role
+    when email in ('admin@admin.com', 'edjamoo@xenoent.com', 'vinna@xenoent.com') then 'admin'::user_role
     else 'staff'::user_role
   end
 from auth.users
-where email in ('admin@admin.com', 'edjamoo@xenoent.com')
+where email in ('admin@admin.com', 'edjamoo@xenoent.com', 'vinna@xenoent.com')
 on conflict (id) do update set 
   role = excluded.role,
   full_name = excluded.full_name;
@@ -97,7 +98,7 @@ on conflict (role_id, permission_id) do nothing;
 insert into public.user_roles (user_id, role_id)
 select id, role::text
 from public.profiles
-where email in ('admin@admin.com', 'edjamoo@xenoent.com')
+where email in ('admin@admin.com', 'edjamoo@xenoent.com', 'vinna@xenoent.com')
 on conflict (user_id, role_id) do nothing;
 
 -- 7. Production Master Templates (9 standard operational templates)

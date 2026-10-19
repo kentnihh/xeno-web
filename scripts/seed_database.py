@@ -39,6 +39,12 @@ PRODUCTION_USERS = [
         "password": "295200",
         "role": "admin",
     },
+    {
+        "name": "Vinna",
+        "email": "vinna@xenoent.com",
+        "password": "290394",
+        "role": "admin",
+    },
 ]
 
 # Standard RBAC Roles
