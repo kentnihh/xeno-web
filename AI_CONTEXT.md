@@ -312,6 +312,6 @@ This builds the Next.js standalone container, restarts the app service, and Cadd
 
 
 <!-- LAST_ARCH_SYNC -->
-> **Last Architecture Sync**: b0d0575 feat(ui): implement global mobile responsiveness across layouts, forms, modals, tables, and spreadsheet
-987c8d3 chore: update ai_context.md with latest architecture sync [skip ci]
-d758f91 feat(ui): implement role-based avatar icons and custom admin colors
+> **Last Architecture Sync**: 68a517a feat(public-form): strip input placeholders and dynamically highlight filled member cards
+df17f95 chore: update ai_context.md with latest architecture sync [skip ci]
+b0d0575 feat(ui): implement global mobile responsiveness across layouts, forms, modals, tables, and spreadsheet
