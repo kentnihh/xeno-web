@@ -24,6 +24,7 @@ import {
   type EventVendor,
   type MasterTemplate,
   type FormCategorySchema,
+  type FormFieldSchema,
 } from "@/types/database";
 
 
@@ -187,9 +188,21 @@ export async function createEvent(
           Array.isArray(familyTemplate.categories) &&
           familyTemplate.categories.length > 0
         ) {
-          familySchema = familyTemplate.categories;
+          familySchema = familyTemplate.categories.map((cat: FormCategorySchema) => ({
+            ...cat,
+            fields: (cat.fields || []).map((fld: FormFieldSchema) => ({
+              ...fld,
+              required: false,
+            })),
+          }));
         } else {
-          familySchema = DEFAULT_PUBLIC_FORM_SCHEMA;
+          familySchema = DEFAULT_PUBLIC_FORM_SCHEMA.map((cat: FormCategorySchema) => ({
+            ...cat,
+            fields: (cat.fields || []).map((fld: FormFieldSchema) => ({
+              ...fld,
+              required: false,
+            })),
+          }));
         }
       } else {
         // If FALSE, initialize with empty schema so admin builds categories manually

@@ -214,7 +214,7 @@ export function MasterFamilyTemplatesManager({
             id: uniqueFieldId,
             label,
             type: fld.type || "text",
-            required: Boolean(fld.required),
+            required: false,
           };
         });
 
@@ -506,29 +506,15 @@ export function MasterFamilyTemplatesManager({
                           className="apple-input px-2.5 py-1.5 text-xs flex-1 min-w-[140px]"
                         />
 
-                        <div className="flex items-center gap-3 shrink-0">
-                          <label className="flex items-center gap-1.5 text-[11px] text-foreground cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(fld.required)}
-                              onChange={(e) =>
-                                updateField(catIdx, fldIdx, "required", e.target.checked)
-                              }
-                              className="w-3.5 h-3.5 rounded border-border text-rose-600 focus:ring-rose-500 cursor-pointer"
-                            />
-                            <span>Wajib Diisi</span>
-                          </label>
-
-                          <button
-                            type="button"
-                            onClick={() => removeFieldFromCategory(catIdx, fldIdx)}
-                            className="p-1 rounded-md hover:bg-rose-500/10 text-muted-foreground hover:text-rose-600 transition-colors cursor-pointer"
-                            title="Hapus kolom ini"
-                            aria-label="Hapus kolom ini"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFieldFromCategory(catIdx, fldIdx)}
+                          className="p-1 rounded-md hover:bg-rose-500/10 text-muted-foreground hover:text-rose-600 transition-colors cursor-pointer shrink-0"
+                          title="Hapus kolom ini"
+                          aria-label="Hapus kolom ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   ))}

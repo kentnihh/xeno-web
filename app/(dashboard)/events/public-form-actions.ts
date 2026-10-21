@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
 import { publicFormDataPayloadSchema } from "@/lib/validations/public-form";
-import type { EventPublicForm, EventFormData, FormCategorySchema } from "@/types/database";
+import type { EventPublicForm, EventFormData, FormCategorySchema, FormFieldSchema } from "@/types/database";
 
 /**
  * Generates a secure random 32-character hex token using Node's native crypto module.
@@ -73,7 +73,13 @@ export async function getOrCreateEventPublicForm(eventId: string): Promise<Event
       .eq("is_active", true)
       .maybeSingle();
     if (familyTemplate?.categories && Array.isArray(familyTemplate.categories) && familyTemplate.categories.length > 0) {
-      initialSchema = familyTemplate.categories;
+      initialSchema = familyTemplate.categories.map((cat: FormCategorySchema) => ({
+        ...cat,
+        fields: (cat.fields || []).map((fld: FormFieldSchema) => ({
+          ...fld,
+          required: false,
+        })),
+      }));
     }
   } catch {
     // Fall back to default constant
@@ -223,7 +229,9 @@ export async function applyMasterFamilyTemplateToEvent(
     title: (c.title || c.name || `Kategori ${i + 1}`).trim(),
     name: (c.name || c.title || `Kategori ${i + 1}`).trim(),
     description: c.description || "",
-    fields: Array.isArray(c.fields) ? c.fields : [],
+    fields: Array.isArray(c.fields)
+      ? c.fields.map((fld: any) => ({ ...fld, required: false }))
+      : [],
   }));
 
   // 2. Fetch existing form data if preserving

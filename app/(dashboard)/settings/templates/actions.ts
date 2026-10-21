@@ -356,7 +356,7 @@ export async function saveMasterFamilyTemplate(
             id: uniqueFieldId,
             label,
             type: fld.type || "text",
-            required: Boolean(fld.required),
+            required: false,
           };
         });
 
