@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useForm, useFieldArray, type Control, type UseFormRegister } from "react-hook-form";
+import { useForm, useFieldArray, useWatch, type Control, type UseFormRegister } from "react-hook-form";
 import {
   Users,
   Plus,
@@ -606,6 +606,11 @@ function CategoryFieldArrayGroup({
     name: `categories.${catIndex}.members`,
   });
 
+  const watchedMembers = useWatch({
+    control,
+    name: `categories.${catIndex}.members`,
+  });
+
   const getCategoryIcon = (text: string) => {
     const lower = text.toLowerCase();
     if (lower.includes("groom") || lower.includes("pria"))
@@ -641,17 +646,43 @@ function CategoryFieldArrayGroup({
       {/* Dynamic Member Inputs List */}
       <div className="space-y-3">
         {fields.map((field, memberIdx) => {
+          const currentMember = (watchedMembers && watchedMembers[memberIdx]) || (field as Record<string, any>);
+          const isFilled = Boolean(
+            currentMember &&
+            Object.entries(currentMember).some(
+              ([k, v]) => k !== "id" && typeof v === "string" && v.trim().length > 0
+            )
+          );
+
           return (
             <div
               key={field.id}
-              className="p-4 rounded-xl bg-muted/30 border border-border/70 hover:border-border transition-all space-y-3 relative group"
+              className={`p-4 rounded-xl border transition-all space-y-3 relative group ${
+                isFilled
+                  ? "bg-blue-50/60 dark:bg-blue-950/25 border-blue-200 dark:border-blue-800/60 shadow-xs"
+                  : "bg-muted/30 border-border/70 hover:border-border"
+              }`}
             >
               <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] text-foreground font-bold">
+                  <span
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${
+                      isFilled
+                        ? "bg-[#007aff] text-white"
+                        : "bg-muted text-foreground"
+                    }`}
+                  >
                     {memberIdx + 1}
                   </span>
-                  <span>Data Anggota</span>
+                  <span className={isFilled ? "text-foreground font-semibold" : "text-muted-foreground font-medium"}>
+                    Data Anggota
+                  </span>
+                  {isFilled && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                      <Check className="w-2.5 h-2.5" />
+                      Terisi
+                    </span>
+                  )}
                 </span>
                 {fields.length > 1 && (
                   <button
@@ -696,19 +727,12 @@ function CategoryFieldArrayGroup({
                           ) : null}
                           <input
                             type={isPhone ? "tel" : "text"}
-                            placeholder={
-                              col.placeholder ||
-                              (isName
-                                ? "Contoh: Bpk. Bambang Wijaya"
-                                : isPhone
-                                  ? "Contoh: 08123456789"
-                                  : `Masukkan ${col.label.toLowerCase()}`)
-                            }
                             {...register(
                               `categories.${catIndex}.members.${memberIdx}.${colKey}` as any
                             )}
-                            className={`w-full ${isName || isPhone ? "pl-8 pr-3" : "px-3"
-                              } py-2 text-xs rounded-xl border border-input bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all`}
+                            className={`w-full ${
+                              isName || isPhone ? "pl-8 pr-3" : "px-3"
+                            } py-2 text-xs rounded-xl border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all`}
                           />
                         </div>
                       </div>
@@ -727,9 +751,8 @@ function CategoryFieldArrayGroup({
                         <User className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <input
                           type="text"
-                          placeholder="Contoh: Bpk. Bambang Wijaya"
                           {...register(`categories.${catIndex}.members.${memberIdx}.name` as const)}
-                          className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-input bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
+                          className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
                         />
                       </div>
                     </div>
@@ -741,9 +764,8 @@ function CategoryFieldArrayGroup({
                       </label>
                       <input
                         type="text"
-                        placeholder="Contoh: Ayah Kandung / Saksi / Paman"
                         {...register(`categories.${catIndex}.members.${memberIdx}.role` as const)}
-                        className="w-full px-3 py-2 text-xs rounded-xl border border-input bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
                       />
                     </div>
 
@@ -756,9 +778,8 @@ function CategoryFieldArrayGroup({
                         <Phone className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <input
                           type="tel"
-                          placeholder="Contoh: 08123456789"
                           {...register(`categories.${catIndex}.members.${memberIdx}.phone` as const)}
-                          className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-input bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
+                          className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
                         />
                       </div>
                     </div>
@@ -771,9 +792,8 @@ function CategoryFieldArrayGroup({
                     </label>
                     <input
                       type="text"
-                      placeholder="Contoh: Memerlukan kursi roda / Duduk di baris depan"
                       {...register(`categories.${catIndex}.members.${memberIdx}.notes` as const)}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-input bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#007aff]/30 focus:border-[#007aff] transition-all"
                     />
                   </div>
                 </div>
