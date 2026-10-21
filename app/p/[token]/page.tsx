@@ -23,7 +23,7 @@ export async function generateMetadata({
 
   return {
     title: `Form Data Keluarga - ${result.event?.title || "Xeno Entertainment"}`,
-    description: `Formulir pendataan anggota keluarga & sesi foto untuk ${result.event?.title || "acara"}.`,
+    description: `Formulir pendataan anggota keluarga ${result.event?.title || "acara"}.`,
   };
 }
 
