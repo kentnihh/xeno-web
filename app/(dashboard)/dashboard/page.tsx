@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { hasPermission, getUserRoles } from "@/lib/auth";
+import { hasPermission, getUserRoles, getCurrentUser, getCurrentProfile } from "@/lib/auth";
 import { formatDate, sortEventsUpcomingFirst, sortTasksByPriority } from "@/lib/utils";
 import { CalendarDays, Plus, MapPin, ChevronRight, CheckCircle2, Clock } from "lucide-react";
 import { MonthlyCalendar } from "@/components/dashboard/monthly-calendar";
@@ -11,84 +11,25 @@ import type { Profile } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
-const FALLBACK_EVENTS = [
-  {
-    id: "66666666-6666-6666-6666-666666666666",
-    title: "Sinar Jaya Annual Gala 2026",
-    start_date: "2026-10-20T11:00:00.000Z",
-    end_date: "2026-10-20T19:00:00.000Z",
-    venue: "Grand Ballroom Hotel Indonesia",
-    status: "confirmed",
-  },
-  {
-    id: "77777777-7777-7777-7777-777777777777",
-    title: "Jessica & Kevin Wedding Reception",
-    start_date: "2026-10-29T11:00:00.000Z",
-    end_date: "2026-10-29T17:00:00.000Z",
-    venue: "Plataran Dharmawangsa",
-    status: "planning",
-  },
-];
 
-const FALLBACK_TASKS = [
-  {
-    id: "t1",
-    title: "Finalize Rundown with MC",
-    description: "Meeting dengan MC dan show director di venue",
-    priority: "high",
-    status: "todo",
-    due_date: "2026-10-18T10:00:00.000Z",
-    event: { id: "66666666-6666-6666-6666-666666666666", title: "Sinar Jaya Gala" },
-    assignee: { full_name: "Budi Santoso", role: "Show Director" },
-  },
-  {
-    id: "t2",
-    title: "Sound Check 20kW Rig",
-    description: "Cek line array dan mixer digital",
-    priority: "urgent",
-    status: "in_progress",
-    due_date: "2026-10-19T14:00:00.000Z",
-    event: { id: "66666666-6666-6666-6666-666666666666", title: "Sinar Jaya Gala" },
-    assignee: { full_name: "Reza Fikri", role: "Audio Engineer" },
-  },
-  {
-    id: "t3",
-    title: "Briefing Vendor Katering & Dekorasi",
-    description: "Sinkronisasi loading dock dan jadwal pemasangan",
-    priority: "medium",
-    status: "todo",
-    due_date: "2026-10-25T09:00:00.000Z",
-    event: { id: "77777777-7777-7777-7777-777777777777", title: "Jessica & Kevin Wedding Reception" },
-    assignee: { full_name: "Maya Anggraini", role: "Event Coordinator" },
-  },
-];
 
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  // 1. Fetch Current User & Role
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 1. Fetch Current User, Profile, Roles, and Permission concurrently (cached request deduplication)
+  const user = await getCurrentUser();
+  const currentUserId = user?.id;
 
-  let userProfile: Profile | null = null;
-  let userRoles: string[] = [];
-
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
-    userProfile = profile as Profile | null;
-    userRoles = await getUserRoles(user.id);
-  }
+  const [userProfile, userRoles, canCreateEvent] = await Promise.all([
+    getCurrentProfile(currentUserId),
+    getUserRoles(currentUserId),
+    hasPermission("events.create", currentUserId),
+  ]);
 
   const isAdminUser = userProfile?.role === "admin" || userRoles.includes("admin");
   const isManagerUser = userProfile?.role === "manager" || userRoles.includes("manager");
   const isPrivileged = isAdminUser || isManagerUser;
   const isStaff = !isPrivileged;
-  const currentUserId = user?.id;
 
   // 2. If user is STAFF: fetch assigned event IDs from event_crew
   let assignedEventIds: string[] = [];
@@ -130,8 +71,6 @@ export default async function DashboardPage() {
     }
   }
 
-  const { data: rawEvents } = await eventsQuery;
-
   // 4. Pending Events query (status in planning or draft; for STAFF: only assigned events)
   let pendingEventsQuery = supabase
     .from("events")
@@ -145,9 +84,6 @@ export default async function DashboardPage() {
       pendingEventsQuery = pendingEventsQuery.eq("id", "00000000-0000-0000-0000-000000000000");
     }
   }
-
-  const { data: rawPendingEvents } = await pendingEventsQuery;
-  const pendingEventsCount = rawPendingEvents ? rawPendingEvents.length : 0;
 
   // 5. Tasks query (for STAFF: assigned ONLY to current user, incomplete/pending, ordered by priority)
   let tasksQuery = supabase
@@ -165,20 +101,23 @@ export default async function DashboardPage() {
     }
   }
 
-  const { data: rawTasks } = await tasksQuery;
+  // Execute all dashboard queries in parallel
+  const [
+    { data: rawEvents },
+    { data: rawPendingEvents },
+    { data: rawTasks },
+  ] = await Promise.all([
+    eventsQuery,
+    pendingEventsQuery,
+    tasksQuery,
+  ]);
 
-  // For staff: strictly show only their assigned data, never fall back to mock demo data
-  const eventsList = isStaff
-    ? (rawEvents || [])
-    : (rawEvents && rawEvents.length > 0 ? rawEvents : FALLBACK_EVENTS);
+  const pendingEventsCount = rawPendingEvents ? rawPendingEvents.length : 0;
+  const eventsList = rawEvents || [];
   const events = sortEventsUpcomingFirst(eventsList);
 
-  const tasksList = isStaff
-    ? (rawTasks || [])
-    : (rawTasks && rawTasks.length > 0 ? rawTasks : FALLBACK_TASKS);
+  const tasksList = rawTasks || [];
   const tasks = sortTasksByPriority(tasksList);
-
-  const canCreateEvent = await hasPermission("events.create");
   const pendingTasksCount = tasks.filter((t) => t.status !== "done").length;
 
   return (

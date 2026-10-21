@@ -46,6 +46,40 @@ export function formatDate(dateStr: string | null | undefined): string {
 
 export const APP_TIME_ZONE = "Asia/Jakarta";
 
+/**
+ * Safely parses any date string into a Date object without timezone shift.
+ * If the string lacks timezone offset (e.g., from <input type="datetime-local"> like "2026-10-25T09:00"),
+ * it anchors to Asia/Jakarta (WIB, UTC+7), preventing server-environment UTC day/hour shifts.
+ */
+export function parseWIBDate(input: string | Date | null | undefined): Date {
+  if (!input) return new Date();
+  if (input instanceof Date) return isNaN(input.getTime()) ? new Date() : input;
+  const str = String(input).trim();
+  if (!str) return new Date();
+
+  // If string has an explicit timezone (e.g., ends with "Z" or has "+07:00" / "-05:00")
+  if (/(?:Z|[+-]\d{2}:\d{2}|[+-]\d{4})$/.test(str)) {
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+
+  // Format: YYYY-MM-DDTHH:mm or YYYY-MM-DDTHH:mm:ss -> explicitly attach +07:00 (WIB)
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?/.test(str)) {
+    const clean = str.length === 16 ? `${str}:00` : str;
+    const d = new Date(`${clean}+07:00`);
+    return isNaN(d.getTime()) ? new Date(str) : d;
+  }
+
+  // Format: YYYY-MM-DD -> treat as Jakarta midnight
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const d = new Date(`${str}T00:00:00+07:00`);
+    return isNaN(d.getTime()) ? new Date(str) : d;
+  }
+
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
 /** Kunci tanggal "YYYY-MM-DD" di zona Asia/Jakarta (sama di server & browser). */
 export function toDateKey(input: string | Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -92,7 +126,7 @@ export function formatFileSize(bytes: number | null | undefined): string {
 export function getStoragePathFromUrl(fileUrl: string): string {
   if (!fileUrl) return "";
   if (!fileUrl.startsWith("http")) return fileUrl;
-  for (const bucket of ["bucket-files", "event-documents"]) {
+  for (const bucket of ["bucket-files", "event-documents", "documents"]) {
     const marker = `/${bucket}/`;
     const idx = fileUrl.indexOf(marker);
     if (idx !== -1) {

@@ -16,6 +16,16 @@ export function RolesTable({
 }) {
   const protectedRoles = ["admin", "staff", "manager"];
 
+  if (roles.length === 0) {
+    return (
+      <div className="apple-card p-12 text-center text-xs text-muted-foreground space-y-2 border border-border shadow-xs">
+        <Shield className="w-8 h-8 text-muted-foreground/40 mx-auto" />
+        <p className="font-semibold text-foreground text-sm">Belum ada peran terdaftar</p>
+        <p>Tidak ada peran pengguna yang tercatat dalam sistem.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {roles.map((r) => {
@@ -107,6 +117,16 @@ export function PermissionsList({
     acc[mod].push(p);
     return acc;
   }, {});
+
+  if (permissions.length === 0) {
+    return (
+      <div className="apple-card p-12 text-center text-xs text-muted-foreground space-y-2 border border-border shadow-xs">
+        <Shield className="w-8 h-8 text-muted-foreground/40 mx-auto" />
+        <p className="font-semibold text-foreground text-sm">Belum ada izin terdaftar</p>
+        <p>Tidak ada konfigurasi izin modul yang tercatat dalam sistem.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

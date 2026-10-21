@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "./supabase/server";
 import type { Profile } from "@/types/database";
 import type { User } from "@supabase/supabase-js";
@@ -44,14 +45,14 @@ function getPermissionAliases(perm: string): string[] {
       set.add("events.create");
       set.add("events:create");
       set.add("events.manage");
-      set.add("events:manage");
+      set.add("events.manage");
     } else {
       set.add("events.edit");
       set.add("events:edit");
       set.add("events.update");
-      set.add("events:update");
+      set.add("events.update");
       set.add("events.manage");
-      set.add("events:manage");
+      set.add("events.manage");
     }
   }
 
@@ -127,14 +128,29 @@ function getPermissionAliases(perm: string): string[] {
 }
 
 /**
+ * Deduplicated retrieval of the current Supabase Auth user within a single request.
+ */
+export const getCurrentUser = cache(async (): Promise<User | null> => {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+    if (error || !user) return null;
+    return user;
+  } catch (err) {
+    console.warn("[getCurrentUser] Error fetching user:", err);
+    return null;
+  }
+});
+
+/**
  * Guards server actions — throws if no authenticated user.
  * Returns the authenticated user so callers can use user.id.
  */
 export async function requireAuth(): Promise<User> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) {
     throw new Error("Autentikasi diperlukan. Silakan login terlebih dahulu.");
   }
@@ -146,46 +162,49 @@ export async function requireAuth(): Promise<User> {
  */
 export async function requireAdmin(): Promise<User> {
   const user = await requireAuth();
-  const admin = await isAdmin();
+  const admin = await isAdmin(user.id);
   if (!admin) {
     throw new Error("Akses ditolak: Hanya Administrator yang berwenang.");
   }
   return user;
 }
 
-export async function getCurrentProfile(): Promise<Profile | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+/**
+ * Retrieves the current user's profile, deduplicated across the request.
+ */
+export const getCurrentProfile = cache(async (userId?: string): Promise<Profile | null> => {
+  let targetId = userId;
+  if (!targetId) {
+    const user = await getCurrentUser();
+    if (!user) return null;
+    targetId = user.id;
+  }
 
+  const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", user.id)
+    .eq("id", targetId)
     .maybeSingle();
 
   return profile as Profile | null;
-}
+});
 
 /**
  * Retrieves all assigned role IDs for the user (or current user if userId omitted).
+ * Deduplicated per request lifecycle using React cache().
  */
-export async function getUserRoles(userId?: string): Promise<string[]> {
+export const getUserRoles = cache(async (userId?: string): Promise<string[]> => {
   let targetId = userId;
   let profileRole: string | null = null;
 
-  const supabase = await createClient();
-
   if (!targetId) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return [];
     targetId = user.id;
   }
 
+  const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
@@ -224,20 +243,22 @@ export async function getUserRoles(userId?: string): Promise<string[]> {
   }
 
   return Array.from(roles);
-}
+});
 
 /**
  * Checks if a user has the administrator role.
+ * Deduplicated per request lifecycle using React cache().
  */
-export async function isAdmin(userId?: string): Promise<boolean> {
+export const isAdmin = cache(async (userId?: string): Promise<boolean> => {
   const roles = await getUserRoles(userId);
   return roles.includes("admin");
-}
+});
 
 /**
  * Retrieves all permission keys assigned to the user across all their roles.
+ * Deduplicated per request lifecycle using React cache().
  */
-export async function getUserPermissions(userId?: string): Promise<string[]> {
+export const getUserPermissions = cache(async (userId?: string): Promise<string[]> => {
   const roles = await getUserRoles(userId);
   if (roles.length === 0) return [];
 
@@ -283,15 +304,16 @@ export async function getUserPermissions(userId?: string): Promise<string[]> {
   }
 
   return Array.from(perms);
-}
+});
 
 /**
  * Evaluates whether the user holds a specific permission or its canonical alias.
+ * Deduplicated per request lifecycle using React cache().
  */
-export async function hasPermission(
+export const hasPermission = cache(async (
   permission: string,
   userId?: string
-): Promise<boolean> {
+): Promise<boolean> => {
   const roles = await getUserRoles(userId);
   if (roles.includes("admin")) return true;
 
@@ -300,7 +322,7 @@ export async function hasPermission(
 
   const aliases = getPermissionAliases(permission);
   return aliases.some((a) => userPerms.includes(a));
-}
+});
 
 /**
  * Enforces that user has at least one of the specified roles; throws Error if not.

@@ -1,8 +1,7 @@
 import { Sidebar } from "@/components/sidebar";
 import { Navbar } from "@/components/navbar";
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { isAdmin, hasPermission } from "@/lib/auth";
+import { getCurrentUser, getCurrentProfile, isAdmin, hasPermission } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,39 +10,29 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect("/login");
   }
 
-  let userRole = "Staff";
-  let avatarColor: string | null = null;
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, avatar_color")
-      .eq("id", user.id)
-      .single();
-    if (profile?.role === "admin") {
-      userRole = "Admin";
-    } else if (profile?.role === "manager") {
-      userRole = "Manager";
-    }
-    avatarColor = profile?.avatar_color || null;
-  }
-
-  const [isAdminUser, hasRbacManage, hasTemplatesManage, hasUsersManage, canCreateEvent] =
+  const [profile, isAdminUser, hasRbacManage, hasTemplatesManage, hasUsersManage, canCreateEvent] =
     await Promise.all([
-      isAdmin(),
-      hasPermission("rbac.manage"),
-      hasPermission("templates.manage"),
-      hasPermission("users.manage"),
-      hasPermission("events.create"),
+      getCurrentProfile(user.id),
+      isAdmin(user.id),
+      hasPermission("rbac.manage", user.id),
+      hasPermission("templates.manage", user.id),
+      hasPermission("users.manage", user.id),
+      hasPermission("events.create", user.id),
     ]);
+
+  let userRole = "Staff";
+  if (profile?.role === "admin") {
+    userRole = "Admin";
+  } else if (profile?.role === "manager") {
+    userRole = "Manager";
+  }
+  const avatarColor = profile?.avatar_color || null;
 
   const canAccessSettings =
     isAdminUser || hasRbacManage || hasTemplatesManage || hasUsersManage;

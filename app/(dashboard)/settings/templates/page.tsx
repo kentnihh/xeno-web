@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { FileSpreadsheet } from "lucide-react";
-import { isAdmin, hasPermission } from "@/lib/auth";
+import { isAdmin, hasPermission, getCurrentUser } from "@/lib/auth";
 import {
   getMasterTemplates,
   getMasterFamilyTemplate,
@@ -8,9 +8,13 @@ import {
 import { TemplatesTabsView } from "@/components/settings/templates-tabs-view";
 
 export default async function MasterTemplatesSettingsPage() {
-  const canAccess = (await isAdmin()) || (await hasPermission("templates.manage"));
+  const user = await getCurrentUser();
+  const [isAdminUser, canManageTemplates] = await Promise.all([
+    isAdmin(user?.id),
+    hasPermission("templates.manage", user?.id),
+  ]);
 
-  if (!canAccess) {
+  if (!isAdminUser && !canManageTemplates) {
     redirect("/dashboard");
   }
 

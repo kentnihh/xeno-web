@@ -47,6 +47,7 @@ export async function createVendorAction(formData: FormData): Promise<{ success:
 
     revalidatePath("/vendors");
     revalidatePath("/events");
+    revalidatePath("/dashboard");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -79,6 +80,7 @@ export async function deleteVendorAction(vendorId: string): Promise<{ success: b
 
     revalidatePath("/vendors");
     revalidatePath("/events");
+    revalidatePath("/dashboard");
     return { success: true };
   } catch (err: unknown) {
     return {

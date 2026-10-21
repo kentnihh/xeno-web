@@ -389,7 +389,7 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
     });
 
     return (
-      <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#000000] text-foreground flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-[#000000] text-foreground flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-card rounded-2xl border border-border shadow-xl p-8 text-center space-y-5 animate-in zoom-in-95 duration-200">
           <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-8 h-8" />
@@ -452,7 +452,7 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
   // Empty Schema State (Organizer hasn't created any categories yet)
   if (categories.length === 0) {
     return (
-      <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#000000] text-foreground py-12 px-4 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-[#000000] text-foreground py-12 px-4 flex items-center justify-center">
         <div className="max-w-md w-full bg-card rounded-2xl border border-border shadow-sm p-8 text-center space-y-4">
           <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto text-muted-foreground">
             <Users className="w-6 h-6 text-[#007aff]" />
@@ -467,7 +467,7 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#000000] text-foreground py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-[#000000] text-foreground py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header Branding Card */}
         <div className="bg-card rounded-2xl border border-border shadow-sm p-6 sm:p-8 space-y-4 relative overflow-hidden">

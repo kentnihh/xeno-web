@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requirePermission } from "@/lib/auth";
 import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
 import { publicFormDataPayloadSchema } from "@/lib/validations/public-form";
 import type { EventPublicForm, EventFormData, FormCategorySchema, FormFieldSchema } from "@/types/database";
@@ -116,6 +117,7 @@ export async function getOrCreateEventPublicForm(eventId: string): Promise<Event
  * Invalidate current token and generate a fresh token with a new 3-day expiry window.
  */
 export async function regeneratePublicFormToken(eventId: string): Promise<EventPublicForm> {
+  await requirePermission("events.edit");
   const supabase = await createClient();
   const newToken = generateNativeToken();
   const newExpiry = getDefaultExpiryDate();
@@ -137,6 +139,7 @@ export async function regeneratePublicFormToken(eventId: string): Promise<EventP
   }
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/dashboard");
   return data as EventPublicForm;
 }
 
@@ -147,6 +150,7 @@ export async function updatePublicFormExpiry(
   eventId: string,
   expiresAt: string
 ): Promise<EventPublicForm> {
+  await requirePermission("events.edit");
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -165,6 +169,7 @@ export async function updatePublicFormExpiry(
   }
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/dashboard");
   return data as EventPublicForm;
 }
 
@@ -176,6 +181,7 @@ export async function updatePublicFormDataAdmin(
   formData: EventFormData,
   formSchema?: FormCategorySchema[]
 ): Promise<EventPublicForm> {
+  await requirePermission("events.edit");
   const supabase = await createClient();
 
   const updatePayload: Record<string, any> = {
@@ -200,6 +206,7 @@ export async function updatePublicFormDataAdmin(
   }
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/dashboard");
   return data as EventPublicForm;
 }
 
@@ -210,6 +217,7 @@ export async function applyMasterFamilyTemplateToEvent(
   eventId: string,
   preserveExistingData: boolean = true
 ): Promise<EventPublicForm> {
+  await requirePermission("events.edit");
   const supabase = await createClient();
 
   // 1. Fetch active master family template

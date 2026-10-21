@@ -4,16 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/auth";
 import { EditEventForm } from "@/components/events/edit-event-form";
-import type { EventStatus } from "@/types/database";
 
-const FALLBACK_EVENT = {
-  title: "Sinar Jaya Annual Gala 2026",
-  venue: "Grand Ballroom Hotel Indonesia",
-  start_date: "2026-10-20T11:00:00.000Z",
-  end_date: "2026-10-20T19:00:00.000Z",
-  pic: "Jonathan Admin",
-  status: "confirmed" as EventStatus,
-};
 
 export default async function EditEventPage({
   params,
@@ -32,12 +23,12 @@ export default async function EditEventPage({
     supabase.from("clients").select("*").order("name"),
   ]);
 
-  const event = rawEvent || { id, ...FALLBACK_EVENT };
-  const clients = rawClients || [];
-
-  if (!event) {
+  if (!rawEvent) {
     notFound();
   }
+
+  const event = rawEvent;
+  const clients = rawClients || [];
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

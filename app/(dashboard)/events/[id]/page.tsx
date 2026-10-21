@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateRange } from "@/lib/utils";
 import { deleteEvent } from "../actions";
@@ -10,21 +11,9 @@ import { DeleteConfirmButton } from "@/components/ui/confirm-modal";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
 import { EventStatusSelect } from "@/components/events/event-status-select";
 import { EventActionButtons } from "@/components/events/event-action-buttons";
-import type { EventStatus, EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument } from "@/types/database";
+import type { EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument } from "@/types/database";
 
-const FALLBACK_EVENT = {
-  title: "Sinar Jaya Annual Gala 2026",
-  venue: "Grand Ballroom Hotel Indonesia",
-  start_date: "2026-10-20T11:00:00.000Z",
-  end_date: "2026-10-20T19:00:00.000Z",
-  pic: "Jonathan Admin",
-  status: "confirmed" as EventStatus,
-};
 
-const FALLBACK_CREW_PROFILES: Profile[] = [
-  { id: "usr-1", full_name: "Jonathan Admin", email: "admin@xenoent.com", role: "admin", phone: "+62 812-1111-2222", avatar_url: null, avatar_color: "#007aff", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
-  { id: "usr-2", full_name: "Rian Kru Operasional", email: "staf@xenoent.com", role: "staff", phone: "+62 813-3333-4444", avatar_url: null, avatar_color: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" },
-];
 
 export default async function EventDetailPage({
   params,
@@ -82,11 +71,15 @@ export default async function EventDetailPage({
     getOrCreateEventPublicForm(id).catch(() => null),
   ]);
 
-  const event = rawEvent || { id, ...FALLBACK_EVENT };
+  if (!rawEvent) {
+    notFound();
+  }
+
+  const event = rawEvent;
   const tasks: EventTask[] = (rawTasks as EventTask[]) || [];
   const eventVendors: EventVendor[] = (rawEventVendors as EventVendor[]) || [];
   const allVendors: Vendor[] = rawAllVendors || [];
-  const allProfiles = rawProfiles && rawProfiles.length > 0 ? rawProfiles : FALLBACK_CREW_PROFILES;
+  const allProfiles: Profile[] = (rawProfiles as Profile[]) || [];
   const crew: EventCrew[] = rawCrew || [];
   const expenses: EventExpense[] = (rawExpenses as EventExpense[]) || [];
   const documents: EventDocument[] = (rawDocuments as EventDocument[]) || [];

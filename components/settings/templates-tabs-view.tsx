@@ -1,11 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
-import { FileSpreadsheet, Users, Sparkles } from "lucide-react";
-import { MasterTemplatesManager } from "./master-templates-manager";
+import { FileSpreadsheet, Users, Sparkles, Loader2 } from "lucide-react";
 import { MasterFamilyTemplatesManager } from "./master-family-templates-manager";
 import type { MasterTemplate, MasterFamilyTemplate } from "@/types/database";
+
+const MasterTemplatesManager = dynamic(
+  () =>
+    import("./master-templates-manager").then((m) => m.MasterTemplatesManager),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[600px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
+        <Loader2 className="w-7 h-7 animate-spin text-[#007aff]" />
+        <span className="text-xs font-semibold tracking-tight">Memuat Master Lembar Kerja...</span>
+      </div>
+    ),
+  }
+);
 
 interface TemplatesTabsViewProps {
   initialTemplates: MasterTemplate[];

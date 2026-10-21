@@ -13,6 +13,7 @@ function revalidateRBAC() {
   revalidatePath("/settings/rbac", "page");
   revalidatePath("/users");
   revalidatePath("/team");
+  revalidatePath("/dashboard");
 }
 
 async function getRBACClient() {

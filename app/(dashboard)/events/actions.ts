@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, requireRole } from "@/lib/auth";
 import { upsertTaskCalendarEvent, deleteTaskCalendarEvent } from "@/lib/gcal-task";
+import { deleteEventFromGoogleCalendar } from "@/app/actions/gcal-sync";
+import { getStoragePathFromUrl, parseWIBDate } from "@/lib/utils";
 import {
   createEventSchema,
   updateEventSchema,
@@ -85,8 +87,8 @@ export async function createEvent(
       .insert({
         title: validated.title,
         venue: validated.venue,
-        start_date: new Date(validated.start_date).toISOString(),
-        end_date: new Date(validated.end_date).toISOString(),
+        start_date: parseWIBDate(validated.start_date).toISOString(),
+        end_date: parseWIBDate(validated.end_date).toISOString(),
         pic: validated.pic || null,
         description: validated.description,
         client_id: validated.client_id,
@@ -243,6 +245,7 @@ export async function createEvent(
 
     // Invalidate event listings and return new event ID
     revalidatePath("/events");
+    revalidatePath("/dashboard");
     revalidatePath("/");
     return { success: true, eventId: data.id };
   } catch (err: unknown) {
@@ -355,8 +358,8 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
     const updatePayload: Record<string, unknown> = {
       title: validated.title,
       venue: validated.venue,
-      start_date: new Date(validated.start_date).toISOString(),
-      end_date: new Date(validated.end_date).toISOString(),
+      start_date: parseWIBDate(validated.start_date).toISOString(),
+      end_date: parseWIBDate(validated.end_date).toISOString(),
       pic: validated.pic ?? null,
       description: validated.description,
       status: validated.status,
@@ -520,6 +523,8 @@ export async function createEventTask(formData: FormData): Promise<{ success: bo
   });
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
+  revalidatePath("/dashboard");
   return { success: true, task: synced.task, gcalWarning: synced.warning };
 }
 
@@ -588,6 +593,8 @@ export async function updateEventTask(formData: FormData): Promise<{ success: bo
   });
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
+  revalidatePath("/dashboard");
   return { success: true, task: synced.task, gcalWarning: synced.warning };
 }
 
@@ -609,30 +616,102 @@ export async function toggleTaskStatus(taskId: string, currentStatus: string, ev
   }
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
 /**
- * Deletes an event and cascades tasks/vendors. Admin only.
+ * Deletes an event and all associated resources:
+ * 1. Supabase Storage cleanup (removes files in bucket-files / documents / event-documents).
+ * 2. Google Calendar cleanup (removes event and task calendar entries).
+ * 3. Database event deletion (foreign key ON DELETE CASCADE cleans all child tables).
+ * 4. Revalidates paths and redirects to /events.
  */
 export async function deleteEvent(eventId: string): Promise<void> {
+  await requireRole(["admin", "manager"]);
   await requirePermission("events.delete");
   const supabase = await createClient();
-  const { data: gcalTasks } = await supabase
-    .from("event_tasks")
-    .select("gcal_event_id")
-    .eq("event_id", eventId)
-    .not("gcal_event_id", "is", null);
-  const { error } = await supabase.from("events").delete().eq("id", eventId);
-  if (!error && gcalTasks) {
-    for (const t of gcalTasks) {
-      if (t.gcal_event_id) await deleteTaskCalendarEvent(t.gcal_event_id);
+
+  // 1. Fetch event record (for gcal_event_id), tasks (for task gcal_event_ids), and documents (for storage paths)
+  const [{ data: eventData }, { data: gcalTasks }, { data: eventDocs }] = await Promise.all([
+    supabase.from("events").select("id, gcal_event_id").eq("id", eventId).maybeSingle(),
+    supabase.from("event_tasks").select("gcal_event_id").eq("event_id", eventId).not("gcal_event_id", "is", null),
+    supabase.from("event_documents").select("file_url").eq("event_id", eventId),
+  ]);
+
+  // 2. Storage Cleanup: Check if the event has uploaded files in Supabase Storage and remove them
+  try {
+    const filePaths: string[] = [];
+    if (eventDocs && eventDocs.length > 0) {
+      for (const doc of eventDocs) {
+        const p = getStoragePathFromUrl(doc.file_url);
+        if (p && !filePaths.includes(p)) {
+          filePaths.push(p);
+        }
+      }
+    }
+
+    // Also inspect folder under eventId/ in case orphaned objects exist in storage
+    const storageBuckets = ["bucket-files", "documents", "event-documents"];
+    for (const bucket of storageBuckets) {
+      try {
+        const { data: folderFiles } = await supabase.storage.from(bucket).list(eventId);
+        if (folderFiles && folderFiles.length > 0) {
+          for (const f of folderFiles) {
+            const p = `${eventId}/${f.name}`;
+            if (!filePaths.includes(p)) {
+              filePaths.push(p);
+            }
+          }
+        }
+      } catch {
+        // Ignore listing failure for non-existent buckets
+      }
+    }
+
+    if (filePaths.length > 0) {
+      for (const bucket of storageBuckets) {
+        try {
+          await supabase.storage.from(bucket).remove(filePaths);
+        } catch (storageErr) {
+          console.warn(`[deleteEvent] Storage remove warning in ${bucket}:`, storageErr);
+        }
+      }
+    }
+  } catch (storageErr) {
+    console.warn("[deleteEvent] Failed to cleanup storage files for event:", storageErr);
+  }
+
+  // 3. Google Calendar Cleanup: if synced to Google Calendar, attempt DELETE to the GCal API endpoint
+  if (eventData?.gcal_event_id) {
+    try {
+      await deleteEventFromGoogleCalendar(eventData.gcal_event_id);
+    } catch (gcalErr) {
+      console.warn("[deleteEvent] Failed to delete event from Google Calendar:", gcalErr);
     }
   }
+
+  if (gcalTasks && gcalTasks.length > 0) {
+    for (const t of gcalTasks) {
+      if (t.gcal_event_id) {
+        try {
+          await deleteTaskCalendarEvent(t.gcal_event_id);
+        } catch (gcalErr) {
+          console.warn(`[deleteEvent] Failed to delete task ${t.gcal_event_id} from GCal:`, gcalErr);
+        }
+      }
+    }
+  }
+
+  // 4. Execute the event deletion: database foreign keys will cascade delete all child rows
+  const { error } = await supabase.from("events").delete().eq("id", eventId);
   if (error) {
     throw new Error(error.message);
   }
+
   revalidatePath("/events");
+  revalidatePath("/dashboard");
   revalidatePath("/");
   redirect("/events");
 }
@@ -656,6 +735,8 @@ export async function deleteEventTask(taskId: string, eventId: string): Promise<
     return { success: false, error: error.message };
   }
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 /**
@@ -705,6 +786,7 @@ export async function assignCrewToEvent(
 
   revalidatePath(`/events/${parsed.data.event_id}`);
   revalidatePath("/events");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -731,6 +813,7 @@ export async function removeCrewFromEvent(
 
   revalidatePath(`/events/${parsed.data.event_id}`);
   revalidatePath("/events");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -765,6 +848,7 @@ export async function updateCrewRole(
 
   revalidatePath(`/events/${parsed.data.event_id}`);
   revalidatePath("/events");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -812,6 +896,9 @@ export async function assignEventVendor(formData: FormData): Promise<{ success: 
   }
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
+  revalidatePath("/vendors");
+  revalidatePath("/dashboard");
   return { success: true, eventVendor: data as EventVendor };
 }
 
@@ -882,7 +969,9 @@ export async function createAndAssignVendor(formData: FormData): Promise<{ succe
   }
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
   revalidatePath("/vendors");
+  revalidatePath("/dashboard");
   return { success: true, eventVendor: eventVendor as EventVendor };
 }
 
@@ -923,6 +1012,9 @@ export async function updateEventVendor(formData: FormData): Promise<{ success: 
   }
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
+  revalidatePath("/vendors");
+  revalidatePath("/dashboard");
   return { success: true, eventVendor: data as EventVendor };
 }
 
@@ -939,6 +1031,9 @@ export async function removeEventVendor(eventVendorId: string, eventId: string):
   }
 
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
+  revalidatePath("/vendors");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 

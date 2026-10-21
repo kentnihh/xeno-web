@@ -128,3 +128,5 @@ export async function deleteTaskCalendarEvent(gcalEventId: string): Promise<void
         console.warn("[gcal-task] DELETE error:", err);
     }
 }
+
+export const deleteCalendarEvent = deleteTaskCalendarEvent;

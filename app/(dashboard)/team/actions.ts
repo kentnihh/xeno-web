@@ -48,6 +48,7 @@ export async function updateMemberRoleAction(
     revalidatePath("/team");
     revalidatePath("/settings/rbac");
     revalidatePath("/users");
+    revalidatePath("/dashboard");
 
     return { success: true };
   } catch (err: unknown) {
@@ -82,6 +83,7 @@ export async function updateMemberAvatarColorAction(
     revalidatePath("/team");
     revalidatePath("/settings/rbac");
     revalidatePath("/users");
+    revalidatePath("/dashboard");
 
     return { success: true };
   } catch (err: unknown) {
@@ -124,6 +126,7 @@ export async function deleteMemberAction(userId: string): Promise<{ success: boo
     revalidatePath("/team");
     revalidatePath("/settings/rbac");
     revalidatePath("/users");
+    revalidatePath("/dashboard");
 
     return { success: true };
   } catch (err: unknown) {

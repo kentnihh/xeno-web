@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { hasPermission, getUserRoles } from "@/lib/auth";
+import { hasPermission, getUserRoles, getCurrentUser, getCurrentProfile } from "@/lib/auth";
 import { formatDate, sortEventsUpcomingFirst } from "@/lib/utils";
 import {
   CalendarDays,
@@ -25,53 +25,7 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 15;
 
-const FALLBACK_EVENTS: Event[] = [
-  {
-    id: "66666666-6666-6666-6666-666666666666",
-    title: "Sinar Jaya Annual Gala 2026",
-    start_date: "2026-10-20T11:00:00.000Z",
-    end_date: "2026-10-20T19:00:00.000Z",
-    venue: "Grand Ballroom Hotel Indonesia Kempinski",
-    pic: "Jonathan Admin",
-    status: "confirmed",
-    description: "Annual gala dinner Xeno production",
-    client_id: "c-1",
-    created_by: null,
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
-    client: { id: "c-1", name: "Rian Pratama", company: "PT Sinar Jaya Abadi", email: null, phone: "", address: null, notes: null, created_at: "" },
-  },
-  {
-    id: "77777777-7777-7777-7777-777777777777",
-    title: "Jessica & Kevin Wedding Reception",
-    start_date: "2026-10-29T11:00:00.000Z",
-    end_date: "2026-10-29T17:00:00.000Z",
-    venue: "Plataran Dharmawangsa",
-    pic: "Rian Kru Operasional",
-    status: "planning",
-    description: "Wedding reception ceremony and celebration",
-    client_id: "c-2",
-    created_by: null,
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
-    client: { id: "c-2", name: "Jessica Tan", company: "Tan & Partners", email: null, phone: "", address: null, notes: null, created_at: "" },
-  },
-  {
-    id: "88888888-8888-8888-8888-888888888888",
-    title: "Jakarta Jazz Festival Production 2026",
-    start_date: "2026-09-15T09:00:00.000Z",
-    end_date: "2026-09-15T23:00:00.000Z",
-    venue: "Carnaval Circuit Ancol",
-    pic: "Budi Show Director",
-    status: "completed",
-    description: "Stage management and audio production",
-    client_id: "c-1",
-    created_by: null,
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
-    client: { id: "c-1", name: "Rian Pratama", company: "PT Sinar Jaya Abadi", email: null, phone: "", address: null, notes: null, created_at: "" },
-  },
-];
+
 
 const STATUS_FILTERS: { key: string; label: string }[] = [
   { key: "active", label: "Aktif" },
@@ -97,23 +51,16 @@ export default async function EventsPage({
 
   const supabase = await createClient();
 
-  // 1. Identify current logged-in user and role
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 1. Identify current logged-in user, profile, roles, and permissions concurrently
+  const user = await getCurrentUser();
+  const currentUserId = user?.id;
 
-  let userProfile: Profile | null = null;
-  let userRoles: string[] = [];
-
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
-    userProfile = profile as Profile | null;
-    userRoles = await getUserRoles(user.id);
-  }
+  const [userProfile, userRoles, canCreateEvent, canEditEvent] = await Promise.all([
+    getCurrentProfile(currentUserId),
+    getUserRoles(currentUserId),
+    hasPermission("events.create", currentUserId),
+    hasPermission("events.edit", currentUserId),
+  ]);
 
   const isAdminUser = userProfile?.role === "admin" || userRoles.includes("admin");
   const isManagerUser = userProfile?.role === "manager" || userRoles.includes("manager");
@@ -123,19 +70,14 @@ export default async function EventsPage({
 
   // 2. If user is STAFF: fetch assigned event IDs from event_crew
   let assignedEventIds: string[] = [];
-  if (isStaff && user?.id) {
+  if (isStaff && currentUserId) {
     const { data: crewData } = await supabase
       .from("event_crew")
       .select("event_id")
-      .eq("profile_id", user.id);
+      .eq("profile_id", currentUserId);
 
     assignedEventIds = (crewData || []).map((c) => c.event_id).filter(Boolean);
   }
-
-  const [canCreateEvent, canEditEvent] = await Promise.all([
-    hasPermission("events.create"),
-    hasPermission("events.edit"),
-  ]);
 
   // Timezone-safe start of today (beginning of day at 00:00:00.000)
   // Stripping the time so events happening today are considered "Aktif" and not "Terlewat"
@@ -178,8 +120,6 @@ export default async function EventsPage({
     query = query.range(from, to);
   }
 
-  const { data: rawEvents, count } = await query;
-
   let allSearchQuery = supabase
     .from("events")
     .select("id, title, start_date, venue, status, pic")
@@ -193,38 +133,17 @@ export default async function EventsPage({
     }
   }
 
-  const { data: allSearchEvents } = await allSearchQuery;
+  // Execute paginated list query and global search query in parallel
+  const [{ data: rawEvents, count }, { data: allSearchEvents }] = await Promise.all([
+    query,
+    allSearchQuery,
+  ]);
 
-  let eventsList: Event[] = [];
-  if (rawEvents && rawEvents.length > 0) {
-    eventsList = rawEvents as Event[];
-  } else if (!isStaff) {
-    eventsList = FALLBACK_EVENTS.filter((ev) => {
-      const isPast = new Date(ev.start_date).getTime() < todayStart.getTime();
-
-      if (isPastFilter) {
-        return isPast;
-      }
-      if (statusFilter === "active") {
-        return ev.status !== "completed" && !isPast;
-      }
-      if (statusFilter !== "all") {
-        return ev.status === statusFilter;
-      }
-      return true;
-    });
-  } else {
-    eventsList = [];
-  }
-
+  const eventsList: Event[] = (rawEvents as Event[]) || [];
   const events = sortEventsUpcomingFirst(eventsList);
   const totalCount = count ?? events.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const searchableList = (allSearchEvents && allSearchEvents.length > 0
-    ? allSearchEvents
-    : isStaff
-      ? []
-      : FALLBACK_EVENTS) as Event[];
+  const searchableList: Event[] = (allSearchEvents as Event[]) || [];
 
   return (
     <div className="space-y-6">

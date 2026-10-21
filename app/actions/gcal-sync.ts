@@ -4,6 +4,7 @@ import { SignJWT, importPKCS8 } from "jose";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { getUserRoles } from "@/lib/auth";
+import { parseWIBDate } from "@/lib/utils";
 
 export interface SyncGCalResponse {
   success: boolean;
@@ -27,7 +28,7 @@ function getSupabaseClient() {
 }
 
 /**
- * Safely parses and validates event start and end dates.
+ * Safely parses and validates event start and end dates using WIB/Jakarta timezone integrity.
  * If end_date is null, missing, or <= start_date, dynamically calculates a fallback end time (+2 hours).
  */
 function resolveEventDates(
@@ -37,12 +38,12 @@ function resolveEventDates(
   safeStartDate: Date;
   safeEndDate: Date;
 } {
-  let safeStartDate = rawStartDate ? new Date(rawStartDate) : new Date();
+  let safeStartDate = parseWIBDate(rawStartDate);
   if (isNaN(safeStartDate.getTime())) {
     safeStartDate = new Date();
   }
 
-  let safeEndDate = rawEndDate ? new Date(rawEndDate) : null;
+  let safeEndDate = rawEndDate ? parseWIBDate(rawEndDate) : null;
   if (!safeEndDate || isNaN(safeEndDate.getTime()) || safeEndDate.getTime() <= safeStartDate.getTime()) {
     // Dynamic fallback: add 2 hours to safeStartDate to guarantee a valid positive duration
     safeEndDate = new Date(safeStartDate.getTime() + 2 * 60 * 60 * 1000);
@@ -152,27 +153,42 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
       };
     }
 
-    // RBAC: Only Admin and Manager are authorized to sync to Google Calendar
+    // RBAC: Verify authenticated session and admin/manager role
+    let hasWebContext = false;
     try {
       const serverClient = await createServerClient();
+      hasWebContext = true;
       const {
         data: { user },
       } = await serverClient.auth.getUser();
 
-      if (user) {
-        const roles = await getUserRoles(user.id);
-        const isAuthorized = roles.includes("admin") || roles.includes("manager");
-        if (!isAuthorized) {
-          const authMsg = "Akses ditolak: Hanya Administrator dan Manajer yang berwenang menyinkronkan Google Calendar.";
-          return {
-            success: false,
-            message: authMsg,
-            error: authMsg,
-          };
-        }
+      if (!user) {
+        const authMsg = "Autentikasi diperlukan. Silakan login terlebih dahulu.";
+        return {
+          success: false,
+          message: authMsg,
+          error: authMsg,
+        };
+      }
+
+      const roles = await getUserRoles(user.id);
+      const isAuthorized = roles.includes("admin") || roles.includes("manager");
+      if (!isAuthorized) {
+        const authMsg = "Akses ditolak: Hanya Administrator dan Manajer yang berwenang menyinkronkan Google Calendar.";
+        return {
+          success: false,
+          message: authMsg,
+          error: authMsg,
+        };
       }
     } catch {
-      // Allow execution in isolated test runner scripts without Next.js headers/cookies
+      if (hasWebContext) {
+        return {
+          success: false,
+          message: "Autentikasi diperlukan. Silakan login terlebih dahulu.",
+          error: "Autentikasi diperlukan. Silakan login terlebih dahulu.",
+        };
+      }
     }
 
     const { accessToken, calendarId } = await getGoogleCalendarAccessToken();
@@ -185,18 +201,15 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
       .eq("id", eventId)
       .single();
 
-    // Fallback if event is demo / not in DB
-    const event = rawEvent || {
-      id: eventId,
-      title: "Sinar Jaya Annual Gala 2026",
-      venue: "Grand Ballroom Hotel Indonesia Kempinski",
-      start_date: "2026-10-20T11:00:00.000Z",
-      end_date: "2026-10-20T19:00:00.000Z",
-      status: "confirmed",
-      pic: "Jonathan Admin",
-      description: "Annual gala dinner Xeno production",
-      gcal_event_id: null,
-    };
+    if (!rawEvent) {
+      return {
+        success: false,
+        message: "Acara tidak ditemukan di database.",
+        error: "Acara tidak ditemukan di database.",
+      };
+    }
+
+    const event = rawEvent;
 
     const summary = event.title || "Acara Xeno Entertainment";
     const location = event.venue || "";
@@ -368,27 +381,42 @@ export async function syncAllEventsToGoogleCalendar(): Promise<SyncGCalResponse>
       };
     }
 
-    // RBAC: Only Admin and Manager are authorized to sync to Google Calendar
+    // RBAC: Verify authenticated session and admin/manager role
+    let hasWebContext = false;
     try {
       const serverClient = await createServerClient();
+      hasWebContext = true;
       const {
         data: { user },
       } = await serverClient.auth.getUser();
 
-      if (user) {
-        const roles = await getUserRoles(user.id);
-        const isAuthorized = roles.includes("admin") || roles.includes("manager");
-        if (!isAuthorized) {
-          const authMsg = "Akses ditolak: Hanya Administrator dan Manajer yang berwenang menyinkronkan Google Calendar.";
-          return {
-            success: false,
-            message: authMsg,
-            error: authMsg,
-          };
-        }
+      if (!user) {
+        const authMsg = "Autentikasi diperlukan. Silakan login terlebih dahulu.";
+        return {
+          success: false,
+          message: authMsg,
+          error: authMsg,
+        };
+      }
+
+      const roles = await getUserRoles(user.id);
+      const isAuthorized = roles.includes("admin") || roles.includes("manager");
+      if (!isAuthorized) {
+        const authMsg = "Akses ditolak: Hanya Administrator dan Manajer yang berwenang menyinkronkan Google Calendar.";
+        return {
+          success: false,
+          message: authMsg,
+          error: authMsg,
+        };
       }
     } catch {
-      // Allow execution in isolated test runner scripts without Next.js headers/cookies
+      if (hasWebContext) {
+        return {
+          success: false,
+          message: "Autentikasi diperlukan. Silakan login terlebih dahulu.",
+          error: "Autentikasi diperlukan. Silakan login terlebih dahulu.",
+        };
+      }
     }
 
     const supabase = getSupabaseClient();
@@ -411,31 +439,14 @@ export async function syncAllEventsToGoogleCalendar(): Promise<SyncGCalResponse>
       .gte("start_date", todayStart.toISOString())
       .order("start_date", { ascending: true });
 
-    const eventsToSync =
-      rawEvents && rawEvents.length > 0
-        ? rawEvents
-        : [
-            {
-              id: "66666666-6666-6666-6666-666666666666",
-              title: "Sinar Jaya Annual Gala 2026",
-              start_date: "2026-10-20T11:00:00.000Z",
-              end_date: "2026-10-20T19:00:00.000Z",
-              venue: "Grand Ballroom Hotel Indonesia",
-              status: "confirmed",
-              pic: "Jonathan Admin",
-              gcal_event_id: null,
-            },
-            {
-              id: "77777777-7777-7777-7777-777777777777",
-              title: "Jessica & Kevin Wedding Reception",
-              start_date: "2026-10-29T11:00:00.000Z",
-              end_date: "2026-10-29T17:00:00.000Z",
-              venue: "Plataran Dharmawangsa",
-              status: "planning",
-              pic: "Rian Kru Operasional",
-              gcal_event_id: null,
-            },
-          ];
+    const eventsToSync = rawEvents || [];
+
+    if (eventsToSync.length === 0) {
+      return {
+        success: true,
+        message: "Tidak ada jadwal acara aktif yang perlu disinkronkan.",
+      };
+    }
 
     let count = 0;
     let failedCount = 0;
@@ -495,5 +506,31 @@ export async function syncUpcomingEventsToCalendar(eventId?: string): Promise<Sy
       message: errMsg,
       error: errMsg,
     };
+  }
+}
+
+/**
+ * Deletes an event from Google Calendar by its gcal_event_id.
+ * Gracefully handles 404/410 (already deleted) and logs warnings on failure.
+ */
+export async function deleteEventFromGoogleCalendar(gcalEventId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { accessToken, calendarId } = await getGoogleCalendarAccessToken();
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(gcalEventId)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+    if (!res.ok && res.status !== 404 && res.status !== 410) {
+      console.warn(`[GCal Delete] DELETE failed (${res.status}) for ${gcalEventId}`);
+      return { success: false, error: `Google Calendar DELETE failed (${res.status})` };
+    }
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Error deleting Google Calendar event";
+    console.warn(`[GCal Delete] Warning for ${gcalEventId}:`, msg);
+    return { success: false, error: msg };
   }
 }

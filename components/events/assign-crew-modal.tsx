@@ -82,7 +82,7 @@ export function AssignCrewModal({
 
   const content = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-[calc(100%-1.5rem)] sm:w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-card backdrop-blur-2xl border border-border shadow-2xl p-4 sm:p-6 space-y-4 text-foreground">
+      <div className="w-[calc(100%-1.5rem)] sm:w-full max-w-md max-h-[85vh] max-h-[85dvh] overflow-y-auto rounded-2xl sm:rounded-3xl bg-card backdrop-blur-2xl border border-border shadow-2xl p-4 sm:p-6 space-y-4 text-foreground">
         <div className="flex items-center justify-between pb-3 border-b border-border">
           <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
             <Sparkles className="w-4 h-4 text-[#007aff]" />

@@ -313,3 +313,42 @@ CREATE POLICY "Admin can delete profile"
   TO authenticated
   USING (public.is_admin());
 
+-- ==============================================================================
+-- 10. EVENT CASCADING DELETE CONSTRAINTS
+-- ==============================================================================
+ALTER TABLE IF EXISTS public.event_crew DROP CONSTRAINT IF EXISTS event_crew_event_id_fkey;
+ALTER TABLE IF EXISTS public.event_crew
+  ADD CONSTRAINT event_crew_event_id_fkey
+  FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS public.event_tasks DROP CONSTRAINT IF EXISTS event_tasks_event_id_fkey;
+ALTER TABLE IF EXISTS public.event_tasks
+  ADD CONSTRAINT event_tasks_event_id_fkey
+  FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS public.event_documents DROP CONSTRAINT IF EXISTS event_documents_event_id_fkey;
+ALTER TABLE IF EXISTS public.event_documents
+  ADD CONSTRAINT event_documents_event_id_fkey
+  FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS public.event_sheets DROP CONSTRAINT IF EXISTS event_sheets_event_id_fkey;
+ALTER TABLE IF EXISTS public.event_sheets
+  ADD CONSTRAINT event_sheets_event_id_fkey
+  FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS public.event_public_forms DROP CONSTRAINT IF EXISTS event_public_forms_event_id_fkey;
+ALTER TABLE IF EXISTS public.event_public_forms
+  ADD CONSTRAINT event_public_forms_event_id_fkey
+  FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS public.event_vendors DROP CONSTRAINT IF EXISTS event_vendors_event_id_fkey;
+ALTER TABLE IF EXISTS public.event_vendors
+  ADD CONSTRAINT event_vendors_event_id_fkey
+  FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS public.event_expenses DROP CONSTRAINT IF EXISTS event_expenses_event_id_fkey;
+ALTER TABLE IF EXISTS public.event_expenses
+  ADD CONSTRAINT event_expenses_event_id_fkey
+  FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+

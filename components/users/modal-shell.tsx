@@ -41,7 +41,7 @@ export function ModalShell({
         aria-hidden="true"
       />
       <div
-        className={`fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] ${maxWidthClassName} max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-2xl sm:rounded-3xl bg-card backdrop-blur-2xl border border-border shadow-2xl p-4 sm:p-6 text-foreground transform transition-all duration-150 animate-in zoom-in-95 focus:outline-hidden`}
+        className={`fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] ${maxWidthClassName} max-h-[85vh] max-h-[85dvh] sm:max-h-[90vh] sm:max-h-[90dvh] flex flex-col rounded-2xl sm:rounded-3xl bg-card backdrop-blur-2xl border border-border shadow-2xl p-4 sm:p-6 text-foreground transform transition-all duration-150 animate-in zoom-in-95 focus:outline-hidden`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

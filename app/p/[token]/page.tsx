@@ -32,21 +32,32 @@ export default async function PublicFormPage({
 }: {
   params: Promise<{ token: string }>;
 }) {
-  const { token } = await params;
-  const result = await getPublicFormDataByToken(token);
+  let token = "";
+  let result: Awaited<ReturnType<typeof getPublicFormDataByToken>> = null;
+
+  try {
+    const resolvedParams = await params;
+    token = resolvedParams.token;
+    if (token) {
+      result = await getPublicFormDataByToken(token);
+    }
+  } catch (err) {
+    console.error("[PublicFormPage] Exception retrieving token form:", err);
+    result = null;
+  }
 
   // 1. If form not found or invalid token
   if (!result || !result.form) {
     return (
-      <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#000000] text-foreground flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-[#000000] text-foreground flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-card rounded-2xl border border-border shadow-lg p-8 text-center space-y-5">
           <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto">
             <AlertTriangle className="w-7 h-7" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-bold tracking-tight">Tautan Tidak Ditemukan</h1>
+            <h1 className="text-xl font-bold tracking-tight">Tautan Tidak Ditemukan atau Tidak Valid</h1>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Tautan yang Anda tuju tidak valid atau telah dihapus dari sistem. Mohon periksa kembali link yang Anda terima dari tim Xeno Entertainment.
+              Tautan formulir yang Anda buka tidak valid, telah dihapus, atau tidak lagi terdaftar di sistem kami. Mohon pastikan Anda membuka tautan yang benar dari tim Xeno Entertainment.
             </p>
           </div>
           <div className="pt-2">
@@ -54,7 +65,7 @@ export default async function PublicFormPage({
               href="https://wa.me/?text=Halo%20Tim%20Xeno,%20tautan%20form%20keluarga%20saya%20tidak%20dapat%20diakses."
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-[#007aff] hover:bg-[#0066d6] text-white transition-all cursor-pointer shadow-xs"
+              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-[#007aff] hover:bg-[#0066d6] text-white transition-all cursor-pointer shadow-xs active:scale-95"
             >
               <MessageCircle className="w-4 h-4" />
               <span>Hubungi Tim Xeno</span>
@@ -77,7 +88,7 @@ export default async function PublicFormPage({
     });
 
     return (
-      <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#000000] text-foreground flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-[#000000] text-foreground flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-card rounded-2xl border border-border shadow-xl p-8 text-center space-y-6 animate-in fade-in duration-200">
           <div className="w-16 h-16 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
             <Clock className="w-8 h-8" />

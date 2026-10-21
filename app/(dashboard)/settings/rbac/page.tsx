@@ -1,27 +1,22 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isAdmin, hasPermission } from "@/lib/auth";
+import { isAdmin, hasPermission, getCurrentUser } from "@/lib/auth";
 import { UsersManagementView } from "@/components/users/users-management-view";
-import {
-  FALLBACK_ROLES,
-  FALLBACK_PERMISSIONS,
-  FALLBACK_ROLE_PERMS,
-  FALLBACK_USERS,
-} from "@/lib/rbac-fallbacks";
-import type { UserWithRBAC } from "@/types/database";
+import type { UserWithRBAC, Role, Permission, RolePermission, Profile } from "@/types/database";
 
 export default async function SettingsRBACPage() {
-  const canAccess =
-    (await isAdmin()) ||
-    (await hasPermission("rbac.manage")) ||
-    (await hasPermission("users.manage"));
+  const user = await getCurrentUser();
+  const [isAdminUser, canRbacManage, canUsersManage] = await Promise.all([
+    isAdmin(user?.id),
+    hasPermission("rbac.manage", user?.id),
+    hasPermission("users.manage", user?.id),
+  ]);
 
-  if (!canAccess) {
+  if (!isAdminUser && !canRbacManage && !canUsersManage) {
     redirect("/dashboard");
   }
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
 
   const [{ data: rawProfiles }, { data: rawRoles }, { data: rawPerms }, { data: rawRP }, { data: rawUR }] =
     await Promise.all([
@@ -32,10 +27,10 @@ export default async function SettingsRBACPage() {
       supabase.from("user_roles").select("*"),
     ]);
 
-  const roles = rawRoles && rawRoles.length > 0 ? rawRoles : FALLBACK_ROLES;
-  const permissions = rawPerms && rawPerms.length > 0 ? rawPerms : FALLBACK_PERMISSIONS;
-  const rolePermissions = rawRP && rawRP.length > 0 ? rawRP : FALLBACK_ROLE_PERMS;
-  const profiles = rawProfiles && rawProfiles.length > 0 ? rawProfiles : FALLBACK_USERS;
+  const roles: Role[] = rawRoles || [];
+  const permissions: Permission[] = rawPerms || [];
+  const rolePermissions: RolePermission[] = rawRP || [];
+  const profiles: Profile[] = rawProfiles || [];
 
   const usersWithRBAC: UserWithRBAC[] = profiles.map((p) => {
     const userRoleIds = (rawUR || []).filter((ur) => ur.user_id === p.id).map((ur) => ur.role_id);

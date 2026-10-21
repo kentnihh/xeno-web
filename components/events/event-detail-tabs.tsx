@@ -1,13 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, FolderOpen, FileSpreadsheet, Users } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Layers, FolderOpen, FileSpreadsheet, Users, Loader2 } from "lucide-react";
 import { EventCrewSection } from "@/components/events/event-crew-section";
 import { EventTasksSection } from "@/components/events/event-tasks-section";
 import { EventVendorsSection } from "@/components/events/event-vendors-section";
 import { EventDocumentsSection } from "@/components/events/event-documents-section";
-import { EventSpreadsheetTabs } from "@/components/events/spreadsheet/event-spreadsheet-tabs";
 import { EventFamilyDataSection } from "@/components/events/event-family-data-section";
+
+const EventSpreadsheetTabs = dynamic(
+  () =>
+    import("@/components/events/spreadsheet/event-spreadsheet-tabs").then(
+      (m) => m.EventSpreadsheetTabs
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[600px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
+        <Loader2 className="w-7 h-7 animate-spin text-[#007aff]" />
+        <span className="text-xs font-semibold tracking-tight">Memuat Lembar Kerja Excel...</span>
+      </div>
+    ),
+  }
+);
 import type {
   Event,
   EventCrew,

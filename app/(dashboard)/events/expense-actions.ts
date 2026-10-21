@@ -51,6 +51,7 @@ export async function createEventExpense(formData: FormData): Promise<{ success:
 
     revalidatePath(`/events/${eventId}`);
     revalidatePath("/events");
+    revalidatePath("/dashboard");
     revalidatePath("/");
 
     return { success: true, expense: data as EventExpense };
@@ -108,6 +109,7 @@ export async function updateEventExpense(formData: FormData): Promise<{ success:
 
     revalidatePath(`/events/${eventId}`);
     revalidatePath("/events");
+    revalidatePath("/dashboard");
     revalidatePath("/");
 
     return { success: true, expense: data as EventExpense };
@@ -135,6 +137,7 @@ export async function deleteEventExpense(expenseId: string, eventId: string): Pr
 
     revalidatePath(`/events/${eventId}`);
     revalidatePath("/events");
+    revalidatePath("/dashboard");
     revalidatePath("/");
 
     return { success: true };
@@ -168,6 +171,7 @@ export async function toggleExpenseStatus(
 
     revalidatePath(`/events/${eventId}`);
     revalidatePath("/events");
+    revalidatePath("/dashboard");
     revalidatePath("/");
 
     return { success: true, nextStatus };

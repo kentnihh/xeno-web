@@ -42,6 +42,7 @@ export function Combobox({
   name,
 }: ComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
 
@@ -50,6 +51,20 @@ export function Combobox({
   const listboxRef = useRef<HTMLUListElement>(null);
   const generatedId = useId();
   const comboboxId = id || `combobox-${generatedId}`;
+
+  // Smart viewport positioning: open upward if near bottom of viewport or modal
+  useEffect(() => {
+    if (isOpen && containerRef.current && typeof window !== "undefined") {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      if (spaceBelow < 250 && spaceAbove > spaceBelow) {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+    }
+  }, [isOpen]);
 
   // Find currently selected option
   const selectedOption = options.find((opt) => opt.value === value);
@@ -210,16 +225,26 @@ export function Combobox({
       {/* Dropdown Popover */}
       {isOpen && (
         <div
-          className="absolute z-50 left-0 right-0 mt-1.5 rounded-2xl bg-card border border-border shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          className={`absolute z-[70] left-0 right-0 ${
+            openUpward ? "bottom-full mb-1.5" : "mt-1.5"
+          } rounded-2xl bg-card border border-border shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100`}
           style={{ minWidth: "100%" }}
         >
           {/* Search Input Filter */}
-          <div className="p-2 border-b border-border bg-muted/40 flex items-center gap-2">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="p-2 border-b border-border bg-muted/40 flex items-center gap-2"
+          >
             <Search className="w-3.5 h-3.5 text-muted-foreground ml-1.5 shrink-0" />
             <input
               ref={searchInputRef}
               type="text"
               value={searchQuery}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 setHighlightedIndex(0);

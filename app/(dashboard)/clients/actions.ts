@@ -51,6 +51,7 @@ export async function createClientAction(
     revalidatePath("/clients");
     revalidatePath("/events");
     revalidatePath("/events/new");
+    revalidatePath("/dashboard");
     return { success: true, client: data };
   } catch (err: unknown) {
     console.error("[createClientAction] Execution exception:", err);
@@ -115,6 +116,7 @@ export async function updateClientAction(
     revalidatePath("/clients");
     revalidatePath("/events");
     revalidatePath("/events/new");
+    revalidatePath("/dashboard");
     return { success: true, client: data };
   } catch (err: unknown) {
     console.error("[updateClientAction] Execution exception:", err);
@@ -148,6 +150,7 @@ export async function deleteClientAction(clientId: string): Promise<{ success: b
 
     revalidatePath("/clients");
     revalidatePath("/events");
+    revalidatePath("/dashboard");
     return { success: true };
   } catch (err: unknown) {
     return {
