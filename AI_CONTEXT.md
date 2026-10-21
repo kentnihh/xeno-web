@@ -312,6 +312,6 @@ This builds the Next.js standalone container, restarts the app service, and Cadd
 
 
 <!-- LAST_ARCH_SYNC -->
-> **Last Architecture Sync**: 5e70b74 fix(auth): prevent NEXT_REDIRECT error banner on successful login
-c0cdf20 refactor(family-templates): remove Wajib Diisi checkbox and hardcode required: false
-6a31fd6 feat(spreadsheet): add safe fullscreen and zoom controls to spreadsheet wrappers
+> **Last Architecture Sync**: 42fc6cc feat: add loading skeletons, dynamic spreadsheet import, and performance navigation tests
+cb2f9f5 chore: update ai_context.md with latest architecture sync [skip ci]
+5e70b74 fix(auth): prevent NEXT_REDIRECT error banner on successful login
