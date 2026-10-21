@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { createClient } from "@/lib/supabase/server";
 
 export interface AuthActionResult {
@@ -21,6 +22,8 @@ export async function login(formData: FormData): Promise<AuthActionResult | void
     return { error: "Email dan kata sandi wajib diisi." };
   }
 
+  let isSuccess = false;
+
   try {
     const supabase = await createClient();
 
@@ -34,11 +37,21 @@ export async function login(formData: FormData): Promise<AuthActionResult | void
     }
 
     revalidatePath("/", "layout");
+    isSuccess = true;
   } catch (err: unknown) {
-    return { error: err instanceof Error ? err.message : "Terjadi kesalahan sistem saat proses login." };
+    if (isRedirectError(err)) {
+      throw err;
+    }
+    const msg = err instanceof Error ? err.message : String(err || "");
+    if (msg.includes("NEXT_REDIRECT")) {
+      throw err;
+    }
+    return { error: msg || "Terjadi kesalahan sistem saat proses login." };
   }
 
-  redirect("/dashboard");
+  if (isSuccess) {
+    redirect("/dashboard");
+  }
 }
 
 /**
@@ -46,14 +59,21 @@ export async function login(formData: FormData): Promise<AuthActionResult | void
  * Redirects user to `/login`.
  */
 export async function logout(): Promise<void> {
+  let isSuccess = false;
   try {
     const supabase = await createClient();
     await supabase.auth.signOut();
     revalidatePath("/", "layout");
+    isSuccess = true;
   } catch (err: unknown) {
+    if (isRedirectError(err)) {
+      throw err;
+    }
     console.error("[logout] Error signing out:", err);
   }
 
-  redirect("/login");
+  if (isSuccess) {
+    redirect("/login");
+  }
 }
 

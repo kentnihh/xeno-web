@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { login } from "@/app/auth/actions";
 import {
   ShieldCheck,
@@ -138,11 +139,20 @@ export default function LoginPage() {
       const formData = new FormData(event.currentTarget);
       const res = await login(formData);
       if (res?.error) {
-        setError(res.error);
+        if (!res.error.includes("NEXT_REDIRECT")) {
+          setError(res.error);
+        }
         setLoading(false);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Terjadi kesalahan sistem saat login.");
+      if (isRedirectError(err)) {
+        return;
+      }
+      const msg = err instanceof Error ? err.message : String(err || "");
+      if (msg.includes("NEXT_REDIRECT")) {
+        return;
+      }
+      setError(msg || "Terjadi kesalahan sistem saat login.");
       setLoading(false);
     }
   }
@@ -386,7 +396,7 @@ export default function LoginPage() {
             </div>
 
             {/* Error Message Alert */}
-            {error && (
+            {error && !error.includes("NEXT_REDIRECT") && (
               <div
                 role="alert"
                 className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200"
