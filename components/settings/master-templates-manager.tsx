@@ -15,10 +15,20 @@ import {
   RefreshCw,
   Grid3X3,
   GripVertical,
+  ChevronDown,
+  Maximize2,
+  Minimize2,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import type { DynamicSheetGridHandle } from "@/components/events/spreadsheet/dynamic-sheet-grid";
+import {
+  triggerFortuneSheetNativeZoom,
+  setFortuneSheetZoomLevel,
+  ZOOM_PRESETS,
+} from "@/lib/spreadsheet-zoom";
 
 const DynamicSheetGrid = dynamic(
   () =>
@@ -57,12 +67,62 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [showGridLines, setShowGridLines] = useState<boolean>(true);
   const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [zoomRatio, setZoomRatio] = useState<number>(1.0);
+  const [isZoomMenuOpen, setIsZoomMenuOpen] = useState<boolean>(false);
 
   const gridRef = useRef<DynamicSheetGridHandle | null>(null);
+  const zoomMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Handle Escape key to exit fullscreen & lock body scroll
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsFullscreen(false);
+      }
+    };
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  // Click outside to close zoom presets dropdown
+  useEffect(() => {
+    if (!isZoomMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (zoomMenuRef.current && !zoomMenuRef.current.contains(e.target as Node)) {
+        setIsZoomMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isZoomMenuOpen]);
+
+  const handleZoomIn = () => {
+    setZoomRatio((prev) => Math.min(2.0, parseFloat((prev + 0.1).toFixed(1))));
+    triggerFortuneSheetNativeZoom("+");
+  };
+
+  const handleZoomOut = () => {
+    setZoomRatio((prev) => Math.max(0.5, parseFloat((prev - 0.1).toFixed(1))));
+    triggerFortuneSheetNativeZoom("-");
+  };
+
+  const handleSelectZoomPreset = async (target: number) => {
+    setIsZoomMenuOpen(false);
+    const current = zoomRatio;
+    setZoomRatio(target);
+    await setFortuneSheetZoomLevel(current, target);
+  };
 
   const activeTemplate = useMemo(
     () => templates.find((t) => t.id === activeTemplateId) || templates[0],
@@ -437,8 +497,14 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
       </div>
       {/* Active Template Editor Header & Sheet */}
       {activeTemplate && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-border bg-card">
+        <div
+          className={
+            isFullscreen
+              ? "fixed inset-0 z-[100] bg-background w-full h-screen p-4 flex flex-col gap-3 overflow-hidden"
+              : "space-y-4"
+          }
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-border bg-card shrink-0">
             <div className="flex items-center gap-3">
               <span className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
                 Mengedit Template:
@@ -456,7 +522,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {saveStatus === "saving" && (
                 <div className="flex items-center gap-1.5 text-xs text-amber-500 font-medium">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -493,7 +559,84 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
                 </span>
               </button>
 
-              {/* 2. Dedicated Refresh Button */}
+              {/* 2. Zoom Controls: Zoom Out, Percentage Dropdown, Zoom In */}
+              <div className="relative flex items-center bg-card border border-border rounded-lg shadow-2xs" ref={zoomMenuRef}>
+                <button
+                  type="button"
+                  onClick={handleZoomOut}
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-l-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Perkecil (Zoom Out)"
+                  disabled={zoomRatio <= 0.5}
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsZoomMenuOpen((v) => !v)}
+                  className="px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted/80 transition-colors flex items-center gap-1 cursor-pointer border-x border-border/60"
+                  title="Pilih tingkat zoom"
+                >
+                  <span>{Math.round(zoomRatio * 100)}%</span>
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleZoomIn}
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-r-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Perbesar (Zoom In)"
+                  disabled={zoomRatio >= 2.0}
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Zoom Presets Menu */}
+                {isZoomMenuOpen && (
+                  <div className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 z-[110] w-28 bg-card border border-border rounded-xl shadow-lg py-1 text-xs">
+                    {ZOOM_PRESETS.map((preset) => (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        onClick={() => handleSelectZoomPreset(preset.value)}
+                        className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted cursor-pointer flex items-center justify-between ${
+                          Math.abs(zoomRatio - preset.value) < 0.01
+                            ? "text-[#007aff] font-bold bg-[#007aff]/5"
+                            : "text-foreground"
+                        }`}
+                      >
+                        <span>{preset.label}</span>
+                        {Math.abs(zoomRatio - preset.value) < 0.01 && (
+                          <Check className="w-3 h-3 text-[#007aff]" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Fullscreen Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsFullscreen((v) => !v)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border shadow-2xs ${
+                  isFullscreen
+                    ? "bg-[#007aff]/10 text-[#007aff] border-[#007aff]/30 hover:bg-[#007aff]/20"
+                    : "bg-card hover:bg-muted text-foreground border-border hover:border-border/80"
+                }`}
+                title={isFullscreen ? "Keluar dari Layar Penuh (Esc)" : "Mode Layar Penuh (Fullscreen)"}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="w-3.5 h-3.5 text-[#007aff]" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden md:inline">
+                  {isFullscreen ? "Layar Normal" : "Layar Penuh"}
+                </span>
+              </button>
+
+              {/* 4. Dedicated Refresh Button */}
               <button
                 type="button"
                 onClick={handleRefresh}
@@ -541,6 +684,8 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
             sheetName={activeTemplate.sheet_name}
             data={activeTemplate.jsonb_structure}
             showGridLines={showGridLines}
+            isFullscreen={isFullscreen}
+            zoomRatio={zoomRatio}
           />
         </div>
       )}

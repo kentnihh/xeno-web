@@ -49,11 +49,20 @@ export interface DynamicSheetGridProps {
   readOnly?: boolean;
   sheetName?: string;
   showGridLines?: boolean;
+  isFullscreen?: boolean;
+  zoomRatio?: number;
 }
 
 export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetGridProps>(
   function DynamicSheetGrid(
-    { data, readOnly = false, sheetName = "Sheet 1", showGridLines = true },
+    {
+      data,
+      readOnly = false,
+      sheetName = "Sheet 1",
+      showGridLines = true,
+      isFullscreen = false,
+      zoomRatio,
+    },
     ref
   ) {
     const [mounted, setMounted] = useState(false);
@@ -78,6 +87,9 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
         }
         (newSheet.config as any).showGridLines = showGridLines ? 1 : 0;
       }
+      if (zoomRatio !== undefined) {
+        newSheet.zoomRatio = zoomRatio;
+      }
       return [newSheet];
     });
 
@@ -88,6 +100,20 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
         setMounted(true);
       });
     }, []);
+
+    // Trigger window resize event so FortuneSheet recalculates canvas layout when toggling fullscreen
+    useEffect(() => {
+      const timer1 = setTimeout(() => {
+        window.dispatchEvent(new Event("resize"));
+      }, 50);
+      const timer2 = setTimeout(() => {
+        window.dispatchEvent(new Event("resize"));
+      }, 200);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
+    }, [isFullscreen]);
 
     // Expose imperative handle so parents can grab fresh data on-demand
     useImperativeHandle(
@@ -149,7 +175,13 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
 
     if (!mounted) {
       return (
-        <div className="w-full h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
+        <div
+          className={`w-full flex flex-col items-center justify-center bg-card border border-border text-muted-foreground gap-3 ${
+            isFullscreen
+              ? "flex-1 min-h-[350px] rounded-xl"
+              : "h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px] rounded-2xl"
+          }`}
+        >
           <Loader2 className="w-7 h-7 animate-spin text-[#007aff]" />
           <span className="text-xs font-semibold tracking-tight">Memuat Lembar Kerja Excel...</span>
         </div>
@@ -157,9 +189,9 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
     }
 
     return (
-      <div className="w-full space-y-2">
+      <div className={`w-full space-y-2 ${isFullscreen ? "flex-1 flex flex-col min-h-0" : ""}`}>
         {/* Helper Tips & Instructions */}
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground px-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground px-1 shrink-0">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1 font-semibold text-foreground">
               <span className="w-2 h-2 rounded-full bg-[#30d158] animate-pulse" />
@@ -178,7 +210,13 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
         </div>
 
         {/* Rich FortuneSheet Canvas Container */}
-        <div className="w-full h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px] rounded-2xl border border-border bg-card shadow-xs overflow-hidden relative fortune-sheet-wrapper">
+        <div
+          className={`w-full rounded-2xl border border-border bg-card shadow-xs overflow-hidden relative fortune-sheet-wrapper ${
+            isFullscreen
+              ? "flex-1 min-h-0 h-full"
+              : "h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px]"
+          }`}
+        >
           <Workbook
             key={initialSheets[0]?.id || sheetName}
             ref={workbookRef}

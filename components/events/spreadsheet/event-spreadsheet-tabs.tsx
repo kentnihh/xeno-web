@@ -14,10 +14,19 @@ import {
   RefreshCw,
   Grid3X3,
   GripVertical,
+  Maximize2,
+  Minimize2,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import type { DynamicSheetGridHandle } from "./dynamic-sheet-grid";
+import {
+  triggerFortuneSheetNativeZoom,
+  setFortuneSheetZoomLevel,
+  ZOOM_PRESETS,
+} from "@/lib/spreadsheet-zoom";
 
 const DynamicSheetGrid = dynamic(
   () => import("./dynamic-sheet-grid").then((m) => m.DynamicSheetGrid),
@@ -64,14 +73,64 @@ export function EventSpreadsheetTabs({
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [showGridLines, setShowGridLines] = useState<boolean>(true);
   const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [zoomRatio, setZoomRatio] = useState<number>(1.0);
+  const [isZoomMenuOpen, setIsZoomMenuOpen] = useState<boolean>(false);
   const [, startTransition] = useTransition();
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const zoomMenuRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<DynamicSheetGridHandle | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Handle Escape key to exit fullscreen & lock body scroll
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsFullscreen(false);
+      }
+    };
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  // Click outside to close zoom presets dropdown
+  useEffect(() => {
+    if (!isZoomMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (zoomMenuRef.current && !zoomMenuRef.current.contains(e.target as Node)) {
+        setIsZoomMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isZoomMenuOpen]);
+
+  const handleZoomIn = () => {
+    setZoomRatio((prev) => Math.min(2.0, parseFloat((prev + 0.1).toFixed(1))));
+    triggerFortuneSheetNativeZoom("+");
+  };
+
+  const handleZoomOut = () => {
+    setZoomRatio((prev) => Math.max(0.5, parseFloat((prev - 0.1).toFixed(1))));
+    triggerFortuneSheetNativeZoom("-");
+  };
+
+  const handleSelectZoomPreset = async (target: number) => {
+    setIsZoomMenuOpen(false);
+    const current = zoomRatio;
+    setZoomRatio(target);
+    await setFortuneSheetZoomLevel(current, target);
+  };
 
   useEffect(() => {
     onSheetsChange?.(sheets);
@@ -336,9 +395,15 @@ export function EventSpreadsheetTabs({
   };
 
   return (
-    <div className="space-y-4">
+    <div
+      className={
+        isFullscreen
+          ? "fixed inset-0 z-[100] bg-background w-full h-screen p-4 flex flex-col gap-3 overflow-hidden"
+          : "space-y-4"
+      }
+    >
       {/* Tab Bar with pinned controls */}
-      <div className="flex items-center justify-between border-y border-border bg-muted/40 dark:bg-zinc-900/40">
+      <div className="flex items-center justify-between border-y border-border bg-muted/40 dark:bg-zinc-900/40 shrink-0">
         {/* Horizontally scrollable Sheet Tabs */}
         {!isMounted ? (
           <div className="flex items-center overflow-x-auto scrollbar-none py-1 px-1 min-w-0 flex-1">
@@ -498,8 +563,8 @@ export function EventSpreadsheetTabs({
           </DragDropContext>
         )}
 
-        {/* Pinned Action Controls: Gridlines, Refresh, Save & Status */}
-        <div className="flex items-center gap-2 shrink-0 px-3 py-1 border-l border-border/80 bg-background/50">
+        {/* Pinned Action Controls: Gridlines, Zoom, Fullscreen, Refresh, Save & Status */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 px-3 py-1 border-l border-border/80 bg-background/50">
           {/* 1. Show/Hide Gridlines Toggle */}
           <button
             type="button"
@@ -517,7 +582,84 @@ export function EventSpreadsheetTabs({
             </span>
           </button>
 
-          {/* 2. Dedicated Refresh Button */}
+          {/* 2. Zoom Controls: Zoom Out, Percentage Dropdown, Zoom In */}
+          <div className="relative flex items-center bg-card border border-border rounded-lg shadow-2xs" ref={zoomMenuRef}>
+            <button
+              type="button"
+              onClick={handleZoomOut}
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-l-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Perkecil (Zoom Out)"
+              disabled={zoomRatio <= 0.5}
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsZoomMenuOpen((v) => !v)}
+              className="px-2 py-1 text-[11px] font-semibold text-foreground hover:bg-muted/80 transition-colors flex items-center gap-1 cursor-pointer border-x border-border/60"
+              title="Pilih tingkat zoom"
+            >
+              <span>{Math.round(zoomRatio * 100)}%</span>
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleZoomIn}
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-r-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Perbesar (Zoom In)"
+              disabled={zoomRatio >= 2.0}
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Zoom Presets Menu */}
+            {isZoomMenuOpen && (
+              <div className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 z-[110] w-28 bg-card border border-border rounded-xl shadow-lg py-1 text-xs">
+                {ZOOM_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => handleSelectZoomPreset(preset.value)}
+                    className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors hover:bg-muted cursor-pointer flex items-center justify-between ${
+                      Math.abs(zoomRatio - preset.value) < 0.01
+                        ? "text-[#007aff] font-bold bg-[#007aff]/5"
+                        : "text-foreground"
+                    }`}
+                  >
+                    <span>{preset.label}</span>
+                    {Math.abs(zoomRatio - preset.value) < 0.01 && (
+                      <Check className="w-3 h-3 text-[#007aff]" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Fullscreen Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsFullscreen((v) => !v)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border shadow-2xs ${
+              isFullscreen
+                ? "bg-[#007aff]/10 text-[#007aff] border-[#007aff]/30 hover:bg-[#007aff]/20"
+                : "bg-card hover:bg-muted text-foreground border-border hover:border-border/80"
+            }`}
+            title={isFullscreen ? "Keluar dari Layar Penuh (Esc)" : "Mode Layar Penuh (Fullscreen)"}
+          >
+            {isFullscreen ? (
+              <Minimize2 className="w-3.5 h-3.5 text-[#007aff]" />
+            ) : (
+              <Maximize2 className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden md:inline">
+              {isFullscreen ? "Layar Normal" : "Layar Penuh"}
+            </span>
+          </button>
+
+          {/* 4. Dedicated Refresh Button */}
           <button
             type="button"
             onClick={handleRefresh}
@@ -535,7 +677,7 @@ export function EventSpreadsheetTabs({
             </span>
           </button>
 
-          {/* 3. Pinned Manual Save Button */}
+          {/* 5. Pinned Manual Save Button */}
           {canManage && (
             <button
               type="button"
@@ -575,18 +717,22 @@ export function EventSpreadsheetTabs({
           data={activeSheet.data}
           readOnly={!canManage}
           showGridLines={showGridLines}
+          isFullscreen={isFullscreen}
+          zoomRatio={zoomRatio}
         />
       )}
 
-      {/* Append Family Data directly below the FortuneSheet container */}
-      <div className="pt-6 border-t border-border mt-8">
-        <EventFamilyDataSection
-          eventId={eventId}
-          initialForm={publicForm}
-          canManage={canManage}
-          variant="embedded"
-        />
-      </div>
+      {/* Append Family Data directly below the FortuneSheet container (only in normal mode) */}
+      {!isFullscreen && (
+        <div className="pt-6 border-t border-border mt-8">
+          <EventFamilyDataSection
+            eventId={eventId}
+            initialForm={publicForm}
+            canManage={canManage}
+            variant="embedded"
+          />
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={!!deletingSheetName}
