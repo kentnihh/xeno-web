@@ -62,22 +62,38 @@ export async function saveMasterTemplate(
     const supabase = await createClient();
     const now = new Date().toISOString();
 
-    const { error } = await supabase
-      .from("master_templates")
-      .upsert(
-        {
-          id: id.startsWith("new-") ? undefined : id,
+    const isExisting = Boolean(id && !id.startsWith("new-") && id.trim() !== "");
+
+    if (isExisting) {
+      const { error } = await supabase
+        .from("master_templates")
+        .update({
           sheet_name: sheetName.trim(),
           order_index: orderIndex,
           sort_order: orderIndex,
           jsonb_structure: sanitizedData,
           updated_at: now,
-        },
-        { onConflict: "sheet_name" }
-      );
+        })
+        .eq("id", id);
 
-    if (error) {
-      return { error: error.message };
+      if (error) {
+        return { error: error.message };
+      }
+    } else {
+      const { error } = await supabase
+        .from("master_templates")
+        .insert({
+          sheet_name: sheetName.trim(),
+          order_index: orderIndex,
+          sort_order: orderIndex,
+          jsonb_structure: sanitizedData,
+          created_at: now,
+          updated_at: now,
+        });
+
+      if (error) {
+        return { error: error.message };
+      }
     }
 
     revalidatePath("/settings/templates");
@@ -163,16 +179,34 @@ export async function resetAllMasterTemplates(): Promise<ActionResult> {
 
     for (let i = 0; i < INITIAL_EVENT_SHEETS.length; i++) {
       const tpl = INITIAL_EVENT_SHEETS[i];
-      await supabase.from("master_templates").upsert(
-        {
+      const now = new Date().toISOString();
+
+      const { data: existing } = await supabase
+        .from("master_templates")
+        .select("id")
+        .eq("sheet_name", tpl.name)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await supabase
+          .from("master_templates")
+          .update({
+            order_index: i,
+            sort_order: i,
+            jsonb_structure: tpl.data,
+            updated_at: now,
+          })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("master_templates").insert({
           sheet_name: tpl.name,
           order_index: i,
           sort_order: i,
           jsonb_structure: tpl.data,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "sheet_name" }
-      );
+          created_at: now,
+          updated_at: now,
+        });
+      }
     }
 
     revalidatePath("/settings/templates");

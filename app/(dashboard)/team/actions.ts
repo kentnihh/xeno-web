@@ -4,12 +4,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
 import type { UserRole } from "@/types/database";
 
 const updateMemberRoleSchema = z.object({
   userId: z.string().min(1, "ID pengguna wajib diisi"),
-  newRole: z.enum(["admin", "manager", "staff"]),
+  newRole: z.string().min(1, "Peran pengguna wajib diisi"),
   avatarColor: z.string().optional().nullable(),
 });
 
@@ -22,7 +22,36 @@ export async function updateMemberRoleAction(
     await requirePermission("team.manage");
 
     const validated = updateMemberRoleSchema.parse({ userId, newRole, avatarColor });
+
+    // Guardrail: Only SUPER_ADMIN can assign SUPER_ADMIN role
+    if (isSuperAdminRole(validated.newRole)) {
+      const callerIsSuper = await isSuperAdmin();
+      if (!callerIsSuper) {
+        return {
+          success: false,
+          error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
+        };
+      }
+    }
+
     const supabase = await createClient();
+
+    // Guardrail: Non-Super Admin cannot modify a Super Admin profile
+    const { data: targetProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", validated.userId)
+      .maybeSingle();
+
+    if (targetProfile && isSuperAdminRole(targetProfile.role)) {
+      const callerIsSuper = await isSuperAdmin();
+      if (!callerIsSuper) {
+        return {
+          success: false,
+          error: "Akses ditolak: Akun Super Admin tidak dapat diubah oleh peran Admin standar.",
+        };
+      }
+    }
 
     const updatePayload: Record<string, unknown> = {
       role: validated.newRole,

@@ -30,7 +30,7 @@ export type TaskStatus = 'todo' | 'in_progress' | 'done';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 /** Access level for internal team members */
-export type UserRole = 'admin' | 'manager' | 'staff';
+export type UserRole = 'super_admin' | 'admin' | 'manager' | 'staff' | 'SUPER_ADMIN';
 
 /** Engagement/contract status with vendors */
 export type VendorStatus = 'proposed' | 'contracted' | 'paid';

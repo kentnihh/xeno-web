@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
 import { FALLBACK_PERMISSIONS } from "@/lib/rbac-fallbacks";
+import type { UserRole } from "@/types/database";
 
 type ActionResult = { success?: boolean; error?: string };
 
@@ -42,6 +43,16 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
       return { error: "Kata sandi minimal 6 karakter." };
     }
 
+    // Guardrail: Only SUPER_ADMIN can assign SUPER_ADMIN role
+    if (isSuperAdminRole(roleId)) {
+      const callerIsSuper = await isSuperAdmin();
+      if (!callerIsSuper) {
+        return {
+          error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
+        };
+      }
+    }
+
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return {
         error: "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi di server. Pembuatan pengguna memerlukan Admin API.",
@@ -71,7 +82,7 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
         full_name: fullName,
         email,
         phone,
-        role: roleId as "admin" | "manager" | "staff",
+        role: roleId as UserRole,
         avatar_color: roleId === "admin" ? avatarColor : null,
       },
       { onConflict: "id" }
@@ -108,13 +119,39 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
 
     if (!id || !fullName) return { error: "ID dan nama lengkap wajib diisi." };
 
+    // Guardrail: Only SUPER_ADMIN can assign SUPER_ADMIN role
+    if (isSuperAdminRole(roleId)) {
+      const callerIsSuper = await isSuperAdmin();
+      if (!callerIsSuper) {
+        return {
+          error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
+        };
+      }
+    }
+
     const supabase = await getRBACClient();
+
+    // Guardrail: Non-Super Admin cannot modify a Super Admin profile
+    const { data: targetProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (targetProfile && isSuperAdminRole(targetProfile.role)) {
+      const callerIsSuper = await isSuperAdmin();
+      if (!callerIsSuper) {
+        return {
+          error: "Akses ditolak: Akun Super Admin hanya dapat dikelola oleh sesama Super Admin.",
+        };
+      }
+    }
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
         full_name: fullName,
         phone,
-        role: roleId as "admin" | "manager" | "staff",
+        role: roleId as UserRole,
         avatar_color: roleId === "admin" ? avatarColor : null,
         updated_at: new Date().toISOString(),
       })

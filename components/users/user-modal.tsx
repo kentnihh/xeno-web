@@ -40,7 +40,9 @@ export function UserModal({
   const [roleId, setRoleId] = useState(user?.roles?.[0]?.id || user?.role || roles[0]?.id || "");
   const [avatarColor, setAvatarColor] = useState(user?.avatar_color || "#007aff");
 
-  const isAdminRole = (roleId || "").toLowerCase() === "admin";
+  const isAdminRole =
+    (roleId || "").toLowerCase() === "admin" ||
+    (roleId || "").toLowerCase() === "super_admin";
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -195,7 +197,7 @@ export function UserModal({
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="text-[11px] font-mono font-bold uppercase">{avatarColor}</span>
-                <UserAvatar role="admin" avatarColor={avatarColor} size="sm" showTooltip={false} />
+                <UserAvatar role={roleId} avatarColor={avatarColor} size="sm" showTooltip={false} />
               </div>
             </div>
 

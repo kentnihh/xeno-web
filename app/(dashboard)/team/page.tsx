@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission, getCurrentUser } from "@/lib/auth";
 import { TeamMemberActions } from "@/components/team/team-member-actions";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { RoleBadge } from "@/components/ui/role-badge";
 import { Mail, ShieldCheck, Shield } from "lucide-react";
 
 export default async function TeamPage() {
@@ -40,19 +41,8 @@ export default async function TeamPage() {
                   <UserAvatar user={member} size="md" />
                   <div>
                     <h3 className="text-sm font-bold text-foreground">{member.full_name}</h3>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      {member.role === "admin" ? (
-                        <ShieldCheck className="w-3.5 h-3.5 text-[#ff9f0a]" />
-                      ) : (
-                        <Shield className="w-3.5 h-3.5 text-muted-foreground/70" />
-                      )}
-                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                        member.role === "admin"
-                          ? "bg-[#ff9f0a]/15 text-[#ff9f0a] border border-[#ff9f0a]/30"
-                          : "bg-[#007aff]/15 text-[#007aff] dark:text-[#3894ff] border border-[#007aff]/30"
-                      }`}>
-                        {member.role}
-                      </span>
+                    <div className="mt-1">
+                      <RoleBadge role={member.role} size="xs" />
                     </div>
                   </div>
                 </div>

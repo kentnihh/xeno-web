@@ -49,11 +49,14 @@ export function TeamMemberActions({
       <div className="relative flex items-center">
         <select
           value={role}
-          disabled={isUpdating}
+          disabled={isUpdating || role.toLowerCase() === "super_admin"}
           onChange={(e) => handleRoleChange(e.target.value as UserRole)}
           className="apple-input text-[11px] uppercase font-bold px-2.5 py-1 bg-muted text-foreground border-border cursor-pointer disabled:opacity-50"
           title="Ubah peran staf"
         >
+          {role.toLowerCase() === "super_admin" && (
+            <option value="super_admin" className="bg-card text-foreground">Super Admin</option>
+          )}
           <option value="staff" className="bg-card text-foreground">Staff</option>
           <option value="admin" className="bg-card text-foreground">Admin</option>
         </select>

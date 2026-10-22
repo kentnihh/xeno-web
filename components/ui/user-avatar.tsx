@@ -62,6 +62,7 @@ const SIZE_CONFIG: Record<
 };
 
 /** Standard colors for Manager and Staff */
+const SUPER_ADMIN_DEFAULT_COLOR = "#f59e0b"; // Golden Amber Accent
 const MANAGER_DEFAULT_COLOR = "#af52de"; // Apple Purple
 const STAFF_DEFAULT_COLOR = "#64748b"; // Professional Slate
 const ADMIN_DEFAULT_COLOR = "#007aff"; // Apple Classic Blue
@@ -98,16 +99,23 @@ export function UserAvatar({
 }: UserAvatarProps) {
   // Resolve effective role
   const rawRole = (propRole || user?.role || "staff").toString().trim().toLowerCase();
-  const isAdmin = rawRole === "admin";
+  const isSuperAdmin = rawRole === "super_admin" || rawRole === "superadmin";
+  const isAdmin = rawRole === "admin" || isSuperAdmin;
   const isManager = rawRole === "manager";
   const isStaff = !isAdmin && !isManager;
 
   // Resolve user display name
   const displayName = propName || user?.full_name || user?.name || user?.email || (
-    isAdmin ? "Administrator" : isManager ? "Event Manager" : "Kru Operasional"
+    isSuperAdmin ? "Super Administrator" : isAdmin ? "Administrator" : isManager ? "Event Manager" : "Kru Operasional"
   );
 
-  const roleLabel = isAdmin ? "Administrator" : isManager ? "Event Manager" : "Staff";
+  const roleLabel = isSuperAdmin
+    ? "Super Administrator"
+    : rawRole === "admin"
+      ? "Administrator"
+      : isManager
+        ? "Event Manager"
+        : "Staff";
   const tooltipText = showTooltip ? `${displayName} • ${roleLabel}` : undefined;
 
   const sizeCfg = SIZE_CONFIG[size] || SIZE_CONFIG.md;
@@ -115,7 +123,7 @@ export function UserAvatar({
   if (isAdmin) {
     const adminColor = normalizeColor(
       propColor || user?.avatar_color || user?.avatarColor,
-      ADMIN_DEFAULT_COLOR
+      isSuperAdmin ? SUPER_ADMIN_DEFAULT_COLOR : ADMIN_DEFAULT_COLOR
     );
 
     return (

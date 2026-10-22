@@ -2,7 +2,7 @@
 
 Configures:
 1. Production Users:
-   - Jonathan Kent (admin@admin.com) - Admin
+   - Jonathan Kent (admin@xenoent.com) - Admin
    - Edja (edjamoo@xenoent.com) - Admin
 2. RBAC Tables:
    - Roles (admin, manager, staff)
@@ -29,9 +29,9 @@ from scripts.db_client import get_supabase_admin_client, get_supabase_client
 PRODUCTION_USERS = [
     {
         "name": "Jonathan Kent",
-        "email": "admin@admin.com",
+        "email": "admin@xenoent.com",
         "password": "Admin123!",
-        "role": "admin",
+        "role": "SUPER_ADMIN",
     },
     {
         "name": "Edja",
@@ -49,6 +49,16 @@ PRODUCTION_USERS = [
 
 # Standard RBAC Roles
 ROLES_DATA = [
+    {
+        "id": "SUPER_ADMIN",
+        "name": "Super Administrator",
+        "description": "Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna",
+    },
+    {
+        "id": "super_admin",
+        "name": "Super Administrator",
+        "description": "Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna",
+    },
     {
         "id": "admin",
         "name": "Administrator",
@@ -85,6 +95,8 @@ PERMISSIONS_DATA = [
 
 # Standard Role-to-Permission Mappings
 ROLE_PERMISSIONS_MAPPING = {
+    "SUPER_ADMIN": [p["id"] for p in PERMISSIONS_DATA],
+    "super_admin": [p["id"] for p in PERMISSIONS_DATA],
     "admin": [p["id"] for p in PERMISSIONS_DATA],
     "manager": [
         "events:read", "events:create", "events:update",
@@ -435,7 +447,7 @@ def seed():
     print("=" * 60)
     print("Production Database Seeding Completed Successfully!")
     print("Active Production Users:")
-    print("  1. Jonathan Kent (admin@admin.com) -> Role: Admin")
+    print("  1. Jonathan Kent (admin@xenoent.com) -> Role: Super Admin")
     print("  2. Edja (edjamoo@xenoent.com) -> Role: Admin")
     print("Operational Data: Clean (0 clients, 0 vendors, 0 events, 0 tasks)")
     print("=" * 60)

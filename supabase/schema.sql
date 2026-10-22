@@ -18,7 +18,7 @@ exception when duplicate_object then null;
 end $$;
 
 do $$ begin
-  create type user_role as enum ('admin', 'manager', 'staff');
+  create type user_role as enum ('super_admin', 'admin', 'manager', 'staff');
 exception when duplicate_object then null;
 end $$;
 
@@ -234,10 +234,24 @@ returns boolean as $$
 begin
   return exists (
     select 1 from public.profiles
-    where id = auth.uid() and role = 'admin'
+    where id = auth.uid() and (lower(role::text) = 'admin' or lower(role::text) = 'super_admin')
   ) or exists (
     select 1 from public.user_roles
-    where user_id = auth.uid() and role_id = 'admin'
+    where user_id = auth.uid() and (lower(role_id) = 'admin' or lower(role_id) = 'super_admin')
+  );
+end;
+$$ language plpgsql security definer set search_path = public stable;
+
+-- Security Helper: is_super_admin()
+create or replace function public.is_super_admin()
+returns boolean as $$
+begin
+  return exists (
+    select 1 from public.profiles
+    where id = auth.uid() and lower(role::text) = 'super_admin'
+  ) or exists (
+    select 1 from public.user_roles
+    where user_id = auth.uid() and lower(role_id) = 'super_admin'
   );
 end;
 $$ language plpgsql security definer set search_path = public stable;

@@ -1,7 +1,8 @@
 "use client";
 
-import { Pencil, Trash2, ShieldCheck, Shield, KeyRound } from "lucide-react";
+import { Pencil, Trash2, KeyRound } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { RoleBadge } from "@/components/ui/role-badge";
 import type { UserWithRBAC } from "@/types/database";
 
 export function UsersTable({
@@ -62,19 +63,7 @@ export function UsersTable({
                   </td>
 
                   <td className="py-3.5 px-4">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border capitalize bg-muted border-border">
-                      {isAdmin ? (
-                        <>
-                          <ShieldCheck className="w-3.5 h-3.5 text-[#ff9f0a]" />
-                          <span className="text-[#ff9f0a]">{roleName}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Shield className="w-3.5 h-3.5 text-[#007aff]" />
-                          <span className="text-[#007aff] dark:text-[#3894ff]">{roleName}</span>
-                        </>
-                      )}
-                    </div>
+                    <RoleBadge role={u.roles?.[0]?.id || u.role} size="sm" />
                   </td>
 
                   <td className="py-3.5 px-4">

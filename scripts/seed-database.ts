@@ -3,7 +3,7 @@
  *
  * Configures:
  * 1. Production Users:
- *    - Jonathan Kent (admin@admin.com) - Admin
+ *    - Jonathan Kent (admin@xenoent.com) - Admin
  *    - Edja (edjamoo@xenoent.com) - Admin
  * 2. RBAC System:
  *    - Roles (admin, manager, staff)
@@ -53,9 +53,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const PRODUCTION_USERS = [
   {
     name: "Jonathan Kent",
-    email: "admin@admin.com",
+    email: "admin@xenoent.com",
     password: "Admin123!",
-    role: "admin",
+    role: "SUPER_ADMIN",
   },
   {
     name: "Edja",
@@ -73,6 +73,16 @@ const PRODUCTION_USERS = [
 
 // RBAC Roles
 const ROLES_DATA = [
+  {
+    id: "SUPER_ADMIN",
+    name: "Super Administrator",
+    description: "Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna",
+  },
+  {
+    id: "super_admin",
+    name: "Super Administrator",
+    description: "Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna",
+  },
   {
     id: "admin",
     name: "Administrator",
@@ -109,6 +119,7 @@ const PERMISSIONS_DATA = [
 
 // Role-to-Permissions mapping
 const ROLE_PERMISSIONS_MAPPING: Record<string, string[]> = {
+  super_admin: PERMISSIONS_DATA.map((p) => p.id),
   admin: PERMISSIONS_DATA.map((p) => p.id),
   manager: [
     "events:read", "events:create", "events:update",
@@ -400,7 +411,7 @@ async function main() {
   console.log("=".repeat(60));
   console.log("Production Database Seeding Completed Successfully!");
   console.log("Active Production Users:");
-  console.log("  1. Jonathan Kent (admin@admin.com) -> Role: Admin");
+  console.log("  1. Jonathan Kent (admin@xenoent.com) -> Role: Admin");
   console.log("  2. Edja (edjamoo@xenoent.com) -> Role: Admin");
   console.log("Operational Data: Clean (0 clients, 0 vendors, 0 events, 0 tasks)");
   console.log("=".repeat(60));

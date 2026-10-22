@@ -17,9 +17,11 @@ import {
   FileSpreadsheet,
   ShieldCheck,
   ChevronRight,
+  UserCheck,
 } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { RoleBadge } from "@/components/ui/role-badge";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +31,7 @@ interface NavbarProps {
   avatarColor?: string | null;
   canCreateEvent?: boolean;
   canAccessSettings?: boolean;
+  isSuperAdmin?: boolean;
 }
 
 const mainNavigation = [
@@ -39,7 +42,7 @@ const mainNavigation = [
   { name: "Tim Kru", href: "/team", icon: Layers },
 ];
 
-const settingsSubNavigation = [
+const baseSettingsSubNav = [
   { name: "Master Template", href: "/settings/templates", icon: FileSpreadsheet },
   { name: "Manajemen RBAC", href: "/settings/rbac", icon: ShieldCheck },
 ];
@@ -50,7 +53,14 @@ export function Navbar({
   avatarColor,
   canCreateEvent = false,
   canAccessSettings = false,
+  isSuperAdmin = false,
 }: NavbarProps) {
+  const settingsSubNavigation = isSuperAdmin
+    ? [
+        ...baseSettingsSubNav,
+        { name: "Impersonate", href: "/settings/impersonate", icon: UserCheck },
+      ]
+    : baseSettingsSubNav;
   const router = useRouter();
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -152,9 +162,7 @@ export function Navbar({
               <span className="font-semibold text-foreground max-w-[140px] truncate">
                 {userEmail}
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border text-foreground uppercase tracking-wider">
-                {userRole}
-              </span>
+              <RoleBadge role={userRole} size="xs" />
             </div>
           </div>
 
@@ -231,9 +239,7 @@ export function Navbar({
                     {userEmail}
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border text-foreground uppercase tracking-wider">
-                      {userRole}
-                    </span>
+                    <RoleBadge role={userRole} size="xs" />
                   </div>
                 </div>
               </div>

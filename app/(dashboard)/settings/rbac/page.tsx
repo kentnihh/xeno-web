@@ -1,18 +1,19 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isAdmin, hasPermission, getCurrentUser } from "@/lib/auth";
+import { isAdmin, hasPermission, getCurrentUser, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
 import { UsersManagementView } from "@/components/users/users-management-view";
 import type { UserWithRBAC, Role, Permission, RolePermission, Profile } from "@/types/database";
 
 export default async function SettingsRBACPage() {
   const user = await getCurrentUser();
-  const [isAdminUser, canRbacManage, canUsersManage] = await Promise.all([
+  const [isAdminUser, canRbacManage, canUsersManage, isSuperAdminUser] = await Promise.all([
     isAdmin(user?.id),
     hasPermission("rbac.manage", user?.id),
     hasPermission("users.manage", user?.id),
+    isSuperAdmin(user?.id),
   ]);
 
-  if (!isAdminUser && !canRbacManage && !canUsersManage) {
+  if (!isAdminUser && !canRbacManage && !canUsersManage && !isSuperAdminUser) {
     redirect("/dashboard");
   }
 
@@ -46,10 +47,15 @@ export default async function SettingsRBACPage() {
     };
   });
 
+  // Exclude SUPER_ADMIN from role assignment options if current user is not SUPER_ADMIN
+  const availableRoles = isSuperAdminUser
+    ? roles
+    : roles.filter((r) => !isSuperAdminRole(r.id));
+
   return (
     <UsersManagementView
       initialUsers={usersWithRBAC}
-      initialRoles={roles}
+      initialRoles={availableRoles}
       initialPermissions={permissions}
       initialRolePermissions={rolePermissions}
       currentUserId={user?.id || null}

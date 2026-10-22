@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Settings,
   FileSpreadsheet,
+  UserCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -28,17 +29,23 @@ const mainNavigation = [
   { name: "Tim Kru", href: "/team", icon: Layers },
 ];
 
-const settingsSubNavigation = [
+const baseSettingsSubNav = [
   { name: "Master Template", href: "/settings/templates", icon: FileSpreadsheet },
   { name: "Manajemen RBAC", href: "/settings/rbac", icon: ShieldCheck },
 ];
 
-
 interface SidebarProps {
   canAccessSettings?: boolean;
+  isSuperAdmin?: boolean;
 }
 
-export function Sidebar({ canAccessSettings = false }: SidebarProps) {
+export function Sidebar({ canAccessSettings = false, isSuperAdmin = false }: SidebarProps) {
+  const settingsSubNavigation = isSuperAdmin
+    ? [
+        ...baseSettingsSubNav,
+        { name: "Impersonate", href: "/settings/impersonate", icon: UserCheck },
+      ]
+    : baseSettingsSubNav;
   const pathname = usePathname();
   const router = useRouter();
   const isSettingsActive = pathname.startsWith("/settings");
