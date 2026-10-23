@@ -312,6 +312,6 @@ This builds the Next.js standalone container, restarts the app service, and Cadd
 
 
 <!-- LAST_ARCH_SYNC -->
-> **Last Architecture Sync**: 42fc6cc feat: add loading skeletons, dynamic spreadsheet import, and performance navigation tests
-cb2f9f5 chore: update ai_context.md with latest architecture sync [skip ci]
-5e70b74 fix(auth): prevent NEXT_REDIRECT error banner on successful login
+> **Last Architecture Sync**: 7457457 feat: add SUPER_ADMIN role, user impersonation system, visual badges, and fix template 409 conflict
+e2c54b4 chore: update ai_context.md with latest architecture sync [skip ci]
+42fc6cc feat: add loading skeletons, dynamic spreadsheet import, and performance navigation tests
