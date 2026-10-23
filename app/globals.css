@@ -303,3 +303,168 @@ body {
   caret-color: #1d1d1f !important;
   opacity: 1 !important;
 }
+
+/* ==========================================================================
+   FortuneSheet Toolbar: Border Dropdown & Flyout Submenu Refinements
+   Fixes hitbox, hover bridge, indicators alignment, and exit delay
+   ========================================================================== */
+
+/* 1. Expand Clickable & Hover Area to Full Width */
+.fortune-border-select-option,
+.fortune-border-menu-item,
+[data-action="border-color"],
+[data-action="border-style"],
+.luckysheet-border-color-picker-item {
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: stretch !important;
+  cursor: pointer !important;
+  padding: 8px 12px !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  min-height: 40px !important;
+  height: auto !important;
+  border-radius: 4px !important;
+  transition: background-color 0.15s ease !important;
+  user-select: none !important;
+}
+
+.fortune-border-select-option:hover,
+.fortune-border-select-option[data-open="true"],
+.fortune-border-select-option[data-locked="true"],
+.fortune-border-menu-item:hover,
+[data-action="border-color"]:hover,
+[data-action="border-style"]:hover,
+.luckysheet-border-color-picker-item:hover {
+  background-color: #f3f4f6 !important;
+}
+
+/* Ensure the label and arrow icon span full width and ignore clicks to bubble to row */
+.fortune-border-select-option .fortune-toolbar-menu-line {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  box-sizing: border-box !important;
+  font-size: 12px !important;
+  color: #1f2937 !important;
+  pointer-events: none !important;
+}
+
+.fortune-border-select-option .fortune-toolbar-menu-line * {
+  pointer-events: none !important;
+}
+
+/* 2. Properly Align the Indicators (Color Bar & Line Style Preview) */
+.fortune-border-color-preview,
+.fortune-border-style-preview {
+  width: 100% !important;
+  height: 4px !important;
+  margin-top: 5px !important;
+  border-radius: 2px !important;
+  box-sizing: border-box !important;
+  pointer-events: none !important;
+}
+
+.fortune-border-color-preview {
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+.fortune-border-style-preview {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  overflow: hidden !important;
+}
+
+.fortune-border-style-preview svg {
+  width: 100% !important;
+  height: 4px !important;
+  display: block !important;
+}
+
+/* 3. Flyout Submenu Containers & High Z-Index */
+.fortune-border-select-menu {
+  position: absolute !important;
+  z-index: 9999 !important;
+  background: #ffffff !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  padding: 6px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+
+/* Submenu Hover Bridge:
+   Invisible ::before (left) and ::after (right) pseudo-elements bridge
+   any diagonal gaps between the parent option and the flyout menu */
+.fortune-border-select-menu::before {
+  content: "" !important;
+  position: absolute !important;
+  top: -30px !important;
+  bottom: -30px !important;
+  left: -24px !important;
+  width: 28px !important;
+  background: transparent !important;
+  pointer-events: auto !important;
+  z-index: 10000 !important;
+}
+
+.fortune-border-select-menu::after {
+  content: "" !important;
+  position: absolute !important;
+  top: -30px !important;
+  bottom: -30px !important;
+  right: -24px !important;
+  width: 28px !important;
+  background: transparent !important;
+  pointer-events: auto !important;
+  z-index: 10000 !important;
+}
+
+/* Prevent Parent Dropdowns from Clipping Submenus */
+.fortune-toolbar-combo-popup {
+  overflow: visible !important;
+  z-index: 1005 !important;
+}
+
+.fortune-toolbar-combo-popup .fortune-toolbar-select {
+  overflow: visible !important;
+}
+
+/* 4. Display Submenus on Hover or Active Lock */
+.fortune-border-select-option:hover > .fortune-border-select-menu,
+.fortune-border-select-option:focus-within > .fortune-border-select-menu,
+.fortune-border-select-option[data-open="true"] > .fortune-border-select-menu,
+.fortune-border-select-option[data-locked="true"] > .fortune-border-select-menu,
+.fortune-border-select-menu:hover {
+  display: block !important;
+}
+
+/* 5. Line Style Items Clickable Hitbox */
+.fortune-border-style-picker-menu {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 6px 10px !important;
+  min-height: 24px !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+  transition: background-color 0.15s ease !important;
+}
+
+.fortune-border-style-picker-menu:hover {
+  background-color: #f3f4f6 !important;
+}
+
+.fortune-border-style-reset {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #374151 !important;
+  margin-bottom: 4px !important;
+  padding: 6px 10px !important;
+}

@@ -69,6 +69,178 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
   ) {
     const [mounted, setMounted] = useState(false);
     const workbookRef = useRef<WorkbookInstance | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    // Enhanced border submenu interaction: hover exit delay (~180ms), click-to-lock, and positioning
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      let closeTimer: ReturnType<typeof setTimeout> | null = null;
+      let activeOption: HTMLElement | null = null;
+      let lockedOption: HTMLElement | null = null;
+
+      const clearCloseTimer = () => {
+        if (closeTimer) {
+          clearTimeout(closeTimer);
+          closeTimer = null;
+        }
+      };
+
+      const openSubmenu = (option: HTMLElement, lock = false) => {
+        clearCloseTimer();
+        const submenu = option.querySelector<HTMLElement>(".fortune-border-select-menu");
+        if (!submenu) return;
+
+        if (activeOption && activeOption !== option && activeOption !== lockedOption) {
+          activeOption.removeAttribute("data-open");
+          const prevSub = activeOption.querySelector<HTMLElement>(".fortune-border-select-menu");
+          if (prevSub) prevSub.style.display = "none";
+        }
+
+        option.setAttribute("data-open", "true");
+        if (lock) {
+          option.setAttribute("data-locked", "true");
+          lockedOption = option;
+        }
+        activeOption = option;
+        submenu.style.display = "block";
+
+        const optionRect = option.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const submenuWidth = parseFloat(submenu.style.width || "166") || 166;
+
+        if (containerRect.right - optionRect.right >= submenuWidth) {
+          submenu.style.left = `${optionRect.width}px`;
+        } else {
+          submenu.style.left = `-${submenuWidth}px`;
+        }
+      };
+
+      const scheduleClose = (option: HTMLElement) => {
+        clearCloseTimer();
+        if (option.getAttribute("data-locked") === "true") return;
+
+        closeTimer = setTimeout(() => {
+          if (option.matches(":hover")) return;
+          const submenu = option.querySelector<HTMLElement>(".fortune-border-select-menu");
+          if (submenu && submenu.matches(":hover")) return;
+
+          option.removeAttribute("data-open");
+          if (submenu) submenu.style.display = "none";
+          if (activeOption === option) activeOption = null;
+        }, 180);
+      };
+
+      const handleMouseOver = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+
+        const option = target.closest<HTMLElement>(".fortune-border-select-option");
+        if (option && container.contains(option)) {
+          openSubmenu(option);
+          return;
+        }
+
+        const submenu = target.closest<HTMLElement>(".fortune-border-select-menu");
+        if (submenu && container.contains(submenu)) {
+          clearCloseTimer();
+        }
+      };
+
+      const handleMouseOut = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+
+        const option = target.closest<HTMLElement>(".fortune-border-select-option");
+        if (option && container.contains(option)) {
+          const related = e.relatedTarget as HTMLElement | null;
+          if (
+            related &&
+            (option.contains(related) ||
+              option.querySelector(".fortune-border-select-menu")?.contains(related))
+          ) {
+            return;
+          }
+          scheduleClose(option);
+          return;
+        }
+
+        const submenu = target.closest<HTMLElement>(".fortune-border-select-menu");
+        if (submenu && container.contains(submenu)) {
+          const related = e.relatedTarget as HTMLElement | null;
+          if (related && submenu.contains(related)) return;
+          const parentOption = submenu.closest<HTMLElement>(".fortune-border-select-option");
+          if (parentOption) {
+            if (related && parentOption.contains(related)) return;
+            scheduleClose(parentOption);
+          }
+        }
+      };
+
+      const handleClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+
+        const option = target.closest<HTMLElement>(".fortune-border-select-option");
+        const submenu = target.closest<HTMLElement>(".fortune-border-select-menu");
+
+        // Clicked on the border color or style row itself (not inside the opened submenu)
+        if (option && !submenu && container.contains(option)) {
+          const isCurrentlyLocked = option.getAttribute("data-locked") === "true";
+          if (isCurrentlyLocked) {
+            option.removeAttribute("data-locked");
+            option.removeAttribute("data-open");
+            lockedOption = null;
+            const sub = option.querySelector<HTMLElement>(".fortune-border-select-menu");
+            if (sub) sub.style.display = "none";
+          } else {
+            openSubmenu(option, true);
+          }
+          return;
+        }
+
+        // Selection made inside submenu (color square, reset, or line style item)
+        const isPickItem =
+          target.closest(".fortune-toolbar-color-picker-item") ||
+          target.closest(".fortune-border-style-picker-menu") ||
+          target.closest(".color-reset") ||
+          target.closest(".button-primary");
+
+        if (isPickItem && activeOption) {
+          activeOption.removeAttribute("data-locked");
+          activeOption.removeAttribute("data-open");
+          lockedOption = null;
+          const sub = activeOption.querySelector<HTMLElement>(".fortune-border-select-menu");
+          if (sub) sub.style.display = "none";
+          activeOption = null;
+          return;
+        }
+
+        // Click outside active/locked option
+        if (lockedOption && !lockedOption.contains(target)) {
+          lockedOption.removeAttribute("data-locked");
+          lockedOption.removeAttribute("data-open");
+          const sub = lockedOption.querySelector<HTMLElement>(".fortune-border-select-menu");
+          if (sub) sub.style.display = "none";
+          lockedOption = null;
+          activeOption = null;
+        }
+      };
+
+      container.addEventListener("mouseover", handleMouseOver);
+      container.addEventListener("mouseout", handleMouseOut);
+      container.addEventListener("click", handleClick);
+      document.addEventListener("click", handleClick);
+
+      return () => {
+        clearCloseTimer();
+        container.removeEventListener("mouseover", handleMouseOver);
+        container.removeEventListener("mouseout", handleMouseOut);
+        container.removeEventListener("click", handleClick);
+        document.removeEventListener("click", handleClick);
+      };
+    }, []);
 
     // Initialize initialSheets ONCE on mount for this sheet key.
     // FortuneSheet operates as an uncontrolled component managing its internal canvas state.
@@ -234,6 +406,7 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
 
         {/* Rich FortuneSheet Canvas Container */}
         <div
+          ref={containerRef}
           className={`w-full rounded-2xl border border-border bg-card shadow-xs overflow-hidden relative fortune-sheet-wrapper ${
             isFullscreen
               ? "flex-1 min-h-0 h-full"
