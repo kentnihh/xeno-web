@@ -16,7 +16,17 @@ export function RolesTable({
 }) {
   const protectedRoles = ["admin", "staff", "manager"];
 
-  if (roles.length === 0) {
+  // Safeguard: SUPER_ADMIN is a system bypass role that must never appear in the Peran table
+  const visibleRoles = roles.filter(
+    (r) =>
+      r.id !== "SUPER_ADMIN" &&
+      r.id.toLowerCase() !== "super_admin" &&
+      r.id.toLowerCase() !== "superadmin" &&
+      r.name !== "Super Administrator" &&
+      !r.name.toLowerCase().includes("super administrator")
+  );
+
+  if (visibleRoles.length === 0) {
     return (
       <div className="apple-card p-12 text-center text-xs text-muted-foreground space-y-2 border border-border shadow-xs">
         <Shield className="w-8 h-8 text-muted-foreground/40 mx-auto" />
@@ -28,7 +38,7 @@ export function RolesTable({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {roles.map((r) => {
+      {visibleRoles.map((r) => {
         const perms = rolePermissions[r.id] || [];
         const isProtected = protectedRoles.includes(r.id.toLowerCase());
 

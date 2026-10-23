@@ -174,11 +174,20 @@ export function UserModal({
               name="roleId"
               value={roleId}
               onChange={setRoleId}
-              options={roles.map((r) => ({
-                value: r.id,
-                label: r.name,
-                subLabel: r.description || undefined,
-              }))}
+              options={roles
+                .filter(
+                  (r) =>
+                    r.id !== "SUPER_ADMIN" &&
+                    r.id.toLowerCase() !== "super_admin" &&
+                    r.id.toLowerCase() !== "superadmin" &&
+                    r.name !== "Super Administrator" &&
+                    !r.name.toLowerCase().includes("super administrator")
+                )
+                .map((r) => ({
+                  value: r.id,
+                  label: r.name,
+                  subLabel: r.description || undefined,
+                }))}
               placeholder="Pilih peran..."
               searchPlaceholder="Cari peran..."
             />

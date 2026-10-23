@@ -1,8 +1,6 @@
 import type { Role, Permission, RolePermission, Profile } from "@/types/database";
 
 export const FALLBACK_ROLES: Role[] = [
-  { id: "SUPER_ADMIN", name: "Super Administrator", description: "Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna", created_at: "2026-01-01T00:00:00Z" },
-  { id: "super_admin", name: "Super Administrator", description: "Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna", created_at: "2026-01-01T00:00:00Z" },
   { id: "admin", name: "Administrator", description: "Akses penuh seluruh konfigurasi sistem & hak akses", created_at: "2026-01-01T00:00:00Z" },
   { id: "manager", name: "Event Manager", description: "Pengelolaan acara, klien, vendor, dan checklist panggung", created_at: "2026-01-01T00:00:00Z" },
   { id: "staff", name: "Kru Operasional", description: "Eksekusi teknis lapangan dan pembaruan status tugas", created_at: "2026-01-01T00:00:00Z" },
@@ -28,7 +26,6 @@ export const FALLBACK_PERMISSIONS: Permission[] = [
 ];
 
 export const FALLBACK_ROLE_PERMS: RolePermission[] = [
-  ...FALLBACK_PERMISSIONS.map((p) => ({ id: `sup-${p.id}`, role_id: "super_admin", permission_id: p.id, created_at: "2026-01-01T00:00:00Z" })),
   ...FALLBACK_PERMISSIONS.map((p) => ({ id: `adm-${p.id}`, role_id: "admin", permission_id: p.id, created_at: "2026-01-01T00:00:00Z" })),
   { id: "mgr-1", role_id: "manager", permission_id: "events:read", created_at: "2026-01-01T00:00:00Z" },
   { id: "mgr-2", role_id: "manager", permission_id: "events:create", created_at: "2026-01-01T00:00:00Z" },

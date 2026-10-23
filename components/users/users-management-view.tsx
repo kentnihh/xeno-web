@@ -53,6 +53,19 @@ export function UsersManagementView({
     return map;
   }, [initialRolePermissions]);
 
+  // Operational roles only (Administrator, Event Manager, Kru Operasional).
+  // SUPER_ADMIN is a hardcoded system role that bypasses all RBAC checks and must never appear here.
+  const manageableRoles = useMemo(() => {
+    return initialRoles.filter(
+      (r) =>
+        r.id !== "SUPER_ADMIN" &&
+        r.id.toLowerCase() !== "super_admin" &&
+        r.id.toLowerCase() !== "superadmin" &&
+        r.name !== "Super Administrator" &&
+        !r.name.toLowerCase().includes("super administrator")
+    );
+  }, [initialRoles]);
+
   const filteredUsers = useMemo(() => {
     return initialUsers.filter((u) => {
       const matchSearch =
@@ -115,7 +128,7 @@ export function UsersManagementView({
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t === "users" ? `Staf (${initialUsers.length})` : t === "roles" ? `Peran (${initialRoles.length})` : `Izin (${initialPermissions.length})`}
+            {t === "users" ? `Staf (${initialUsers.length})` : t === "roles" ? `Peran (${manageableRoles.length})` : `Izin (${initialPermissions.length})`}
           </button>
         ))}
       </div>
@@ -138,7 +151,7 @@ export function UsersManagementView({
               className="apple-input px-3.5 py-2 text-xs bg-muted text-foreground border-border cursor-pointer font-medium"
             >
               <option value="all" className="bg-card text-foreground">Semua Peran</option>
-              {initialRoles.map((r) => (
+              {manageableRoles.map((r) => (
                 <option key={r.id} value={r.id} className="bg-card text-foreground">{r.name}</option>
               ))}
             </select>
@@ -155,7 +168,7 @@ export function UsersManagementView({
 
       {tab === "roles" && (
         <RolesTable
-          roles={initialRoles}
+          roles={manageableRoles}
           rolePermissions={rolePermissionsMap}
           onEdit={(r) => setDialog({ type: "edit_role", role: r })}
           onDelete={(r) => setDialog({ type: "delete_role", role: r })}
@@ -173,7 +186,7 @@ export function UsersManagementView({
         dialog={dialog}
         onClose={() => setDialog(null)}
         onSuccess={handleSuccess}
-        roles={initialRoles}
+        roles={manageableRoles}
         permissions={initialPermissions}
         rolePermissionsMap={rolePermissionsMap}
       />

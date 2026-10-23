@@ -47,11 +47,9 @@ export function EventCrewSection({
       profile: target,
     };
 
-    setCrew((prev) => {
-      const next = [...prev, item];
-      onCrewChange?.(next);
-      return next;
-    });
+    const nextCrew = [...crew, item];
+    setCrew(nextCrew);
+    onCrewChange?.(nextCrew);
     setIsOpen(false);
 
     startTransition(async () => {
@@ -63,11 +61,9 @@ export function EventCrewSection({
 
       const res = await assignEventCrew(fd);
       if (!res.success) {
-        setCrew((prev) => {
-          const reverted = prev.filter((c) => c.id !== tempId);
-          onCrewChange?.(reverted);
-          return reverted;
-        });
+        const reverted = nextCrew.filter((c) => c.id !== tempId);
+        setCrew(reverted);
+        onCrewChange?.(reverted);
         setErrorMsg(res.error || "Gagal menugaskan kru.");
       }
     });
@@ -77,20 +73,16 @@ export function EventCrewSection({
     if (!deletingCrew) return;
     const target = deletingCrew;
     setDeletingId(target.id);
-    setCrew((prev) => {
-      const next = prev.filter((c) => c.id !== target.id);
-      onCrewChange?.(next);
-      return next;
-    });
+    const nextCrew = crew.filter((c) => c.id !== target.id);
+    setCrew(nextCrew);
+    onCrewChange?.(nextCrew);
 
     const res = await removeEventCrew(target.id, eventId);
     setDeletingId(null);
     if (!res.success) {
-      setCrew((prev) => {
-        const reverted = [...prev, target];
-        onCrewChange?.(reverted);
-        return reverted;
-      });
+      const reverted = [...nextCrew, target];
+      setCrew(reverted);
+      onCrewChange?.(reverted);
       throw new Error(res.error || "Gagal menghapus.");
     }
   };

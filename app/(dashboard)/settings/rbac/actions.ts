@@ -92,12 +92,14 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
       return { error: profileError.message };
     }
 
-    // 3. User Role
-    const { error: roleError } = await adminClient.from("user_roles").upsert(
-      { user_id: createdUserId, role_id: roleId },
-      { onConflict: "user_id,role_id" }
-    );
-    if (roleError) return { error: roleError.message };
+    // 3. User Role (Only for operational roles; SUPER_ADMIN is hardcoded system role on profiles.role)
+    if (!isSuperAdminRole(roleId)) {
+      const { error: roleError } = await adminClient.from("user_roles").upsert(
+        { user_id: createdUserId, role_id: roleId },
+        { onConflict: "user_id,role_id" }
+      );
+      if (roleError) return { error: roleError.message };
+    }
 
     revalidateRBAC();
     return { success: true };
@@ -162,8 +164,10 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
     const { error: delError } = await supabase.from("user_roles").delete().eq("user_id", id);
     if (delError) return { error: delError.message };
 
-    const { error: insError } = await supabase.from("user_roles").insert({ user_id: id, role_id: roleId });
-    if (insError) return { error: insError.message };
+    if (!isSuperAdminRole(roleId)) {
+      const { error: insError } = await supabase.from("user_roles").insert({ user_id: id, role_id: roleId });
+      if (insError) return { error: insError.message };
+    }
 
     revalidateRBAC();
     return { success: true };
@@ -243,6 +247,10 @@ export async function createRole(formData: FormData): Promise<ActionResult> {
     const permissionIds = formData.getAll("permissionIds") as string[];
 
     if (!id || !name) return { error: "Kode role dan nama role wajib diisi." };
+
+    if (isSuperAdminRole(id) || name.toLowerCase().includes("super administrator")) {
+      return { error: "Peran Super Administrator adalah peran sistem internal dan tidak dapat dibuat ulang." };
+    }
 
     const supabase = await getRBACClient();
     const { error: roleError } = await supabase.from("roles").insert({ id, name, description });

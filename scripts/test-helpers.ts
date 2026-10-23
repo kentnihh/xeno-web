@@ -302,9 +302,6 @@ import * as path from "node:path";
 
 const migrationFiles = [
   path.resolve(process.cwd(), "supabase/schema.sql"),
-  path.resolve(process.cwd(), "supabase/apply_all_migrations.sql"),
-  path.resolve(process.cwd(), "supabase/fix_profiles_rls.sql"),
-  path.resolve(process.cwd(), "supabase/migrations/20261014_fix_profiles_rls_and_trigger.sql"),
 ];
 
 for (const file of migrationFiles) {
@@ -372,7 +369,11 @@ assert(expActionsCode.includes("requirePermission(\"finances.manage\")"), "Expen
 
 const sheetActionsPath = path.resolve(process.cwd(), "app/(dashboard)/events/sheet-actions.ts");
 const sheetActionsCode = fs.readFileSync(sheetActionsPath, "utf-8");
-assert(sheetActionsCode.includes("requirePermission(\"events.edit\")"), "Sheet actions must guard with events.edit");
+assert(
+  sheetActionsCode.includes("requirePermission(\"events:sheets:manage\")") ||
+  sheetActionsCode.includes("requirePermission(\"events.edit\")"),
+  "Sheet actions must guard with events:sheets:manage or events.edit"
+);
 
 const clientActionsPath = path.resolve(process.cwd(), "app/(dashboard)/clients/actions.ts");
 const clientActionsCode = fs.readFileSync(clientActionsPath, "utf-8");

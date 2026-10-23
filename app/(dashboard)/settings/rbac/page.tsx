@@ -47,15 +47,21 @@ export default async function SettingsRBACPage() {
     };
   });
 
-  // Exclude SUPER_ADMIN from role assignment options if current user is not SUPER_ADMIN
-  const availableRoles = isSuperAdminUser
-    ? roles
-    : roles.filter((r) => !isSuperAdminRole(r.id));
+  // SUPER_ADMIN is a hardcoded system role that bypasses all RBAC checks automatically.
+  // It should NOT be displayed in the "Peran" management list or in any role creation/edit forms.
+  // Only manageable operational roles (Administrator, Event Manager, Kru Operasional) appear in the Peran tab.
+  const visibleRoles = roles.filter(
+    (role) =>
+      !isSuperAdminRole(role.id) &&
+      role.id !== "SUPER_ADMIN" &&
+      role.name !== "Super Administrator" &&
+      !role.name.toLowerCase().includes("super administrator")
+  );
 
   return (
     <UsersManagementView
       initialUsers={usersWithRBAC}
-      initialRoles={availableRoles}
+      initialRoles={visibleRoles}
       initialPermissions={permissions}
       initialRolePermissions={rolePermissions}
       currentUserId={user?.id || null}

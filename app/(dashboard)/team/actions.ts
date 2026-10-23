@@ -70,9 +70,11 @@ export async function updateMemberRoleAction(
       return { success: false, error: error.message };
     }
 
-    // Keep user_roles table synchronized with profiles.role
+    // Keep user_roles table synchronized with profiles.role (for operational roles)
     await supabase.from("user_roles").delete().eq("user_id", validated.userId);
-    await supabase.from("user_roles").insert({ user_id: validated.userId, role_id: validated.newRole });
+    if (!isSuperAdminRole(validated.newRole)) {
+      await supabase.from("user_roles").insert({ user_id: validated.userId, role_id: validated.newRole });
+    }
 
     revalidatePath("/team");
     revalidatePath("/settings/rbac");

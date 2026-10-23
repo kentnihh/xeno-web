@@ -74,18 +74,21 @@ async function runHardeningTests() {
   // Verify public form admin actions RBAC
   const publicFormActionsCode = readCode("app/(dashboard)/events/public-form-actions.ts");
   assert(
+    publicFormActionsCode.includes("regeneratePublicFormToken(eventId: string): Promise<EventPublicForm> {\n  await requirePermission(\"events:family:manage\")") ||
     publicFormActionsCode.includes("regeneratePublicFormToken(eventId: string): Promise<EventPublicForm> {\n  await requirePermission(\"events.edit\")"),
-    "regeneratePublicFormToken must require events.edit permission"
+    "regeneratePublicFormToken must require events:family:manage or events.edit permission"
   );
   assert(
+    publicFormActionsCode.includes("updatePublicFormExpiry(\n  eventId: string,\n  expiresAt: string\n): Promise<EventPublicForm> {\n  await requirePermission(\"events:family:manage\")") ||
     publicFormActionsCode.includes("updatePublicFormExpiry(\n  eventId: string,\n  expiresAt: string\n): Promise<EventPublicForm> {\n  await requirePermission(\"events.edit\")"),
-    "updatePublicFormExpiry must require events.edit permission"
+    "updatePublicFormExpiry must require events:family:manage or events.edit permission"
   );
   assert(
+    publicFormActionsCode.includes("updatePublicFormDataAdmin(\n  eventId: string,\n  formData: EventFormData,\n  formSchema?: FormCategorySchema[]\n): Promise<EventPublicForm> {\n  await requirePermission(\"events:family:manage\")") ||
     publicFormActionsCode.includes("updatePublicFormDataAdmin(\n  eventId: string,\n  formData: EventFormData,\n  formSchema?: FormCategorySchema[]\n): Promise<EventPublicForm> {\n  await requirePermission(\"events.edit\")"),
-    "updatePublicFormDataAdmin must require events.edit permission"
+    "updatePublicFormDataAdmin must require events:family:manage or events.edit permission"
   );
-  console.log("✓ Public form admin actions strictly verify events.edit permission");
+  console.log("✓ Public form admin actions strictly verify events:family:manage permission");
 
   // Verify master templates RBAC
   const templateActionsCode = readCode("app/(dashboard)/settings/templates/actions.ts");

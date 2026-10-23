@@ -18,20 +18,17 @@ async function runTests() {
   assert.strictEqual(isSuperAdminRole(undefined), false);
   console.log("   ✓ Role detection passed.");
 
-  // 2. Test Fallback Roles
+  // 2. Test Fallback Roles (Only manageable operational roles: admin, manager, staff)
   console.log("\n2. Testing Fallback Roles...");
-  const { FALLBACK_ROLES, FALLBACK_USERS, FALLBACK_ROLE_PERMS } = await import("../lib/rbac-fallbacks");
-  const superAdminRole = FALLBACK_ROLES.find((r) => r.id === "super_admin");
-  assert(superAdminRole, "super_admin must exist in FALLBACK_ROLES");
-  assert.strictEqual(superAdminRole.name, "Super Administrator");
+  const { FALLBACK_ROLES, FALLBACK_USERS } = await import("../lib/rbac-fallbacks");
+  const superAdminRole = FALLBACK_ROLES.find((r) => r.id === "super_admin" || r.id === "SUPER_ADMIN");
+  assert.strictEqual(superAdminRole, undefined, "super_admin must NOT be in FALLBACK_ROLES (only operational roles: admin, manager, staff)");
+  assert.strictEqual(FALLBACK_ROLES.length, 3, "FALLBACK_ROLES must strictly contain 3 operational roles");
 
   const jonathanUser = FALLBACK_USERS.find((u) => u.email === "admin@xenoent.com");
   assert(jonathanUser, "Jonathan user must exist in FALLBACK_USERS");
   assert.strictEqual(jonathanUser.role, "SUPER_ADMIN");
-
-  const superAdminPerms = FALLBACK_ROLE_PERMS.filter((rp) => rp.role_id === "super_admin");
-  assert(superAdminPerms.length > 0, "super_admin must have role permissions configured");
-  console.log(`   ✓ Fallback roles and permissions passed (super_admin has ${superAdminPerms.length} mapped permissions).`);
+  console.log("   ✓ Fallback roles strictly contain 3 operational roles, and admin@xenoent.com holds SUPER_ADMIN.");
 
   // 3. Test Database Migration SQL file & Seed scripts
   console.log("\n3. Testing Database Migration Syntax & Explicit Assignment...");
@@ -57,6 +54,15 @@ async function runTests() {
   const seedPy = fs.readFileSync("scripts/seed_database.py", "utf-8");
   assert(seedPy.includes('"email": "admin@xenoent.com",\n        "password": "Admin123!",\n        "role": "SUPER_ADMIN",'), "seed_database.py must assign SUPER_ADMIN to admin@xenoent.com");
   console.log("   ✓ seed.sql, seed-database.ts, and seed_database.py properly assign SUPER_ADMIN to admin@xenoent.com.");
+
+  console.log("\n3c. Verifying RBAC Cleanup Migration...");
+  const cleanupMigrationPath = "supabase/migrations/20261023_cleanup_super_admin_roles.sql";
+  assert(fs.existsSync(cleanupMigrationPath), "Cleanup migration file must exist");
+  const cleanupSql = fs.readFileSync(cleanupMigrationPath, "utf-8");
+  assert(cleanupSql.includes("DELETE FROM public.roles"), "Must delete SUPER_ADMIN from roles table");
+  assert(cleanupSql.includes("DELETE FROM public.role_permissions"), "Must clean role_permissions");
+  assert(cleanupSql.includes("UPDATE public.profiles \nSET role = 'SUPER_ADMIN'"), "Must preserve admin@xenoent.com as SUPER_ADMIN");
+  console.log("   ✓ RBAC cleanup migration verified.");
 
   // 4. Test Types
   console.log("\n4. Testing TypeScript UserRole Type...");
