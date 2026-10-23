@@ -312,6 +312,6 @@ This builds the Next.js standalone container, restarts the app service, and Cadd
 
 
 <!-- LAST_ARCH_SYNC -->
-> **Last Architecture Sync**: 7457457 feat: add SUPER_ADMIN role, user impersonation system, visual badges, and fix template 409 conflict
-e2c54b4 chore: update ai_context.md with latest architecture sync [skip ci]
-42fc6cc feat: add loading skeletons, dynamic spreadsheet import, and performance navigation tests
+> **Last Architecture Sync**: c29ff6c feat: add event pax field, update pdf export header, and fix sheet ordering
+1b00aaa feat(core): consolidate schema and seeders, upgrade Next.js, and fix crew state updates
+0e1e8fc feat(rbac): refactor event granular permissions and upgrade Next.js to 16.4.2
