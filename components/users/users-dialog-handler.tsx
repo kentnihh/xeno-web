@@ -41,7 +41,12 @@ export function UsersDialogHandler({
 }) {
   if (!dialog) return null;
 
+  const normalizedRole = (currentUserRole || "").toUpperCase();
+  const canCreateUser = normalizedRole === "SUPER_ADMIN" || normalizedRole === "ADMIN";
+  const canDeleteUser = canCreateUser;
+
   if (dialog.type === "create_user") {
+    if (!canCreateUser) return null;
     return <UserModal user={null} roles={roles} onClose={onClose} onSuccess={onSuccess} currentUserId={currentUserId} currentUserRole={currentUserRole} />;
   }
   if (dialog.type === "edit_user") {
@@ -51,6 +56,10 @@ export function UsersDialogHandler({
     return <ResetPasswordModal user={dialog.user} onClose={onClose} onSuccess={onSuccess} />;
   }
   if (dialog.type === "delete_user") {
+    if (!canDeleteUser) {
+      onClose();
+      return null;
+    }
     return (
       <ConfirmDialog
         title="Konfirmasi Hapus Staf"

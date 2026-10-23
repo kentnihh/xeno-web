@@ -41,6 +41,12 @@ export function TeamMemberActions({
   const name = member?.full_name || memberName;
   const isTargetRootAdmin = isRootAdmin || member?.email?.toLowerCase() === "admin@xenoent.com";
 
+  const normalizedCallerRole = (currentUserRole || "").toUpperCase();
+  const isCallerAdminOrSuper = normalizedCallerRole === "SUPER_ADMIN" || normalizedCallerRole === "ADMIN";
+  const isCallerManager = normalizedCallerRole === "MANAGER";
+  const canDeleteUser = isCallerAdminOrSuper;
+  const canEditStaff = canEditRole || isCallerAdminOrSuper || isCallerManager;
+
   const confirmDelete = async () => {
     const res = await deleteMemberAction(id);
     if (!res.success) {
@@ -68,7 +74,7 @@ export function TeamMemberActions({
           </span>
         )}
 
-        {canEditRole && (
+        {canEditStaff && (
           <button
             type="button"
             onClick={() => setShowEditModal(true)}
@@ -76,7 +82,9 @@ export function TeamMemberActions({
             title={
               isTargetRootAdmin && !isSelf
                 ? "Akun Sistem Utama (Terkunci)"
-                : "Edit Profil & Peran Staf"
+                : isCallerManager
+                  ? "Edit Kontak Staf (Nama & Telepon)"
+                  : "Edit Profil & Peran Staf"
             }
             className={`p-1.5 rounded-lg transition-colors ${
               isTargetRootAdmin && !isSelf
@@ -88,7 +96,7 @@ export function TeamMemberActions({
           </button>
         )}
 
-        {!isSelf && !isTargetRootAdmin && (
+        {canDeleteUser && !isSelf && !isTargetRootAdmin && (
           <button
             type="button"
             onClick={() => setShowConfirm(true)}
@@ -100,7 +108,7 @@ export function TeamMemberActions({
         )}
       </div>
 
-      {!isSelf && !isTargetRootAdmin && (
+      {canDeleteUser && !isSelf && !isTargetRootAdmin && (
         <ConfirmModal
           isOpen={showConfirm}
           title="Konfirmasi Hapus Akun Staf"

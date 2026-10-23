@@ -121,6 +121,11 @@ export function UserModal({
     const formData = new FormData(event.currentTarget);
 
     if (!isEdit) {
+      if (!isCallerAdminOrSuper) {
+        setError("Akses ditolak: Hanya Administrator yang berwenang menambahkan pengguna baru.");
+        return;
+      }
+
       const password = formData.get("password") as string;
 
       if (!password || password.length < 6) {
@@ -170,6 +175,13 @@ export function UserModal({
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2 font-medium">
             <Lock className="w-4 h-4 shrink-0" />
             <span>Akun Sistem Utama (Terkunci) — Peran akun admin@xenoent.com dilindungi sistem dan tidak dapat diubah oleh pengguna lain.</span>
+          </div>
+        )}
+
+        {!isEdit && !isCallerAdminOrSuper && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs flex items-center gap-2 font-medium">
+            <Lock className="w-4 h-4 shrink-0" />
+            <span>Akses ditolak: Hanya Administrator yang berwenang menambahkan pengguna baru.</span>
           </div>
         )}
 

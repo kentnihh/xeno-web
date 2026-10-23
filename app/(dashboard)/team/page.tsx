@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission, getCurrentUser, getCurrentProfile, isAdmin, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
 import { getRolesCached } from "@/lib/data-cache";
 import { TeamMemberActions } from "@/components/team/team-member-actions";
+import { TeamHeader } from "@/components/team/team-header";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { RoleBadge } from "@/components/ui/role-badge";
 import { Mail, Shield, Lock } from "lucide-react";
@@ -36,10 +37,11 @@ export default async function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">Kru & Tim Internal</h1>
-        <p className="text-xs text-muted-foreground mt-1 font-medium">Daftar staf operasional Xeno Entertainment & manajemen hak akses</p>
-      </div>
+      <TeamHeader
+        currentUserRole={callerRole}
+        currentUserId={user?.id || null}
+        roles={manageableRoles}
+      />
 
       {team.length === 0 ? (
         <div className="apple-card p-12 text-center text-xs text-muted-foreground space-y-2 border border-border shadow-xs">

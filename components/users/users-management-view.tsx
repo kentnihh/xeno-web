@@ -78,6 +78,9 @@ export function UsersManagementView({
     });
   }, [initialUsers, search, roleFilter]);
 
+  const normalizedCallerRole = (currentUserRole || "").toUpperCase();
+  const canCreateUser = normalizedCallerRole === "SUPER_ADMIN" || normalizedCallerRole === "ADMIN";
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -92,7 +95,7 @@ export function UsersManagementView({
         </div>
 
         <div className="w-full sm:w-auto">
-          {tab === "users" && (
+          {tab === "users" && canCreateUser && (
             <button
               onClick={() => setDialog({ type: "create_user" })}
               className="apple-btn-primary w-full sm:w-auto justify-center px-3.5 py-2 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
@@ -100,7 +103,7 @@ export function UsersManagementView({
               <Plus className="w-4 h-4 stroke-[2.5]" /> <span>Tambah Staf</span>
             </button>
           )}
-          {tab === "roles" && (
+          {tab === "roles" && canCreateUser && (
             <button
               onClick={() => setDialog({ type: "create_role" })}
               className="apple-btn-primary w-full sm:w-auto justify-center px-3.5 py-2 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
@@ -108,7 +111,7 @@ export function UsersManagementView({
               <Plus className="w-4 h-4 stroke-[2.5]" /> <span>Buat Peran</span>
             </button>
           )}
-          {tab === "permissions" && (
+          {tab === "permissions" && canCreateUser && (
             <button
               onClick={() => setDialog({ type: "create_perm" })}
               className="apple-btn-primary w-full sm:w-auto justify-center px-3.5 py-2 text-xs font-semibold gap-1.5 shadow-md shadow-[#007aff]/30"
@@ -161,6 +164,7 @@ export function UsersManagementView({
           <UsersTable
             users={filteredUsers}
             currentUserId={currentUserId}
+            currentUserRole={currentUserRole}
             onEdit={(u) => setDialog({ type: "edit_user", user: u })}
             onResetPassword={(u) => setDialog({ type: "reset_password", user: u })}
             onDelete={(u) => setDialog({ type: "delete_user", user: u })}

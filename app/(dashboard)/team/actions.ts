@@ -187,6 +187,17 @@ export async function deleteMemberAction(userId: string): Promise<{ success: boo
       };
     }
 
+    const callerProfile = (await getCurrentProfile()) || (await getCurrentProfile(currentUser.id));
+    const callerRole = (callerProfile?.role || "").toUpperCase();
+
+    // 1. Role Authorization
+    if (!["SUPER_ADMIN", "ADMIN"].includes(callerRole)) {
+      return {
+        success: false,
+        error: "Akses ditolak: Hanya Administrator yang berwenang menghapus pengguna.",
+      };
+    }
+
     const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
       ? createAdminClient()
       : await createClient();
@@ -246,4 +257,49 @@ export async function updateStaff(formData: FormData) {
   const { updateUser } = await import("@/app/(dashboard)/settings/rbac/actions");
   return updateUser(formData);
 }
+
+/** Creates staff profile and validates caller authorization */
+export async function createStaff(formData: FormData) {
+  const { createUser } = await import("@/app/(dashboard)/settings/rbac/actions");
+  return createUser(formData);
+}
+
+/** Semantic alias for createStaff / createUser */
+export const createUser = createStaff;
+
+/** Deletes staff profile and validates caller authorization */
+export async function deleteStaff(userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const validId = z.string().min(1, "ID pengguna wajib diisi").parse(userId);
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      throw new Error("Autentikasi diperlukan.");
+    }
+    const callerProfile = (await getCurrentProfile()) || (await getCurrentProfile(currentUser.id));
+    const callerRole = (callerProfile?.role || "").toUpperCase();
+
+    // 1. Role Authorization
+    if (!["SUPER_ADMIN", "ADMIN"].includes(callerRole) && !["SUPER_ADMIN", "ADMIN"].includes(callerProfile?.role || "")) {
+      throw new Error("Akses ditolak: Hanya Administrator yang berwenang menghapus pengguna.");
+    }
+
+    // 2. Prevent Self-Deletion
+    if (validId === currentUser.id) {
+      throw new Error("Anda tidak dapat menghapus akun Anda sendiri.");
+    }
+
+    const res = await deleteMemberAction(validId);
+    if (!res.success) {
+      throw new Error(res.error || "Gagal menghapus pengguna.");
+    }
+    return res;
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal menghapus pengguna.",
+    };
+  }
+}
+
+
 

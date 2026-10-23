@@ -8,16 +8,24 @@ import type { UserWithRBAC } from "@/types/database";
 export function UsersTable({
   users,
   currentUserId,
+  currentUserRole,
   onEdit,
   onResetPassword,
   onDelete,
 }: {
   users: UserWithRBAC[];
   currentUserId: string | null;
+  currentUserRole?: string | null;
   onEdit: (user: UserWithRBAC) => void;
   onResetPassword: (user: UserWithRBAC) => void;
   onDelete: (user: UserWithRBAC) => void;
 }) {
+  const normalizedCallerRole = (currentUserRole || "").toUpperCase();
+  const isCallerAdminOrSuper = normalizedCallerRole === "SUPER_ADMIN" || normalizedCallerRole === "ADMIN";
+  const isCallerManager = normalizedCallerRole === "MANAGER";
+  const canDeleteUser = isCallerAdminOrSuper;
+  const canEditUser = isCallerAdminOrSuper || isCallerManager;
+  const canResetPassword = isCallerAdminOrSuper;
   return (
     <div className="overflow-x-auto rounded-2xl apple-card border border-border shadow-xs">
       <table className="w-full min-w-[640px] text-left text-xs text-foreground">
@@ -106,60 +114,68 @@ export function UsersTable({
 
                   <td className="py-3.5 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onEdit(u)}
-                        disabled={isRootAdmin && !isSelf}
-                        title={
-                          isRootAdmin && !isSelf
-                            ? "Akun Sistem Utama (Terkunci)"
-                            : "Edit Data Staf"
-                        }
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          isRootAdmin && !isSelf
-                            ? "text-muted-foreground/30 cursor-not-allowed"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-                        }`}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onResetPassword(u)}
-                        disabled={isRootAdmin && !isSelf}
-                        title={
-                          isRootAdmin && !isSelf
-                            ? "Akun Sistem Utama (Terkunci)"
-                            : "Reset Sandi"
-                        }
-                        aria-label="Reset Sandi"
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          isRootAdmin && !isSelf
-                            ? "text-muted-foreground/30 cursor-not-allowed"
-                            : "text-muted-foreground hover:text-[#007aff] hover:bg-[#007aff]/10 cursor-pointer"
-                        }`}
-                      >
-                        <KeyRound className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(u)}
-                        disabled={isSelf || isRootAdmin}
-                        title={
-                          isRootAdmin
-                            ? "Akun Sistem Utama (Terkunci)"
-                            : isSelf
-                            ? "Tidak dapat menghapus akun sendiri"
-                            : "Hapus Pengguna"
-                        }
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          isSelf || isRootAdmin
-                            ? "text-muted-foreground/30 cursor-not-allowed"
-                            : "text-muted-foreground/70 hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer"
-                        }`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canEditUser && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(u)}
+                          disabled={isRootAdmin && !isSelf}
+                          title={
+                            isRootAdmin && !isSelf
+                              ? "Akun Sistem Utama (Terkunci)"
+                              : isCallerManager
+                                ? "Edit Kontak Staf (Nama & Telepon)"
+                                : "Edit Data Staf"
+                          }
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isRootAdmin && !isSelf
+                              ? "text-muted-foreground/30 cursor-not-allowed"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                          }`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canResetPassword && (
+                        <button
+                          type="button"
+                          onClick={() => onResetPassword(u)}
+                          disabled={isRootAdmin && !isSelf}
+                          title={
+                            isRootAdmin && !isSelf
+                              ? "Akun Sistem Utama (Terkunci)"
+                              : "Reset Sandi"
+                          }
+                          aria-label="Reset Sandi"
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isRootAdmin && !isSelf
+                              ? "text-muted-foreground/30 cursor-not-allowed"
+                              : "text-muted-foreground hover:text-[#007aff] hover:bg-[#007aff]/10 cursor-pointer"
+                          }`}
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canDeleteUser && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(u)}
+                          disabled={isSelf || isRootAdmin}
+                          title={
+                            isRootAdmin
+                              ? "Akun Sistem Utama (Terkunci)"
+                              : isSelf
+                              ? "Tidak dapat menghapus akun sendiri"
+                              : "Hapus Pengguna"
+                          }
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isSelf || isRootAdmin
+                              ? "text-muted-foreground/30 cursor-not-allowed"
+                              : "text-muted-foreground/70 hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                          }`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

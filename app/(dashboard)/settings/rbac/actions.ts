@@ -28,6 +28,22 @@ async function getRBACClient() {
 /** Create user in Supabase Auth, profiles, and user_roles */
 export async function createUser(formData: FormData): Promise<ActionResult> {
   try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: "Autentikasi diperlukan." };
+    }
+
+    const callerProfile = (await getCurrentProfile()) || (await getCurrentProfile(currentUser.id));
+    const callerRole = (callerProfile?.role || "").toUpperCase();
+    const callerIsSuper = callerRole === "SUPER_ADMIN" || (await isSuperAdmin(currentUser.id));
+    const callerIsAdmin = callerRole === "ADMIN" || (await isAdmin(currentUser.id));
+
+    if (!["SUPER_ADMIN", "ADMIN"].includes(callerRole) || (!callerIsSuper && !callerIsAdmin)) {
+      return {
+        error: "Akses ditolak: Hanya Administrator yang berwenang menambahkan pengguna baru.",
+      };
+    }
+
     await requirePermission("users.manage");
 
     const fullName = (formData.get("fullName") as string)?.trim();
@@ -44,23 +60,9 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
       return { error: "Kata sandi minimal 6 karakter." };
     }
 
-    // Role Hierarchy Check: Only SUPER_ADMIN and ADMIN can create and assign roles
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-      return { error: "Autentikasi diperlukan." };
-    }
-    const callerIsSuper = await isSuperAdmin(currentUser.id);
-    const callerIsAdmin = await isAdmin(currentUser.id);
-
-    if (!callerIsSuper && !callerIsAdmin) {
-      return {
-        error: "Akses ditolak: Hanya Super Admin dan Administrator yang dapat membuat akun pengguna.",
-      };
-    }
-
     // Guardrail: Only SUPER_ADMIN can assign SUPER_ADMIN role
     if (isSuperAdminRole(roleId)) {
-      if (!callerIsSuper) {
+      if (!callerIsSuper && callerRole !== "SUPER_ADMIN") {
         return {
           error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
         };
@@ -125,8 +127,25 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
 /** Update user profile and assigned role */
 export async function updateUser(formData: FormData): Promise<ActionResult> {
   try {
-    // 1. Strict Permission Verification: require rbac:manage or users:manage
-    await requirePermission("rbac.manage");
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: "Autentikasi diperlukan." };
+    }
+    const callerProfile = (await getCurrentProfile()) || (await getCurrentProfile(currentUser.id));
+    const callerRole = (callerProfile?.role || "staff").toUpperCase();
+    const callerIsSuper = callerRole === "SUPER_ADMIN" || (await isSuperAdmin(currentUser.id));
+    const callerIsAdmin = callerRole === "ADMIN" || (await isAdmin(currentUser.id));
+    const callerIsManager = callerRole === "MANAGER";
+
+    if (!callerIsSuper && !callerIsAdmin && !callerIsManager) {
+      return { error: "Akses ditolak: Anda tidak memiliki wewenang untuk mengubah data staf." };
+    }
+
+    if (callerIsManager) {
+      await requirePermission("team.manage");
+    } else {
+      await requirePermission("rbac.manage");
+    }
 
     const id = formData.get("id") as string;
     const fullName = (formData.get("fullName") as string)?.trim();
@@ -135,15 +154,6 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
     const avatarColor = (formData.get("avatarColor") as string)?.trim() || null;
 
     if (!id || !fullName) return { error: "ID dan nama lengkap wajib diisi." };
-
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-      return { error: "Autentikasi diperlukan." };
-    }
-    const callerProfile = await getCurrentProfile(currentUser.id);
-    const callerRole = (callerProfile?.role || "staff").toUpperCase();
-    const callerIsSuper = callerRole === "SUPER_ADMIN" || (await isSuperAdmin(currentUser.id));
-    const callerIsAdmin = callerRole === "ADMIN" || (await isAdmin(currentUser.id));
 
     const supabase = await getRBACClient();
 
@@ -167,6 +177,14 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
       return {
         error: "Akses ditolak: Akun Super Admin hanya dapat dikelola oleh sesama Super Admin.",
       };
+    }
+
+    // Manager role lockdown: Managers cannot modify roles
+    if (callerIsManager) {
+      if (isRoleChange) {
+        return { error: "Akses ditolak: Manager tidak dapat mengubah peran staf." };
+      }
+      roleId = targetCurrentRole;
     }
 
     // If update payload includes a role field that differs from the target user's current role:
@@ -195,20 +213,26 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
         roleId = targetCurrentRole;
       }
     }
+    const updatePayload: Record<string, unknown> = {
+      full_name: fullName,
+      phone,
+      updated_at: new Date().toISOString(),
+    };
+    if (callerIsSuper || callerIsAdmin) {
+      updatePayload.role = roleId as UserRole;
+      if (roleId === "admin" && avatarColor) {
+        updatePayload.avatar_color = avatarColor;
+      }
+    }
+
     const { error: profileError } = await supabase
       .from("profiles")
-      .update({
-        full_name: fullName,
-        phone,
-        role: roleId as UserRole,
-        avatar_color: roleId === "admin" ? avatarColor : null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", id);
 
     if (profileError) return { error: profileError.message };
 
-    if (id !== currentUser.id) {
+    if ((callerIsSuper || callerIsAdmin) && isRoleChange && id !== currentUser.id) {
       const { error: delError } = await supabase.from("user_roles").delete().eq("user_id", id);
       if (delError) return { error: delError.message };
 
@@ -394,6 +418,15 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     if (!callerIsSuper && !callerIsAdmin) {
       return {
         error: "Akses ditolak: Hanya Super Admin dan Administrator yang dapat menghapus akun pengguna.",
+      };
+    }
+
+    const callerProfile = (await getCurrentProfile()) || (await getCurrentProfile(currentUser.id));
+    const callerRole = (callerProfile?.role || "").toUpperCase();
+
+    if (!["SUPER_ADMIN", "ADMIN"].includes(callerRole)) {
+      return {
+        error: "Akses ditolak: Hanya Administrator yang berwenang menghapus pengguna.",
       };
     }
 
@@ -650,5 +683,13 @@ export async function deletePermission(permId: string): Promise<ActionResult> {
 
 /** Alias for updateUser providing explicit semantic naming */
 export const updateStaff = updateUser;
+
+/** Alias for createUser providing explicit semantic naming */
+export const createStaff = createUser;
+
+/** Alias for deleteUser providing explicit semantic naming */
+export const deleteStaff = deleteUser;
+
+
 
 

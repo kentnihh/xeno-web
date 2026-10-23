@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isAdmin, hasPermission, getCurrentUser, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
+import { isAdmin, hasPermission, getCurrentUser, getCurrentProfile, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
 import { getRolesCached, getPermissionsCached, getRolePermissionsCached } from "@/lib/data-cache";
 import { UsersManagementView } from "@/components/users/users-management-view";
 import type { UserWithRBAC, Role, Permission, RolePermission, Profile } from "@/types/database";
@@ -61,7 +61,11 @@ export default async function SettingsRBACPage() {
       !role.name.toLowerCase().includes("super administrator")
   );
 
-  const callerRole = isSuperAdminUser ? "SUPER_ADMIN" : isAdminUser ? "ADMIN" : "STAFF";
+  const callerProfile = await getCurrentProfile();
+  const callerRole = (
+    callerProfile?.role ||
+    (isSuperAdminUser ? "SUPER_ADMIN" : isAdminUser ? "ADMIN" : "STAFF")
+  ).toUpperCase();
 
   return (
     <UsersManagementView
