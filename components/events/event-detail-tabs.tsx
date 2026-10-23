@@ -48,6 +48,10 @@ export function EventDetailTabs({
   documents = [],
   publicForm = null,
   canManage = true,
+  canManageOps,
+  canManageSheets,
+  canManageFamily,
+  canManageFinance,
   canManageDocuments,
   initialTab = "operations",
 }: {
@@ -62,6 +66,9 @@ export function EventDetailTabs({
   documents?: EventDocument[];
   publicForm?: EventPublicForm | null;
   canManage?: boolean;
+  canManageOps?: boolean;
+  canManageSheets?: boolean;
+  canManageFamily?: boolean;
   canManageFinance?: boolean; // ponytail: kept for backward compatibility with RBAC test assertions
   canManageDocuments?: boolean;
   initialTab?: "operations" | "documents" | "lembar-kerja" | "data-keluarga" | string;
@@ -76,7 +83,9 @@ export function EventDetailTabs({
           : "operations"
   );
   const [currentCrew, setCurrentCrew] = useState<EventCrew[]>(crew);
-  const manageOps = canManage;
+  const manageOps = canManageOps ?? canManage;
+  const manageSheets = canManageSheets ?? canManage;
+  const manageFamily = canManageFamily ?? canManage;
   const manageDocs = canManageDocuments ?? canManage;
 
   // Calculate family members count
@@ -197,7 +206,8 @@ export function EventDetailTabs({
           <EventSpreadsheetTabs
             eventId={event.id}
             initialSheets={sheets}
-            canManage={manageOps}
+            canManage={manageSheets}
+            canManageFamily={manageFamily}
             publicForm={publicForm}
           />
         </div>
@@ -208,7 +218,7 @@ export function EventDetailTabs({
           <EventFamilyDataSection
             eventId={event.id}
             initialForm={publicForm}
-            canManage={manageOps}
+            canManage={manageFamily}
             variant="full"
           />
         </div>

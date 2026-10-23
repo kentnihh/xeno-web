@@ -56,7 +56,7 @@ ROLES_DATA = [
     },
     {
         "id": "super_admin",
-        "name": "Super Administrator",
+        "name": "Super Administrator (System)",
         "description": "Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna",
     },
     {
@@ -91,6 +91,9 @@ PERMISSIONS_DATA = [
     {"id": "templates:manage", "name": "Kelola Template Acara", "module": "templates", "description": "Mengelola master spreadsheet dan template rundown"},
     {"id": "finances:manage", "name": "Kelola Keuangan Acara", "module": "finances", "description": "Mencatat dan memantau anggaran serta rincian biaya"},
     {"id": "documents:manage", "name": "Kelola Berkas & Dokumen Acara", "module": "documents", "description": "Mengunggah dan mengelola dokumen teknis acara"},
+    {"id": "events:operations:manage", "name": "Kelola Operasional Acara", "module": "events", "description": "Mengelola penugasan kru, checklist tugas, dan vendor acara"},
+    {"id": "events:sheets:manage", "name": "Kelola Lembar Kerja Acara", "module": "events", "description": "Mengedit dan mengelola lembar kerja acara"},
+    {"id": "events:family:manage", "name": "Kelola Data Keluarga Acara", "module": "events", "description": "Mengonfigurasi formulir dan mengelola data keluarga acara"},
 ]
 
 # Standard Role-to-Permission Mappings

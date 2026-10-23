@@ -64,14 +64,25 @@ values
   ('rbac:manage', 'Kelola Peran & Hak Akses Sistem', 'Konfigurasi role dan permission pengguna', 'users'),
   ('templates:manage', 'Kelola Template Acara', 'Mengelola master spreadsheet dan template rundown', 'templates'),
   ('finances:manage', 'Kelola Keuangan Acara', 'Mencatat dan memantau anggaran serta rincian biaya', 'finances'),
-  ('documents:manage', 'Kelola Berkas & Dokumen Acara', 'Mengunggah dan mengelola dokumen teknis acara', 'documents')
+  ('documents:manage', 'Kelola Berkas & Dokumen Acara', 'Mengunggah dan mengelola dokumen teknis acara', 'documents'),
+  ('events:operations:manage', 'Kelola Operasional Acara', 'Mengelola penugasan kru, checklist tugas, dan vendor acara', 'events'),
+  ('events:sheets:manage', 'Kelola Lembar Kerja Acara', 'Mengedit dan mengelola lembar kerja acara', 'events'),
+  ('events:family:manage', 'Kelola Data Keluarga Acara', 'Mengonfigurasi formulir dan mengelola data keluarga acara', 'events')
 on conflict (id) do update set
   name = excluded.name,
   description = excluded.description,
   module = excluded.module;
 
 -- 5. RBAC: Role Permissions Mapping
--- Admin gets all permissions
+-- Super Admin and Admin get all permissions
+insert into public.role_permissions (role_id, permission_id)
+select 'SUPER_ADMIN', id from public.permissions
+on conflict (role_id, permission_id) do nothing;
+
+insert into public.role_permissions (role_id, permission_id)
+select 'super_admin', id from public.permissions
+on conflict (role_id, permission_id) do nothing;
+
 insert into public.role_permissions (role_id, permission_id)
 select 'admin', id from public.permissions
 on conflict (role_id, permission_id) do nothing;

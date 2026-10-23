@@ -49,6 +49,7 @@ interface EventSpreadsheetTabsProps {
   eventId: string;
   initialSheets: EventSheet[];
   canManage?: boolean;
+  canManageFamily?: boolean;
   onSheetsChange?: (sheets: EventSheet[]) => void;
   publicForm?: EventPublicForm | null;
 }
@@ -57,6 +58,7 @@ export function EventSpreadsheetTabs({
   eventId,
   initialSheets,
   canManage = true,
+  canManageFamily,
   onSheetsChange,
   publicForm = null,
 }: EventSpreadsheetTabsProps) {
@@ -728,7 +730,7 @@ export function EventSpreadsheetTabs({
           <EventFamilyDataSection
             eventId={eventId}
             initialForm={publicForm}
-            canManage={canManage}
+            canManage={canManageFamily ?? canManage}
             variant="embedded"
           />
         </div>

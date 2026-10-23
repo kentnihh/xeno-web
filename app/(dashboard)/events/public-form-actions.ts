@@ -117,7 +117,7 @@ export async function getOrCreateEventPublicForm(eventId: string): Promise<Event
  * Invalidate current token and generate a fresh token with a new 3-day expiry window.
  */
 export async function regeneratePublicFormToken(eventId: string): Promise<EventPublicForm> {
-  await requirePermission("events.edit");
+  await requirePermission("events:family:manage");
   const supabase = await createClient();
   const newToken = generateNativeToken();
   const newExpiry = getDefaultExpiryDate();
@@ -150,7 +150,7 @@ export async function updatePublicFormExpiry(
   eventId: string,
   expiresAt: string
 ): Promise<EventPublicForm> {
-  await requirePermission("events.edit");
+  await requirePermission("events:family:manage");
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -181,7 +181,7 @@ export async function updatePublicFormDataAdmin(
   formData: EventFormData,
   formSchema?: FormCategorySchema[]
 ): Promise<EventPublicForm> {
-  await requirePermission("events.edit");
+  await requirePermission("events:family:manage");
   const supabase = await createClient();
 
   const updatePayload: Record<string, any> = {
@@ -217,7 +217,7 @@ export async function applyMasterFamilyTemplateToEvent(
   eventId: string,
   preserveExistingData: boolean = true
 ): Promise<EventPublicForm> {
-  await requirePermission("events.edit");
+  await requirePermission("events:family:manage");
   const supabase = await createClient();
 
   // 1. Fetch active master family template

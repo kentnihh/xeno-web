@@ -98,7 +98,7 @@ export async function saveEventSheet(
   orderIndex: number = 0
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requirePermission("events.edit");
+    await requirePermission("events:sheets:manage");
 
     if (!eventId || !sheetName) {
       return { success: false, error: "eventId dan sheetName wajib diisi." };
@@ -148,7 +148,7 @@ export async function deleteEventSheet(
   sheetName: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requirePermission("events.edit");
+    await requirePermission("events:sheets:manage");
 
     const supabase = await createClient();
     const { error } = await supabase
@@ -179,7 +179,7 @@ export async function resetSheetToMaster(
   sheetName: string
 ): Promise<{ success: boolean; data?: SheetData; error?: string }> {
   try {
-    await requirePermission("events.edit");
+    await requirePermission("events:sheets:manage");
 
     const supabase = await createClient();
     const { data: tpl } = await supabase
@@ -232,7 +232,7 @@ export async function reorderEventSheets(
   orderedSheetNames: string[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requirePermission("events.edit");
+    await requirePermission("events:sheets:manage");
     const supabase = await createClient();
 
     const now = new Date().toISOString();

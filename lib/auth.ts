@@ -14,11 +14,74 @@ import {
  * Normalizes permission strings between dot and colon notation,
  * mapping synonymous keys like events.edit <-> events:update.
  */
-function getPermissionAliases(perm: string): string[] {
+export function getPermissionAliases(perm: string): string[] {
   const normalized = perm.trim().toLowerCase();
   const colonForm = normalized.replace(/\./g, ":");
   const dotForm = normalized.replace(/:/g, ".");
   const set = new Set([normalized, colonForm, dotForm]);
+
+  // Operational event updates: events:operations:manage <-> events:update <-> events.edit <-> events:manage
+  if (
+    [
+      "events:operations:manage", "events.operations.manage",
+      "operations:manage", "operations.manage",
+    ].includes(normalized) ||
+    [
+      "events:operations:manage", "events.operations.manage",
+      "operations:manage", "operations.manage",
+    ].includes(colonForm)
+  ) {
+    set.add("events:operations:manage");
+    set.add("events.operations.manage");
+    set.add("events:update");
+    set.add("events.update");
+    set.add("events:edit");
+    set.add("events.edit");
+    set.add("events:manage");
+    set.add("events.manage");
+  }
+
+  // Event spreadsheets: events:sheets:manage <-> sheets:manage <-> events.edit <-> events:manage
+  if (
+    [
+      "events:sheets:manage", "events.sheets.manage",
+      "sheets:manage", "sheets.manage",
+    ].includes(normalized) ||
+    [
+      "events:sheets:manage", "events.sheets.manage",
+      "sheets:manage", "sheets.manage",
+    ].includes(colonForm)
+  ) {
+    set.add("events:sheets:manage");
+    set.add("events.sheets.manage");
+    set.add("sheets:manage");
+    set.add("sheets.manage");
+    set.add("events:manage");
+    set.add("events.manage");
+    set.add("events:edit");
+    set.add("events.edit");
+  }
+
+  // Event family data: events:family:manage <-> family:manage <-> events.edit <-> events:manage
+  if (
+    [
+      "events:family:manage", "events.family.manage",
+      "family:manage", "family.manage",
+    ].includes(normalized) ||
+    [
+      "events:family:manage", "events.family.manage",
+      "family:manage", "family.manage",
+    ].includes(colonForm)
+  ) {
+    set.add("events:family:manage");
+    set.add("events.family.manage");
+    set.add("family:manage");
+    set.add("family.manage");
+    set.add("events:manage");
+    set.add("events.manage");
+    set.add("events:edit");
+    set.add("events.edit");
+  }
 
   if (
     [
@@ -43,6 +106,12 @@ function getPermissionAliases(perm: string): string[] {
       set.add("events.update");
       set.add("events:edit");
       set.add("events.edit");
+      set.add("events:operations:manage");
+      set.add("events.operations.manage");
+      set.add("events:sheets:manage");
+      set.add("events.sheets.manage");
+      set.add("events:family:manage");
+      set.add("events.family.manage");
     } else if (["events.create", "events:create"].includes(colonForm)) {
       set.add("events.create");
       set.add("events:create");
@@ -55,6 +124,8 @@ function getPermissionAliases(perm: string): string[] {
       set.add("events.update");
       set.add("events.manage");
       set.add("events.manage");
+      set.add("events:operations:manage");
+      set.add("events.operations.manage");
     }
   }
 
@@ -381,7 +452,9 @@ export const getUserRoles = cache(async (userId?: string): Promise<string[]> => 
   }
 
   try {
-    const supabase = await createClient();
+    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? createAdminClient()
+      : await createClient();
     const { data: userRoles, error } = await supabase
       .from("user_roles")
       .select("role_id")
@@ -468,7 +541,9 @@ export const getUserPermissions = cache(async (userId?: string): Promise<string[
   const perms = new Set<string>();
 
   try {
-    const supabase = await createClient();
+    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? createAdminClient()
+      : await createClient();
     const { data, error } = await supabase
       .from("role_permissions")
       .select("permission_id")

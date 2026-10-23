@@ -80,7 +80,7 @@ const ROLES_DATA = [
   },
   {
     id: "super_admin",
-    name: "Super Administrator",
+    name: "Super Administrator (System)",
     description: "Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna",
   },
   {
@@ -115,10 +115,14 @@ const PERMISSIONS_DATA = [
   { id: "templates:manage", name: "Kelola Template Acara", module: "templates", description: "Mengelola master spreadsheet dan template rundown" },
   { id: "finances:manage", name: "Kelola Keuangan Acara", module: "finances", description: "Mencatat dan memantau anggaran serta rincian biaya" },
   { id: "documents:manage", name: "Kelola Berkas & Dokumen Acara", module: "documents", description: "Mengunggah dan mengelola dokumen teknis acara" },
+  { id: "events:operations:manage", name: "Kelola Operasional Acara", module: "events", description: "Mengelola penugasan kru, checklist tugas, dan vendor acara" },
+  { id: "events:sheets:manage", name: "Kelola Lembar Kerja Acara", module: "events", description: "Mengedit dan mengelola lembar kerja acara" },
+  { id: "events:family:manage", name: "Kelola Data Keluarga Acara", module: "events", description: "Mengonfigurasi formulir dan mengelola data keluarga acara" },
 ];
 
 // Role-to-Permissions mapping
 const ROLE_PERMISSIONS_MAPPING: Record<string, string[]> = {
+  SUPER_ADMIN: PERMISSIONS_DATA.map((p) => p.id),
   super_admin: PERMISSIONS_DATA.map((p) => p.id),
   admin: PERMISSIONS_DATA.map((p) => p.id),
   manager: [
@@ -316,16 +320,7 @@ async function seedUsers() {
 
     if (existing) {
       userId = existing.id;
-      const { error } = await supabase.auth.admin.updateUserById(userId, {
-        password: u.password,
-        email_confirm: true,
-        user_metadata: { full_name: u.name },
-      });
-      if (error) {
-        console.warn(`Notice updating ${u.email}:`, error.message);
-      } else {
-        console.log(`Updated user auth: ${u.email} (${u.name})`);
-      }
+      console.log(`User ${u.email} already exists (ID: ${userId}). Keeping existing password.`);
     } else {
       const { data, error } = await supabase.auth.admin.createUser({
         email: u.email,

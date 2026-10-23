@@ -16,7 +16,7 @@ END $$;
 INSERT INTO public.roles (id, name, description)
 VALUES 
   ('SUPER_ADMIN', 'Super Administrator', 'Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna'),
-  ('super_admin', 'Super Administrator', 'Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna')
+  ('super_admin', 'Super Administrator (System)', 'Akses tertinggi sistem, bypass seluruh izin, dan otoritas impersonasi pengguna')
 ON CONFLICT (id) DO UPDATE SET 
   name = excluded.name, 
   description = excluded.description;

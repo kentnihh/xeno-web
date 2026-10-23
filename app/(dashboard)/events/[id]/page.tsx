@@ -37,9 +37,21 @@ export default async function EventDetailPage({
           ? "data-keluarga"
           : "operations";
 
-  const [canEditEvent, canDeleteEvent, canManageFinance, canManageDocs, userRoles] = await Promise.all([
+  const [
+    canEditEvent,
+    canDeleteEvent,
+    canManageOps,
+    canManageSheets,
+    canManageFamily,
+    canManageFinance,
+    canManageDocs,
+    userRoles,
+  ] = await Promise.all([
     hasPermission("events.edit"),
     hasPermission("events.delete"),
+    hasPermission("events:operations:manage"),
+    hasPermission("events:sheets:manage"),
+    hasPermission("events:family:manage"),
     hasPermission("finances.manage"),
     hasPermission("documents.manage"),
     getUserRoles(),
@@ -181,6 +193,9 @@ export default async function EventDetailPage({
           documents={documents}
           publicForm={publicForm}
           canManage={canEditEvent}
+          canManageOps={canManageOps}
+          canManageSheets={canManageSheets}
+          canManageFamily={canManageFamily}
           canManageFinance={canManageFinance}
           canManageDocuments={canManageDocs}
           initialTab={initialTab}

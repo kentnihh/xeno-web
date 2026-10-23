@@ -22,6 +22,9 @@ export const FALLBACK_PERMISSIONS: Permission[] = [
   { id: "templates:manage", name: "Kelola Template Acara", description: "Mengelola master spreadsheet dan template rundown", module: "templates", created_at: "2026-01-01T00:00:00Z" },
   { id: "finances:manage", name: "Kelola Keuangan Acara", description: "Mencatat dan memantau anggaran serta rincian biaya", module: "finances", created_at: "2026-01-01T00:00:00Z" },
   { id: "documents:manage", name: "Kelola Berkas & Dokumen Acara", description: "Mengunggah dan mengelola dokumen teknis acara", module: "documents", created_at: "2026-01-01T00:00:00Z" },
+  { id: "events:operations:manage", name: "Kelola Operasional Acara", description: "Mengelola penugasan kru, checklist tugas, dan vendor acara", module: "events", created_at: "2026-01-01T00:00:00Z" },
+  { id: "events:sheets:manage", name: "Kelola Lembar Kerja Acara", description: "Mengedit dan mengelola lembar kerja acara", module: "events", created_at: "2026-01-01T00:00:00Z" },
+  { id: "events:family:manage", name: "Kelola Data Keluarga Acara", description: "Mengonfigurasi formulir dan mengelola data keluarga acara", module: "events", created_at: "2026-01-01T00:00:00Z" },
 ];
 
 export const FALLBACK_ROLE_PERMS: RolePermission[] = [
