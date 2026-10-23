@@ -312,6 +312,6 @@ This builds the Next.js standalone container, restarts the app service, and Cadd
 
 
 <!-- LAST_ARCH_SYNC -->
-> **Last Architecture Sync**: c29ff6c feat: add event pax field, update pdf export header, and fix sheet ordering
-1b00aaa feat(core): consolidate schema and seeders, upgrade Next.js, and fix crew state updates
-0e1e8fc feat(rbac): refactor event granular permissions and upgrade Next.js to 16.4.2
+> **Last Architecture Sync**: c019cb4 Merge branch 'main' of https://github.com/kentnihh/xeno-web
+25edf9e feat(rbac): tighten user management permissions and role editing guards
+859546f fix(security,events): harden RBAC permissions, prevent redirect loops, and improve sheet management
