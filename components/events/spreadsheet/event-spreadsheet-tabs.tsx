@@ -88,6 +88,18 @@ export function EventSpreadsheetTabs({
     setIsMounted(true);
   }, []);
 
+  // Sync sheets order and tabs when initialSheets prop updates from server revalidation
+  useEffect(() => {
+    if (initialSheets && initialSheets.length > 0) {
+      setSheets((prev) => {
+        return initialSheets.map((is) => {
+          const current = prev.find((p) => p.sheet_name === is.sheet_name);
+          return current ? { ...is, data: current.data } : is;
+        });
+      });
+    }
+  }, [initialSheets]);
+
   // Handle Escape key to exit fullscreen & lock body scroll
   useEffect(() => {
     if (!isFullscreen) return;

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth, requirePermission } from "@/lib/auth";
+import { getMasterTemplatesCached } from "@/lib/data-cache";
 import { buildDefaultEventSheets, INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import { sanitizeSheetData } from "@/lib/spreadsheet-adapter";
 import type { EventSheet, SheetData, MasterTemplate } from "@/types/database";
@@ -28,12 +29,8 @@ export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
       return data as EventSheet[];
     }
 
-    // Try fetching from master_templates DB table
-    const { data: dbTemplates, error: tplError } = await supabase
-      .from("master_templates")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .order("order_index", { ascending: true });
+    // Try fetching from cached master_templates
+    const dbTemplates = await getMasterTemplatesCached();
 
     let initialRows: Array<{
       event_id: string;
@@ -43,7 +40,7 @@ export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
       data: SheetData;
     }> = [];
 
-    if (!tplError && dbTemplates && dbTemplates.length > 0) {
+    if (dbTemplates && dbTemplates.length > 0) {
       initialRows = (dbTemplates as MasterTemplate[]).map((tpl, idx) => ({
         event_id: eventId,
         sheet_name: tpl.sheet_name,
@@ -89,13 +86,14 @@ export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
 }
 
 /**
- * Save / Upsert a single spreadsheet tab's dynamic JSONB data.
+ * Save / Update a single spreadsheet tab's dynamic JSONB data.
+ * Content update strictly preserves existing sort_order and order_index to lock tab position.
  */
 export async function saveEventSheet(
   eventId: string,
   sheetName: string,
   sheetData: SheetData,
-  orderIndex: number = 0
+  orderIndex?: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requirePermission("events:sheets:manage");
@@ -110,23 +108,57 @@ export async function saveEventSheet(
     const supabase = await createClient();
     const now = new Date().toISOString();
 
-    const { error } = await supabase
+    // Check if the sheet already exists to preserve existing sort_order & order_index
+    const { data: existing } = await supabase
       .from("event_sheets")
-      .upsert(
-        {
-          event_id: eventId,
+      .select("id, sort_order, order_index")
+      .eq("event_id", eventId)
+      .eq("sheet_name", sheetName)
+      .maybeSingle();
+
+    if (existing?.id) {
+      // Content update: Only update data, sheet_name, and updated_at.
+      // Strictly DO NOT modify sort_order or order_index so tab position remains fixed!
+      const { error } = await supabase
+        .from("event_sheets")
+        .update({
           sheet_name: sheetName,
-          order_index: orderIndex,
-          sort_order: orderIndex,
           data: sanitizedData,
           updated_at: now,
-        },
-        { onConflict: "event_id,sheet_name" }
-      );
+        })
+        .eq("id", existing.id);
 
-    if (error) {
-      console.warn(`[saveEventSheet] Error upserting sheet "${sheetName}":`, error.message);
-      return { success: false, error: error.message };
+      if (error) {
+        console.warn(`[saveEventSheet] Error updating sheet "${sheetName}":`, error.message);
+        return { success: false, error: error.message };
+      }
+    } else {
+      // New sheet insertion: compute next sort_order if not provided
+      let finalOrder = orderIndex ?? 0;
+      if (orderIndex === undefined) {
+        const { count } = await supabase
+          .from("event_sheets")
+          .select("id", { count: "exact", head: true })
+          .eq("event_id", eventId);
+        finalOrder = count ?? 0;
+      }
+
+      const { error } = await supabase
+        .from("event_sheets")
+        .insert({
+          event_id: eventId,
+          sheet_name: sheetName,
+          order_index: finalOrder,
+          sort_order: finalOrder,
+          data: sanitizedData,
+          created_at: now,
+          updated_at: now,
+        });
+
+      if (error) {
+        console.warn(`[saveEventSheet] Error inserting sheet "${sheetName}":`, error.message);
+        return { success: false, error: error.message };
+      }
     }
 
     revalidatePath(`/events/${eventId}`);
@@ -182,11 +214,10 @@ export async function resetSheetToMaster(
     await requirePermission("events:sheets:manage");
 
     const supabase = await createClient();
-    const { data: tpl } = await supabase
-      .from("master_templates")
-      .select("jsonb_structure")
-      .ilike("sheet_name", sheetName)
-      .maybeSingle();
+    const allTemplates = await getMasterTemplatesCached();
+    const tpl = allTemplates.find(
+      (t) => t.sheet_name.toLowerCase() === sheetName.toLowerCase()
+    );
 
     const fallback = INITIAL_EVENT_SHEETS.find(
       (s) => s.name.toLowerCase() === sheetName.toLowerCase()

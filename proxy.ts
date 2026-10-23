@@ -1,61 +1,37 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          response = NextResponse.next({
-            request,
-          });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPublicRoute =
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/p/");
 
+  // Light-weight cookie-based session verification without remote Supabase roundtrips (<1ms)
+  const allCookies = request.cookies.getAll();
+  const hasAuthCookie = allCookies.some(
+    (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token") && c.value.trim().length > 0
+  );
+
   // Route Guard: Ensure unauthenticated users are redirected to /login for all protected routes and root /
-  if (!user && !isPublicRoute) {
+  if (!hasAuthCookie && !isPublicRoute) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     return NextResponse.redirect(loginUrl);
   }
 
   // Redirect authenticated users away from /login to /events
-  if (user && pathname.startsWith("/login")) {
+  if (hasAuthCookie && pathname.startsWith("/login")) {
     const eventsUrl = request.nextUrl.clone();
     eventsUrl.pathname = "/events";
     return NextResponse.redirect(eventsUrl);
   }
 
-  return response;
+  return NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
 }
 
 export const middleware = proxy;

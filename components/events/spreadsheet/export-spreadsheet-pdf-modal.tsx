@@ -20,6 +20,13 @@ export interface ExportSpreadsheetPdfModalProps {
   isOpen: boolean;
   onClose: () => void;
   eventTitle: string;
+  event?: {
+    id?: string;
+    title?: string;
+    venue?: string | null;
+    start_date?: string | null;
+    pax?: number | null;
+  } | null;
   sheets: EventSheet[];
   eventId?: string;
   publicForm?: EventPublicForm | null;
@@ -30,6 +37,7 @@ export function ExportSpreadsheetPdfModal({
   isOpen,
   onClose,
   eventTitle,
+  event,
   sheets,
   eventId,
   publicForm,
@@ -140,6 +148,12 @@ export function ExportSpreadsheetPdfModal({
 
       const { fileName } = await downloadSpreadsheetPdf({
         eventTitle,
+        event: event || {
+          title: eventTitle,
+          venue: null,
+          start_date: null,
+          pax: null,
+        },
         sheets: selectedSheets,
         orientation,
         includeFamilyData,

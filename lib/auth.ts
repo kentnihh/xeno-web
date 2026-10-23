@@ -2,6 +2,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
+import { getPermissionsCached, getRolePermissionsCached } from "./data-cache";
 import type { Profile } from "@/types/database";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -208,7 +209,7 @@ export function isSuperAdminRole(role?: string | null): boolean {
 
 /**
  * Retrieves the genuine Supabase Auth user directly from the session,
- * uninfluenced by impersonation context.
+ * uninfluenced by impersonation context. Deduplicated per request via React cache().
  */
 export const getRealUser = cache(async (): Promise<User | null> => {
   try {
@@ -226,38 +227,80 @@ export const getRealUser = cache(async (): Promise<User | null> => {
 });
 
 /**
+ * Core cached profile resolution by exact user ID.
+ * Guarantees that within a single request, profiles is queried AT MOST ONCE per user.
+ */
+export const getProfileById = cache(async (userId: string): Promise<Profile | null> => {
+  try {
+    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? createAdminClient()
+      : await createClient();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profile) return profile as Profile;
+  } catch (err) {
+    console.warn("[getProfileById] Error fetching profile:", err);
+  }
+
+  const fallbackUser = FALLBACK_USERS.find((u) => u.id === userId);
+  return (fallbackUser as Profile) || null;
+});
+
+/**
+ * Core cached user roles resolution by exact user ID.
+ * Guarantees that within a single request, user_roles is queried AT MOST ONCE per user.
+ */
+export const getUserRolesById = cache(async (userId: string): Promise<string[]> => {
+  const profile = await getProfileById(userId);
+  const roles = new Set<string>();
+  if (profile?.role) {
+    roles.add(profile.role.toLowerCase());
+  }
+
+  try {
+    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? createAdminClient()
+      : await createClient();
+    const { data: userRoles, error } = await supabase
+      .from("user_roles")
+      .select("role_id")
+      .eq("user_id", userId);
+
+    if (!error && userRoles) {
+      userRoles.forEach((r) => {
+        if (r.role_id) roles.add(r.role_id.toLowerCase());
+      });
+    }
+  } catch (err) {
+    console.warn("[getUserRolesById] Error:", err);
+  }
+
+  if (roles.size === 0) {
+    const fallbackUser = FALLBACK_USERS.find((u) => u.id === userId);
+    if (fallbackUser?.role) {
+      roles.add(fallbackUser.role.toLowerCase());
+    }
+  }
+
+  return Array.from(roles);
+});
+
+/**
  * Evaluates whether the genuine session user (not impersonated) holds SUPER_ADMIN role.
  */
 export const isRealSuperAdmin = cache(async (): Promise<boolean> => {
   const realUser = await getRealUser();
   if (!realUser) return false;
 
-  try {
-    const supabase = await createClient();
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", realUser.id)
-      .maybeSingle();
+  const profile = await getProfileById(realUser.id);
+  if (profile?.role && isSuperAdminRole(profile.role)) return true;
 
-    if (profile?.role && isSuperAdminRole(profile.role)) return true;
-
-    const { data: userRoles } = await supabase
-      .from("user_roles")
-      .select("role_id")
-      .eq("user_id", realUser.id);
-
-    if (userRoles?.some((ur) => isSuperAdminRole(ur.role_id))) return true;
-  } catch (err) {
-    console.warn("[isRealSuperAdmin] Database check error:", err);
-  }
-
-  const fallbackUser = FALLBACK_USERS.find(
-    (u) => u.id === realUser.id || u.email === realUser.email
-  );
-  if (fallbackUser?.role && isSuperAdminRole(fallbackUser.role)) return true;
-
-  return false;
+  const roles = await getUserRolesById(realUser.id);
+  return roles.some((r) => isSuperAdminRole(r));
 });
 
 export interface ImpersonationContext {
@@ -269,6 +312,7 @@ export interface ImpersonationContext {
 
 /**
  * Resolves current impersonation status and profile context.
+ * Deduplicated per request lifecycle using React cache().
  */
 export const getImpersonationContext = cache(async (): Promise<ImpersonationContext> => {
   const realUser = await getRealUser();
@@ -313,29 +357,10 @@ export const getImpersonationContext = cache(async (): Promise<ImpersonationCont
     };
   }
 
-  let targetProfile: Profile | null = null;
-  let realProfile: Profile | null = null;
-
-  try {
-    const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY
-      ? createAdminClient()
-      : await createClient();
-
-    const [targetRes, realRes] = await Promise.all([
-      adminClient.from("profiles").select("*").eq("id", impersonateUserId).maybeSingle(),
-      adminClient.from("profiles").select("*").eq("id", realUser.id).maybeSingle(),
-    ]);
-
-    targetProfile = (targetRes.data as Profile) || null;
-    realProfile = (realRes.data as Profile) || null;
-  } catch (err) {
-    console.warn("[getImpersonationContext] Error fetching profile via admin client:", err);
-  }
-
-  if (!targetProfile) {
-    const fallbackTarget = FALLBACK_USERS.find((u) => u.id === impersonateUserId);
-    targetProfile = fallbackTarget || null;
-  }
+  const [realProfile, targetProfile] = await Promise.all([
+    getProfileById(realUser.id),
+    getProfileById(impersonateUserId),
+  ]);
 
   if (!targetProfile) {
     return {
@@ -403,28 +428,16 @@ export async function requireAdmin(): Promise<User> {
  * Respects active impersonation context when target userId is omitted.
  */
 export const getCurrentProfile = cache(async (userId?: string): Promise<Profile | null> => {
-  let targetId = userId;
-  if (!targetId) {
-    const impersonation = await getImpersonationContext();
-    if (impersonation.isImpersonating && impersonation.impersonatedUser) {
-      return impersonation.impersonatedUser;
-    }
-    const user = impersonation.realUser;
-    if (!user) return null;
-    targetId = user.id;
+  if (userId) {
+    return getProfileById(userId);
   }
-
-  const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", targetId)
-    .maybeSingle();
-
-  if (profile) return profile as Profile;
-
-  const fallbackUser = FALLBACK_USERS.find((u) => u.id === targetId);
-  return (fallbackUser as Profile) || null;
+  const impersonation = await getImpersonationContext();
+  if (impersonation.isImpersonating && impersonation.impersonatedUser) {
+    return impersonation.impersonatedUser;
+  }
+  const user = impersonation.realUser;
+  if (!user) return null;
+  return getProfileById(user.id);
 });
 
 /**
@@ -432,68 +445,22 @@ export const getCurrentProfile = cache(async (userId?: string): Promise<Profile 
  * Deduplicated per request lifecycle using React cache().
  */
 export const getUserRoles = cache(async (userId?: string): Promise<string[]> => {
-  let targetId = userId;
-  let profileRole: string | null = null;
-
-  if (!targetId) {
-    const user = await getCurrentUser();
-    if (!user) return [];
-    targetId = user.id;
-  }
-
-  const profile = await getCurrentProfile(targetId);
-  if (profile?.role) {
-    profileRole = profile.role;
-  }
-
-  const roles = new Set<string>();
-  if (profileRole) {
-    roles.add(profileRole.toLowerCase());
-  }
-
-  try {
-    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
-      ? createAdminClient()
-      : await createClient();
-    const { data: userRoles, error } = await supabase
-      .from("user_roles")
-      .select("role_id")
-      .eq("user_id", targetId);
-
-    if (!error && userRoles) {
-      userRoles.forEach((r) => {
-        if (r.role_id) roles.add(r.role_id.toLowerCase());
-      });
-    }
-  } catch (err) {
-    console.warn("getUserRoles error:", err);
-  }
-
-  if (roles.size === 0) {
-    const fallbackUser = FALLBACK_USERS.find((u) => u.id === targetId);
-    if (fallbackUser?.role) {
-      roles.add(fallbackUser.role.toLowerCase());
-    }
-  }
-
-  return Array.from(roles);
+  const targetId = userId || (await getCurrentUser())?.id;
+  if (!targetId) return [];
+  return getUserRolesById(targetId);
 });
 
 /**
  * Checks if the specified user (or currently active user) holds the SUPER_ADMIN role.
  */
 export const isSuperAdmin = cache(async (userId?: string): Promise<boolean> => {
-  let targetId = userId;
-  if (!targetId) {
-    const user = await getCurrentUser();
-    if (!user) return false;
-    targetId = user.id;
-  }
+  const targetId = userId || (await getCurrentUser())?.id;
+  if (!targetId) return false;
 
-  const profile = await getCurrentProfile(targetId);
+  const profile = await getProfileById(targetId);
   if (profile?.role && isSuperAdminRole(profile.role)) return true;
 
-  const roles = await getUserRoles(targetId);
+  const roles = await getUserRolesById(targetId);
   return roles.some((r) => isSuperAdminRole(r));
 });
 
@@ -511,7 +478,7 @@ export const isAdmin = cache(async (userId?: string): Promise<boolean> => {
 
 /**
  * Retrieves all permission keys assigned to the user across all their roles.
- * Deduplicated per request lifecycle using React cache().
+ * Leverages cross-request unstable_cache for RBAC definitions and React cache() for request deduplication.
  */
 export const getUserPermissions = cache(async (userId?: string): Promise<string[]> => {
   const superAdmin = await isSuperAdmin(userId);
@@ -525,10 +492,9 @@ export const getUserPermissions = cache(async (userId?: string): Promise<string[
   // Admin holds all permissions
   if (roles.includes("admin") || roles.some((r) => isSuperAdminRole(r))) {
     try {
-      const supabase = await createClient();
-      const { data } = await supabase.from("permissions").select("id");
-      if (data && data.length > 0) {
-        const set = new Set<string>(data.map((p) => p.id));
+      const perms = await getPermissionsCached();
+      if (perms && perms.length > 0) {
+        const set = new Set<string>(perms.map((p) => p.id));
         FALLBACK_PERMISSIONS.forEach((p) => set.add(p.id));
         return Array.from(set);
       }
@@ -541,17 +507,12 @@ export const getUserPermissions = cache(async (userId?: string): Promise<string[
   const perms = new Set<string>();
 
   try {
-    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
-      ? createAdminClient()
-      : await createClient();
-    const { data, error } = await supabase
-      .from("role_permissions")
-      .select("permission_id")
-      .in("role_id", roles);
-
-    if (!error && data && data.length > 0) {
-      data.forEach((r) => {
-        if (r.permission_id) perms.add(r.permission_id);
+    const rolePerms = await getRolePermissionsCached();
+    if (rolePerms && rolePerms.length > 0) {
+      rolePerms.forEach((r) => {
+        if (roles.includes(r.role_id?.toLowerCase()) && r.permission_id) {
+          perms.add(r.permission_id);
+        }
       });
     }
   } catch (err) {
@@ -577,18 +538,14 @@ export const hasPermission = cache(async (
   permission: string,
   userId?: string
 ): Promise<boolean> => {
-  let targetId = userId;
-  if (!targetId) {
-    const user = await getCurrentUser();
-    if (!user) return false;
-    targetId = user.id;
-  }
+  const targetId = userId || (await getCurrentUser())?.id;
+  if (!targetId) return false;
 
   // 1. SUPER_ADMIN immediately bypasses and returns true for ALL permissions
-  const profile = await getCurrentProfile(targetId);
+  const profile = await getProfileById(targetId);
   if (profile?.role && isSuperAdminRole(profile.role)) return true;
 
-  const roles = await getUserRoles(targetId);
+  const roles = await getUserRolesById(targetId);
   if (roles.some((r) => isSuperAdminRole(r))) return true;
 
   // 2. Admin holds all permissions
@@ -647,4 +604,3 @@ export async function requirePermission(
   }
   return user;
 }
-

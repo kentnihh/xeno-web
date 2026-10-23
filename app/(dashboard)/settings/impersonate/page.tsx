@@ -12,19 +12,19 @@ export const metadata = {
 };
 
 export default async function ImpersonatePage() {
-  const superAdmin = await isRealSuperAdmin();
+  const supabase = await createClient();
+
+  // Concurrent fetching: Super admin validation, real user, impersonation context, and profiles in parallel
+  const [superAdmin, realUser, impersonation, { data: profiles }] = await Promise.all([
+    isRealSuperAdmin(),
+    getRealUser(),
+    getImpersonationContext(),
+    supabase.from("profiles").select("*").order("full_name", { ascending: true }),
+  ]);
+
   if (!superAdmin) {
     redirect("/dashboard");
   }
-
-  const realUser = await getRealUser();
-  const impersonation = await getImpersonationContext();
-
-  const supabase = await createClient();
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("*")
-    .order("full_name", { ascending: true });
 
   return (
     <ImpersonateView

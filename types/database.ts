@@ -97,6 +97,7 @@ export interface Event {
   start_date: string;
   end_date: string;
   status: EventStatus;
+  pax?: number | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

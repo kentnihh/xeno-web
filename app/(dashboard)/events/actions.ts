@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission, requireRole } from "@/lib/auth";
+import { getMasterTemplatesCached } from "@/lib/data-cache";
 import { upsertTaskCalendarEvent, deleteTaskCalendarEvent } from "@/lib/gcal-task";
 import { deleteEventFromGoogleCalendar } from "@/app/actions/gcal-sync";
 import { getStoragePathFromUrl, parseWIBDate } from "@/lib/utils";
@@ -75,6 +76,7 @@ export async function createEvent(
       end_date: formData.get("end_date"),
       pic: formData.get("pic"),
       client_id: formData.get("client_id") || null,
+      pax: formData.get("pax"),
       use_template: formData.get("use_template") !== null ? formData.get("use_template") : true,
       use_family_template: parsedUseFamilyTemplate,
       description: formData.get("description") || null,
@@ -90,6 +92,7 @@ export async function createEvent(
         start_date: parseWIBDate(validated.start_date).toISOString(),
         end_date: parseWIBDate(validated.end_date).toISOString(),
         pic: validated.pic || null,
+        pax: validated.pax ?? null,
         description: validated.description,
         client_id: validated.client_id,
         status: "planning" as EventStatus,
@@ -125,11 +128,8 @@ export async function createEvent(
     }
 
     if (validated.use_template) {
-      // Fetch master templates from database table instead of hardcoded file
-      const { data: dbTemplates } = await supabase
-        .from("master_templates")
-        .select("sheet_name, order_index, jsonb_structure")
-        .order("order_index", { ascending: true });
+      // Fetch master templates from cached database table instead of hardcoded file
+      const dbTemplates = await getMasterTemplatesCached();
 
       const sheetRows =
         dbTemplates && dbTemplates.length > 0
@@ -351,6 +351,7 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
       end_date: formData.get("end_date"),
       status: rawStatus ? rawStatus : undefined,
       pic: formData.get("pic"),
+      pax: formData.get("pax"),
       description: formData.get("description") || null,
       client_id: formData.get("client_id") || null,
     });
@@ -361,6 +362,7 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
       start_date: parseWIBDate(validated.start_date).toISOString(),
       end_date: parseWIBDate(validated.end_date).toISOString(),
       pic: validated.pic ?? null,
+      pax: validated.pax ?? null,
       description: validated.description,
       status: validated.status,
       updated_at: new Date().toISOString(),

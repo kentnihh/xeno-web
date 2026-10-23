@@ -120,14 +120,16 @@ create table if not exists public.events (
   start_date timestamptz not null,
   end_date timestamptz not null,
   status public.event_status not null default 'planning',
+  pax integer default null,
   created_by uuid references public.profiles(id) on delete set null,
   gcal_event_id text,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );
 
--- Ensure gcal_event_id exists if events pre-existed
+-- Ensure columns exist if events pre-existed
 alter table public.events add column if not exists gcal_event_id text;
+alter table public.events add column if not exists pax integer default null;
 
 -- Event Tasks
 create table if not exists public.event_tasks (

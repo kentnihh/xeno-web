@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isAdmin, hasPermission, getCurrentUser, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
+import { getRolesCached, getPermissionsCached, getRolePermissionsCached } from "@/lib/data-cache";
 import { UsersManagementView } from "@/components/users/users-management-view";
 import type { UserWithRBAC, Role, Permission, RolePermission, Profile } from "@/types/database";
 
@@ -19,18 +20,20 @@ export default async function SettingsRBACPage() {
 
   const supabase = await createClient();
 
-  const [{ data: rawProfiles }, { data: rawRoles }, { data: rawPerms }, { data: rawRP }, { data: rawUR }] =
-    await Promise.all([
-      supabase.from("profiles").select("*").order("full_name"),
-      supabase.from("roles").select("*").order("name"),
-      supabase.from("permissions").select("*").order("module"),
-      supabase.from("role_permissions").select("*"),
-      supabase.from("user_roles").select("*"),
-    ]);
+  const [
+    { data: rawProfiles },
+    roles,
+    permissions,
+    rolePermissions,
+    { data: rawUR },
+  ] = await Promise.all([
+    supabase.from("profiles").select("*").order("full_name"),
+    getRolesCached(),
+    getPermissionsCached(),
+    getRolePermissionsCached(),
+    supabase.from("user_roles").select("*"),
+  ]);
 
-  const roles: Role[] = rawRoles || [];
-  const permissions: Permission[] = rawPerms || [];
-  const rolePermissions: RolePermission[] = rawRP || [];
   const profiles: Profile[] = rawProfiles || [];
 
   const usersWithRBAC: UserWithRBAC[] = profiles.map((p) => {

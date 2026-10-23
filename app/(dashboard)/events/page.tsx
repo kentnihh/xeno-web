@@ -43,24 +43,23 @@ export default async function EventsPage({
 }: {
   searchParams?: Promise<{ page?: string; status?: string; view?: string }>;
 }) {
-  const resolved = await searchParams;
+  const supabase = await createClient();
+
+  // 1. Identify current logged-in user, profile, roles, permissions, and searchParams concurrently
+  const [resolved, user, userProfile, userRoles, canCreateEvent, canEditEvent] = await Promise.all([
+    searchParams,
+    getCurrentUser(),
+    getCurrentProfile(),
+    getUserRoles(),
+    hasPermission("events.create"),
+    hasPermission("events.edit"),
+  ]);
+
   const page = Math.max(1, parseInt(resolved?.page || "1", 10) || 1);
   const statusFilter = resolved?.status || "active";
   const viewMode = resolved?.view === "calendar" ? "calendar" : "list";
   const isPastFilter = statusFilter === "past" || statusFilter === "terlewat";
-
-  const supabase = await createClient();
-
-  // 1. Identify current logged-in user, profile, roles, and permissions concurrently
-  const user = await getCurrentUser();
   const currentUserId = user?.id;
-
-  const [userProfile, userRoles, canCreateEvent, canEditEvent] = await Promise.all([
-    getCurrentProfile(currentUserId),
-    getUserRoles(currentUserId),
-    hasPermission("events.create", currentUserId),
-    hasPermission("events.edit", currentUserId),
-  ]);
 
   const isAdminUser = userProfile?.role === "admin" || userRoles.includes("admin");
   const isManagerUser = userProfile?.role === "manager" || userRoles.includes("manager");

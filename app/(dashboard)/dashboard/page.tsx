@@ -16,32 +16,6 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  // 1. Fetch Current User, Profile, Roles, and Permission concurrently (cached request deduplication)
-  const user = await getCurrentUser();
-  const currentUserId = user?.id;
-
-  const [userProfile, userRoles, canCreateEvent] = await Promise.all([
-    getCurrentProfile(currentUserId),
-    getUserRoles(currentUserId),
-    hasPermission("events.create", currentUserId),
-  ]);
-
-  const isAdminUser = userProfile?.role === "admin" || userRoles.includes("admin");
-  const isManagerUser = userProfile?.role === "manager" || userRoles.includes("manager");
-  const isPrivileged = isAdminUser || isManagerUser;
-  const isStaff = !isPrivileged;
-
-  // 2. If user is STAFF: fetch assigned event IDs from event_crew
-  let assignedEventIds: string[] = [];
-  if (isStaff && currentUserId) {
-    const { data: crewData } = await supabase
-      .from("event_crew")
-      .select("event_id")
-      .eq("profile_id", currentUserId);
-
-    assignedEventIds = (crewData || []).map((c) => c.event_id).filter(Boolean);
-  }
-
   // Timezone-safe start of today (beginning of day at 00:00:00.000)
   // Ensures events happening today are included and not prematurely excluded as past events.
   const now = new Date();
@@ -54,6 +28,32 @@ export default async function DashboardPage() {
   }).format(now);
   const jakartaTodayStart = new Date(`${jakartaDate}T00:00:00+07:00`);
   const todayStart = localTodayStart < jakartaTodayStart ? localTodayStart : jakartaTodayStart;
+
+  // 1. Fetch Current User, Profile, Roles, and Permission concurrently (cached request deduplication)
+  const [user, userProfile, userRoles, canCreateEvent] = await Promise.all([
+    getCurrentUser(),
+    getCurrentProfile(),
+    getUserRoles(),
+    hasPermission("events.create"),
+  ]);
+
+  const currentUserId = user?.id;
+  const isAdminUser = userProfile?.role === "admin" || userRoles.includes("admin");
+  const isManagerUser = userProfile?.role === "manager" || userRoles.includes("manager");
+  const isPrivileged =
+    isAdminUser || isManagerUser || userProfile?.role?.toLowerCase() === "super_admin";
+  const isStaff = !isPrivileged;
+
+  // 2. If user is STAFF: fetch assigned event IDs from event_crew
+  let assignedEventIds: string[] = [];
+  if (isStaff && currentUserId) {
+    const { data: crewData } = await supabase
+      .from("event_crew")
+      .select("event_id")
+      .eq("profile_id", currentUserId);
+
+    assignedEventIds = (crewData || []).map((c) => c.event_id).filter(Boolean);
+  }
 
   // 3. Active Events query (filter for STAFF: only assigned events)
   let eventsQuery = supabase

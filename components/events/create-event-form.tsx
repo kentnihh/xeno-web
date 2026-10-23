@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { MapPin, User, Building2, FileText, Loader2 } from "lucide-react";
+import { MapPin, User, Users, Building2, FileText, Loader2 } from "lucide-react";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Combobox } from "@/components/ui/combobox";
 import { createEvent } from "@/app/(dashboard)/events/actions";
@@ -131,7 +131,7 @@ export function CreateEventForm({ clients }: CreateEventFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
               <User className="w-3.5 h-3.5 text-[#007aff]" /> PIC (Person In Charge)
@@ -140,6 +140,19 @@ export function CreateEventForm({ clients }: CreateEventFormProps) {
               name="pic"
               type="text"
               placeholder="Contoh: Budi Santoso / Maya"
+              className="apple-input w-full px-3.5 py-2.5 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-[#007aff]" /> Pax / Jumlah Undangan
+            </label>
+            <input
+              name="pax"
+              type="number"
+              min="0"
+              placeholder="Contoh: 500"
               className="apple-input w-full px-3.5 py-2.5 text-sm"
             />
           </div>

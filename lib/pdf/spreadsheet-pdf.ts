@@ -75,8 +75,18 @@ function autoTable(doc: any, options: UserOptions): any {
   );
 }
 
+export interface EventHeaderDetails {
+  title?: string | null;
+  venue?: string | null;
+  start_date?: string | null;
+  date?: string | null;
+  pax?: number | string | null;
+}
+
 export interface GenerateSpreadsheetPdfOptions {
   eventTitle: string;
+  event?: EventHeaderDetails | null;
+  eventDetails?: EventHeaderDetails | null;
   sheets: EventSheet[];
   orientation?: "landscape" | "portrait";
   customFilename?: string;
@@ -371,6 +381,10 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
     doc: customDoc,
   } = options;
   const logoUrl = logoDataUrl !== undefined ? logoDataUrl : getSyncLogoDataUrl();
+  const eventDetails =
+    options.event ||
+    options.eventDetails ||
+    (eventTitle ? { title: eventTitle } : null);
 
   const syncModules = getSyncJsPdfModules();
   const JsPdfClass = syncModules?.jsPDF || (customDoc ? (customDoc.constructor as any) : null);
@@ -420,7 +434,8 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       marginX,
       contentWidth,
       nowFormatted,
-      logoUrl
+      logoUrl,
+      eventDetails
     );
 
     // Convert sheet data to FortuneSheet model for unified parsing
@@ -666,7 +681,8 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       contentWidth,
       nowFormatted,
       logoUrl,
-      orientation
+      orientation,
+      eventDetails
     );
   }
 
@@ -702,12 +718,55 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
 }
 
 /**
+ * Formats a date string into readable Indonesian date format (e.g. "24 Okt 2026").
+ * Returns "-" for empty or invalid values.
+ */
+export function formatHeaderDate(dateStr: string | null | undefined): string {
+  if (!dateStr || !dateStr.trim()) return "-";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+      return dateStr.trim();
+    }
+    return new Intl.DateTimeFormat("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Jakarta",
+    }).format(d);
+  } catch {
+    return "-";
+  }
+}
+
+/**
+ * Formats Pax count into Indonesian locale string (e.g. "500 Pax", "1.200 Pax").
+ * Returns "-" for empty, null, or invalid values.
+ */
+export function formatHeaderPax(pax: number | string | null | undefined): string {
+  if (pax === null || pax === undefined || pax === "") return "-";
+  const num = typeof pax === "number" ? pax : Number(pax);
+  if (isNaN(num) || num < 0) return "-";
+  return `${num.toLocaleString("id-ID")} Pax`;
+}
+
+/**
+ * Formats venue string with truncation fallback.
+ */
+export function formatHeaderVenue(venue: string | null | undefined): string {
+  if (!venue || !venue.trim()) return "-";
+  const trimmed = venue.trim();
+  return trimmed.length > 40 ? trimmed.slice(0, 37) + "..." : trimmed;
+}
+
+/**
  * Renders the clean, official executive letterhead for a sheet.
  * Features:
  * 1. Left-aligned official Xeno logo at marginX (X=14).
  * 2. "Assignment Letter" title and sheet name positioned to the right of the logo, vertically centered.
  * 3. Clean text without "Sheet:" prefix and completely removed "Dicetak:" print date.
- * 4. Crisp hairline divider line and nicely proportioned startY for autoTable.
+ * 4. Right-aligned Event details: Event Name (prominent), Venue (📍), Date (📅), Pax (👥).
+ * 5. Crisp hairline divider line and nicely proportioned startY for autoTable.
  */
 export function renderSheetHeader(
   doc: jsPDF,
@@ -717,7 +776,8 @@ export function renderSheetHeader(
   marginX: number,
   contentWidth: number,
   nowFormatted?: string,
-  logoDataUrl?: string | null
+  logoDataUrl?: string | null,
+  eventDetails?: EventHeaderDetails | null
 ): number {
   const logoY = 9;
   const logoWidth = 22;
@@ -750,23 +810,54 @@ export function renderSheetHeader(
   doc.setTextColor(75, 85, 99); // Slate-600
   doc.text(cleanSheetName, textX, subtitleY);
 
-  // 4. Optional Event Title (right-aligned on the letterhead banner if provided)
-  if (
-    eventTitle &&
-    eventTitle.trim() &&
-    eventTitle !== "Acara Xeno" &&
-    eventTitle !== "Event"
-  ) {
-    const cleanEvent =
-      eventTitle.length > 50 ? eventTitle.slice(0, 47) + "..." : eventTitle.trim();
+  // 4. Top-Right Event Information block (Event Name, Venue, Date, Pax)
+  const resolvedTitle = (eventDetails?.title || eventTitle || "").trim();
+  const hasValidTitle =
+    resolvedTitle &&
+    resolvedTitle !== "Acara Xeno" &&
+    resolvedTitle !== "Event";
+
+  let rightBlockBottomY = subtitleY;
+
+  if (hasValidTitle) {
+    const rightX = pageWidth - marginX;
+    const cleanEventTitle =
+      resolvedTitle.length > 50
+        ? resolvedTitle.slice(0, 47) + "..."
+        : resolvedTitle;
+
+    // Line 1: Event Name (prominent, bold, dark slate/navy color)
+    const eventNameY = logoDataUrl ? logoY + 4.5 : logoY + 3;
+    doc.setFont("Montserrat", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(17, 24, 39); // Dark navy / charcoal
+    doc.text(cleanEventTitle, rightX, eventNameY, { align: "right" });
+
+    // Details formatting with safe fallbacks
+    const venueDisplay = formatHeaderVenue(eventDetails?.venue);
+    const dateDisplay = formatHeaderDate(eventDetails?.start_date || eventDetails?.date);
+    const paxDisplay = formatHeaderPax(eventDetails?.pax);
+
     doc.setFont("Montserrat", "normal");
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     doc.setTextColor(107, 114, 128); // Slate-500
-    doc.text(cleanEvent, pageWidth - marginX, subtitleY, { align: "right" });
+
+    const venueY = eventNameY + 4.5;
+    const dateY = venueY + 4.2;
+    const paxY = dateY + 4.2;
+
+    doc.text(`📍 ${venueDisplay}`, rightX, venueY, { align: "right" });
+    doc.text(`📅 ${dateDisplay}`, rightX, dateY, { align: "right" });
+    doc.text(`👥 ${paxDisplay}`, rightX, paxY, { align: "right" });
+
+    rightBlockBottomY = paxY;
   }
 
   // 5. Hairline Divider Line below the letterhead header
-  const dividerY = logoDataUrl ? logoY + logoHeight + 3.5 : subtitleY + 5;
+  const dividerY = Math.max(
+    logoDataUrl ? logoY + logoHeight + 3.5 : subtitleY + 5,
+    rightBlockBottomY + 4.5
+  );
   doc.setDrawColor(229, 231, 235);
   doc.setLineWidth(0.25);
   doc.line(marginX, dividerY, marginX + contentWidth, dividerY);
@@ -1112,7 +1203,8 @@ export function renderFamilyDataSectionPdf(
   contentWidth: number,
   nowFormatted: string,
   logoUrl?: string | null,
-  orientation: "landscape" | "portrait" = "landscape"
+  orientation: "landscape" | "portrait" = "landscape",
+  eventDetails?: EventHeaderDetails | null
 ): void {
   let currentY = renderSheetHeader(
     doc,
@@ -1122,7 +1214,8 @@ export function renderFamilyDataSectionPdf(
     marginX,
     contentWidth,
     nowFormatted,
-    logoUrl
+    logoUrl,
+    eventDetails
   );
 
   const baseCategories: FormCategorySchema[] = (
@@ -1221,7 +1314,8 @@ export function renderFamilyDataSectionPdf(
         marginX,
         contentWidth,
         nowFormatted,
-        logoUrl
+        logoUrl,
+        eventDetails
       );
     }
 

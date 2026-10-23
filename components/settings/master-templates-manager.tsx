@@ -504,49 +504,52 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
               : "space-y-4"
           }
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-border bg-card shrink-0">
-            <div className="flex items-center gap-3">
-              <span className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+          <div className="flex flex-row items-center justify-between gap-4 flex-nowrap overflow-x-auto p-3.5 rounded-xl border border-border bg-card shrink-0 scrollbar-none">
+            {/* Left Section: Template title, rename button, and subtle inline status badge */}
+            <div className="flex items-center gap-2.5 min-w-0 shrink-0">
+              <span className="text-xs uppercase tracking-wider font-bold text-muted-foreground whitespace-nowrap">
                 Mengedit Template:
               </span>
-              <span className="text-sm font-bold text-foreground">
+              <span className="text-sm font-bold text-foreground whitespace-nowrap" title={activeTemplate.sheet_name}>
                 {activeTemplate.sheet_name}
               </span>
               <button
                 type="button"
                 onClick={handleRenameTemplate}
-                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
                 title="Ubah nama template"
               >
                 <Edit2 className="w-3.5 h-3.5" />
               </button>
-            </div>
 
-            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Status Badge in left section with fixed height so it never causes layout shift */}
               {saveStatus === "saving" && (
-                <div className="flex items-center gap-1.5 text-xs text-amber-500 font-medium">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 whitespace-nowrap shrink-0">
+                  <Loader2 className="w-3 h-3 animate-spin" />
                   <span>Menyimpan...</span>
                 </div>
               )}
               {saveStatus === "saved" && (
-                <div className="flex items-center gap-1.5 text-xs text-emerald-500 font-medium animate-in fade-in">
-                  <Check className="w-3.5 h-3.5" />
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap shrink-0 animate-in fade-in">
+                  <Check className="w-3 h-3" />
                   <span>{statusMessage || "Tersimpan"}</span>
                 </div>
               )}
               {saveStatus === "error" && (
-                <div className="flex items-center gap-1.5 text-xs text-rose-500 font-medium">
-                  <AlertCircle className="w-3.5 h-3.5" />
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 whitespace-nowrap shrink-0">
+                  <AlertCircle className="w-3 h-3" />
                   <span>{statusMessage}</span>
                 </div>
               )}
+            </div>
 
+            {/* Right Section: Button group - locked to single row with flex-shrink-0 */}
+            <div className="flex items-center gap-2 flex-shrink-0 whitespace-nowrap">
               {/* 1. Show/Hide Gridlines Toggle */}
               <button
                 type="button"
                 onClick={handleToggleGridlines}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap shrink-0 ${
                   showGridLines
                     ? "bg-[#007aff]/10 text-[#007aff] border-[#007aff]/30 hover:bg-[#007aff]/20"
                     : "bg-muted text-muted-foreground border-border hover:text-foreground hover:bg-muted/80"
@@ -560,11 +563,11 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
               </button>
 
               {/* 2. Zoom Controls: Zoom Out, Percentage Dropdown, Zoom In */}
-              <div className="relative flex items-center bg-card border border-border rounded-lg shadow-2xs" ref={zoomMenuRef}>
+              <div className="relative flex items-center bg-card border border-border rounded-lg shadow-2xs whitespace-nowrap shrink-0" ref={zoomMenuRef}>
                 <button
                   type="button"
                   onClick={handleZoomOut}
-                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-l-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-l-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
                   title="Perkecil (Zoom Out)"
                   disabled={zoomRatio <= 0.5}
                 >
@@ -574,7 +577,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
                 <button
                   type="button"
                   onClick={() => setIsZoomMenuOpen((v) => !v)}
-                  className="px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted/80 transition-colors flex items-center gap-1 cursor-pointer border-x border-border/60"
+                  className="px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted/80 transition-colors flex items-center gap-1 cursor-pointer border-x border-border/60 whitespace-nowrap shrink-0"
                   title="Pilih tingkat zoom"
                 >
                   <span>{Math.round(zoomRatio * 100)}%</span>
@@ -584,7 +587,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
                 <button
                   type="button"
                   onClick={handleZoomIn}
-                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-r-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-r-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
                   title="Perbesar (Zoom In)"
                   disabled={zoomRatio >= 2.0}
                 >
@@ -599,7 +602,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
                         key={preset.value}
                         type="button"
                         onClick={() => handleSelectZoomPreset(preset.value)}
-                        className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted cursor-pointer flex items-center justify-between ${
+                        className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted cursor-pointer flex items-center justify-between whitespace-nowrap ${
                           Math.abs(zoomRatio - preset.value) < 0.01
                             ? "text-[#007aff] font-bold bg-[#007aff]/5"
                             : "text-foreground"
@@ -619,7 +622,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
               <button
                 type="button"
                 onClick={() => setIsFullscreen((v) => !v)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border shadow-2xs ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border shadow-2xs whitespace-nowrap shrink-0 ${
                   isFullscreen
                     ? "bg-[#007aff]/10 text-[#007aff] border-[#007aff]/30 hover:bg-[#007aff]/20"
                     : "bg-card hover:bg-muted text-foreground border-border hover:border-border/80"
@@ -641,7 +644,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
                 type="button"
                 onClick={handleRefresh}
                 disabled={isRefreshing || saveStatus === "saving"}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-card hover:bg-muted text-foreground text-xs font-semibold border border-border transition-all cursor-pointer active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-card hover:bg-muted text-foreground text-xs font-semibold border border-border transition-all cursor-pointer active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed shadow-2xs whitespace-nowrap shrink-0"
                 title="Segarkan data template master dari database"
               >
                 {isRefreshing ? (
@@ -658,7 +661,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
                 type="button"
                 onClick={handleManualSave}
                 disabled={isPending || isRefreshing}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs cursor-pointer shadow-xs transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs cursor-pointer shadow-xs transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>Simpan Template</span>
@@ -668,7 +671,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
                 type="button"
                 onClick={handleDeleteTemplate}
                 disabled={isPending || templates.length <= 1 || isRefreshing}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 text-xs font-medium cursor-pointer transition-colors disabled:opacity-30"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 text-xs font-medium cursor-pointer transition-colors disabled:opacity-30 whitespace-nowrap shrink-0"
                 title="Hapus template ini"
               >
                 <Trash2 className="w-3.5 h-3.5" />

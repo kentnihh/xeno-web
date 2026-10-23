@@ -24,6 +24,30 @@ export const eventBudgetInputSchema = z.preprocess((val) => {
 }, eventBudgetSchema);
 
 /**
+ * Zod validation schema for Event Pax (Jumlah Undangan / Tamu).
+ * - Optional and nullable (not mandatory).
+ * - When provided, value must be non-negative (>= 0) integer.
+ */
+export const eventPaxSchema = z
+  .number({
+    error: "Jumlah undangan (pax) harus berupa angka",
+  })
+  .int("Jumlah undangan (pax) harus berupa bilangan bulat")
+  .min(0, "Jumlah undangan (pax) tidak boleh negatif")
+  .nullable()
+  .optional();
+
+/**
+ * Coerces form inputs (empty string, string number, null, or number)
+ * into a valid optional/nullable pax number.
+ */
+export const eventPaxInputSchema = z.preprocess((val) => {
+  if (val === "" || val === null || val === undefined) return null;
+  const num = Number(val);
+  return Number.isNaN(num) ? val : num;
+}, eventPaxSchema);
+
+/**
  * Complete Event Creation Validation Schema
  * Expenses and documents are purely optional with no minimum length required.
  */
@@ -34,6 +58,7 @@ export const createEventSchema = z.object({
   end_date: z.string().min(1, "Tanggal & waktu selesai wajib diisi"),
   pic: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
   client_id: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
+  pax: eventPaxInputSchema.optional(),
   use_template: z.preprocess((val) => {
     if (typeof val === "boolean") return val;
     if (val === "true" || val === "on" || val === "1") return true;
@@ -69,6 +94,7 @@ export const updateEventSchema = z.object({
   status: z.enum(["draft", "planning", "confirmed", "ongoing", "completed", "cancelled"]).default("planning"),
   pic: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
   client_id: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
+  pax: eventPaxInputSchema.optional(),
   budget: eventBudgetInputSchema.optional(),
   description: z.string().nullable().optional(),
 });

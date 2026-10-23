@@ -18,13 +18,8 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
   const [
+    user,
     profile,
     isAdminUser,
     hasRbacManage,
@@ -34,15 +29,20 @@ export default async function DashboardLayout({
     realIsSuperAdmin,
     impersonation,
   ] = await Promise.all([
-    getCurrentProfile(user.id),
-    isAdmin(user.id),
-    hasPermission("rbac.manage", user.id),
-    hasPermission("templates.manage", user.id),
-    hasPermission("users.manage", user.id),
-    hasPermission("events.create", user.id),
+    getCurrentUser(),
+    getCurrentProfile(),
+    isAdmin(),
+    hasPermission("rbac.manage"),
+    hasPermission("templates.manage"),
+    hasPermission("users.manage"),
+    hasPermission("events.create"),
     isRealSuperAdmin(),
     getImpersonationContext(),
   ]);
+
+  if (!user) {
+    redirect("/login");
+  }
 
   let userRole = "staff";
   const normalizedRole = profile?.role?.toLowerCase();

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePermission, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
@@ -10,6 +10,7 @@ import type { UserRole } from "@/types/database";
 type ActionResult = { success?: boolean; error?: string };
 
 function revalidateRBAC() {
+  revalidateTag("rbac", "default");
   revalidatePath("/settings/rbac");
   revalidatePath("/settings/rbac", "page");
   revalidatePath("/users");

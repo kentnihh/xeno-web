@@ -8,6 +8,7 @@ import type { EventSheet, EventPublicForm } from "@/types/database";
 interface ExportSpreadsheetPdfButtonProps {
   eventId?: string;
   eventTitle: string;
+  event?: any;
   sheets: EventSheet[];
   publicForm?: EventPublicForm | null;
   className?: string;
@@ -16,6 +17,7 @@ interface ExportSpreadsheetPdfButtonProps {
 export function ExportSpreadsheetPdfButton({
   eventId,
   eventTitle,
+  event,
   sheets: initialSheets,
   publicForm,
   className = "",
@@ -68,6 +70,7 @@ export function ExportSpreadsheetPdfButton({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         eventTitle={eventTitle}
+        event={event}
         sheets={sheets}
         eventId={eventId}
         publicForm={publicForm}

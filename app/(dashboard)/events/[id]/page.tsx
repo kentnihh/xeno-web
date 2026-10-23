@@ -6,7 +6,7 @@ import { deleteEvent } from "../actions";
 import { getEventSheets } from "../sheet-actions";
 import { getOrCreateEventPublicForm } from "../public-form-actions";
 import { hasPermission, getUserRoles } from "@/lib/auth";
-import { ArrowLeft, Calendar, MapPin, User, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, User, Users, Trash2 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/ui/confirm-modal";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
 import { EventStatusSelect } from "@/components/events/event-status-select";
@@ -145,7 +145,7 @@ export default async function EventDetailPage({
         </div>
       </div>
 
-      <div className="apple-card p-5 grid grid-cols-2 md:grid-cols-4 gap-4 border border-border shadow-xs">
+      <div className="apple-card p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 border border-border shadow-xs">
         <div>
           <div className="text-xs font-medium text-muted-foreground mb-1">Status</div>
           <EventStatusSelect eventId={event.id} initialStatus={event.status} disabled={!canEditEvent} />
@@ -169,6 +169,13 @@ export default async function EventDetailPage({
           <div className="text-xs font-bold text-foreground mt-1.5 flex items-center gap-1.5">
             <User className="w-3.5 h-3.5 text-[#007aff]" />
             <span>{event.pic || "-"}</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-xs font-medium text-muted-foreground">Pax</div>
+          <div className="text-xs font-bold text-foreground mt-1.5 flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-[#007aff]" />
+            <span>{event.pax ? `${event.pax.toLocaleString("id-ID")} Pax` : "-"}</span>
           </div>
         </div>
       </div>

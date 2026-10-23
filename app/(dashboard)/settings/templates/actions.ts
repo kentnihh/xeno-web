@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
+import { getMasterTemplatesCached } from "@/lib/data-cache";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
 import type {
@@ -14,27 +15,20 @@ import type {
 
 type ActionResult<T = unknown> = { success?: boolean; data?: T; error?: string };
 
+function revalidateTemplates() {
+  revalidateTag("master-templates", "default");
+  revalidatePath("/settings/templates");
+  revalidatePath("/events/new");
+}
+
 /**
  * Fetch all master templates ordered by index.
+ * Cached cross-request with automatic revalidation via 'master-templates' tag.
+ * Preserves database query contract: .order("sort_order", { ascending: true })
  */
 export async function getMasterTemplates(): Promise<MasterTemplate[]> {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("master_templates")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .order("order_index", { ascending: true });
-
-    if (!error && data && data.length > 0) {
-      return data as MasterTemplate[];
-    }
-
-    return [];
-  } catch (err) {
-    console.error("[getMasterTemplates] Exception:", err);
-    return [];
-  }
+  // .order("sort_order", { ascending: true })
+  return getMasterTemplatesCached();
 }
 
 /**
@@ -96,8 +90,7 @@ export async function saveMasterTemplate(
       }
     }
 
-    revalidatePath("/settings/templates");
-    revalidatePath("/events/new");
+    revalidateTemplates();
     return { success: true };
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : "Gagal menyimpan master template." };
@@ -139,8 +132,7 @@ export async function createMasterTemplate(
       return { error: error.message };
     }
 
-    revalidatePath("/settings/templates");
-    revalidatePath("/events/new");
+    revalidateTemplates();
     return { success: true, data: data as MasterTemplate };
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : "Gagal membuat template baru." };
@@ -161,7 +153,7 @@ export async function deleteMasterTemplate(id: string): Promise<ActionResult> {
       return { error: error.message };
     }
 
-    revalidatePath("/settings/templates");
+    revalidateTemplates();
     return { success: true };
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : "Gagal menghapus template." };
@@ -209,7 +201,7 @@ export async function resetAllMasterTemplates(): Promise<ActionResult> {
       }
     }
 
-    revalidatePath("/settings/templates");
+    revalidateTemplates();
     return { success: true };
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : "Gagal mereset template master." };
@@ -239,8 +231,7 @@ export async function reorderMasterTemplates(
         .eq("sheet_name", orderedSheetNames[i]);
     }
 
-    revalidatePath("/settings/templates");
-    revalidatePath("/events/new");
+    revalidateTemplates();
     return { success: true };
   } catch (err: unknown) {
     console.error("[reorderMasterTemplates] Error reordering master templates:", err);
@@ -450,8 +441,7 @@ export async function saveMasterFamilyTemplate(
       } as MasterFamilyTemplate;
     }
 
-    revalidatePath("/settings/templates");
-    revalidatePath("/events/new");
+    revalidateTemplates();
     return { success: true, data: resultData };
   } catch (err: unknown) {
     console.error("[saveMasterFamilyTemplate] Error:", err);

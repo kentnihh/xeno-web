@@ -43,6 +43,7 @@ export interface EventSummaryPdfData {
         end_date?: string;
         status: EventStatus;
         pic?: string | null;
+        pax?: number | null;
         budget?: number | null; // ponytail: optional for legacy test caller compatibility
         client?: {
           name: string;
@@ -231,7 +232,13 @@ export function buildEventSummaryPdf(data: EventSummaryPdfData, customDoc?: jsPD
   const clientName = event.client?.name || "Klien Internal / Direct";
   doc.text(clientName, col1X, cursorY + 33);
 
-  const picText = event.pic || "-";
+  const picText = event.pic
+    ? event.pax
+      ? `${event.pic} • ${event.pax.toLocaleString("id-ID")} Pax`
+      : event.pic
+    : event.pax
+    ? `${event.pax.toLocaleString("id-ID")} Pax`
+    : "-";
   doc.setTextColor(17, 24, 39);
   doc.text(picText, col2X, cursorY + 33);
 

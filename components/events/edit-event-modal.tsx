@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Pencil, Loader2, MapPin, User, FileText, Activity } from "lucide-react";
+import { Pencil, Loader2, MapPin, User, Users, FileText, Activity } from "lucide-react";
 import { ModalShell } from "@/components/users/modal-shell";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { updateEvent } from "@/app/(dashboard)/events/actions";
@@ -133,7 +133,7 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-bold text-foreground mb-1 flex items-center gap-1.5">
                   <Activity className="w-3.5 h-3.5 text-[#007aff]" /> Status Acara *
@@ -154,13 +154,27 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
 
               <div>
                 <label className="block text-xs font-bold text-foreground mb-1 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-[#007aff]" /> PIC (Person In Charge)
+                  <User className="w-3.5 h-3.5 text-[#007aff]" /> PIC
                 </label>
                 <input
                   name="pic"
                   type="text"
                   defaultValue={event.pic || ""}
                   placeholder="Contoh: Budi Santoso"
+                  className="apple-input w-full px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-foreground mb-1 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-[#007aff]" /> Pax / Undangan
+                </label>
+                <input
+                  name="pax"
+                  type="number"
+                  min="0"
+                  defaultValue={event.pax ?? ""}
+                  placeholder="Contoh: 500"
                   className="apple-input w-full px-3 py-2 text-sm"
                 />
               </div>

@@ -50,6 +50,7 @@ export function EventActionButtons({
       {canSync && <SyncGCalButton eventId={event.id} eventTitle={event.title} canSync={canSync} />}
       <ExportExcelButton eventTitle={event.title} sheets={sheets} />
       <ExportSpreadsheetPdfButton
+        event={event}
         eventId={event.id}
         eventTitle={event.title}
         sheets={sheets}
