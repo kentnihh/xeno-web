@@ -381,6 +381,161 @@ end;
 $$ language plpgsql security definer set search_path = public stable;
 
 -- ------------------------------------------------------------------------------
+-- Privilege Escalation & Self-Role Elevation Guards
+-- ------------------------------------------------------------------------------
+
+-- Prevent unauthorized role tampering on profiles table
+create or replace function public.prevent_self_role_escalation()
+returns trigger as $$
+declare
+  caller_role text;
+  jwt_role text;
+begin
+  if NEW.role is distinct from OLD.role then
+    begin
+      jwt_role := current_setting('request.jwt.claim.role', true);
+    exception when others then
+      jwt_role := null;
+    end;
+
+    if jwt_role = 'service_role' then
+      return NEW;
+    end if;
+
+    if current_user in ('postgres', 'supabase_admin') and auth.uid() is null then
+      return NEW;
+    end if;
+
+    if auth.uid() is null then
+      raise exception 'Akses ditolak: Autentikasi diperlukan.';
+    end if;
+
+    select role::text into caller_role from public.profiles where id = auth.uid();
+    
+    if upper(caller_role) not in ('SUPER_ADMIN', 'ADMIN') then
+      raise exception 'Akses ditolak: Anda tidak memiliki izin untuk mengubah peran.';
+    end if;
+
+    if NEW.id = auth.uid() then
+      raise exception 'Akses ditolak: Anda tidak dapat mengubah peran akun Anda sendiri.';
+    end if;
+
+    if upper(NEW.role::text) = 'SUPER_ADMIN' and upper(caller_role) != 'SUPER_ADMIN' then
+      raise exception 'Akses ditolak: Hanya Super Admin yang dapat menugaskan peran Super Admin.';
+    end if;
+  end if;
+  
+  return NEW;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists trg_prevent_role_escalation on public.profiles;
+create trigger trg_prevent_role_escalation
+  before update on public.profiles
+  for each row
+  execute function public.prevent_self_role_escalation();
+
+-- Prevent unauthorized role assignment in user_roles table
+create or replace function public.prevent_user_roles_escalation()
+returns trigger as $$
+declare
+  caller_role text;
+  jwt_role text;
+begin
+  begin
+    jwt_role := current_setting('request.jwt.claim.role', true);
+  exception when others then
+    jwt_role := null;
+  end;
+
+  if jwt_role = 'service_role' then
+    return NEW;
+  end if;
+
+  if current_user in ('postgres', 'supabase_admin') and auth.uid() is null then
+    return NEW;
+  end if;
+
+  if auth.uid() is null then
+    raise exception 'Akses ditolak: Autentikasi diperlukan.';
+  end if;
+
+  select role::text into caller_role from public.profiles where id = auth.uid();
+  
+  if upper(caller_role) not in ('SUPER_ADMIN', 'ADMIN') then
+    raise exception 'Akses ditolak: Anda tidak memiliki izin untuk mengelola peran pengguna.';
+  end if;
+
+  if NEW.user_id = auth.uid() then
+    raise exception 'Akses ditolak: Anda tidak dapat mengubah peran akun Anda sendiri.';
+  end if;
+
+  if (upper(NEW.role_id) = 'SUPER_ADMIN' or upper(NEW.role_id) = 'SUPER_ADMINISTRATOR') and upper(caller_role) != 'SUPER_ADMIN' then
+    raise exception 'Akses ditolak: Hanya Super Admin yang dapat menugaskan peran Super Admin.';
+  end if;
+
+  return NEW;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists trg_prevent_user_roles_escalation on public.user_roles;
+create trigger trg_prevent_user_roles_escalation
+  before insert or update on public.user_roles
+  for each row
+  execute function public.prevent_user_roles_escalation();
+
+-- Protect primary root admin account against unauthorized deletion or role tampering
+create or replace function public.protect_root_admin_account()
+returns trigger as $$
+declare
+  caller_email text;
+  jwt_role text;
+begin
+  if OLD.email = 'admin@xenoent.com' then
+    begin
+      jwt_role := current_setting('request.jwt.claim.role', true);
+    exception when others then
+      jwt_role := null;
+    end;
+
+    if jwt_role = 'service_role' then
+      if TG_OP = 'DELETE' then
+        return OLD;
+      else
+        return NEW;
+      end if;
+    end if;
+
+    if current_user in ('postgres', 'supabase_admin') and auth.uid() is null then
+      if TG_OP = 'DELETE' then
+        return OLD;
+      else
+        return NEW;
+      end if;
+    end if;
+
+    if TG_OP = 'DELETE' then
+      raise exception 'Akses ditolak: Akun root admin tidak dapat dihapus.';
+    end if;
+
+    select email into caller_email from auth.users where id = auth.uid();
+
+    if (NEW.role is distinct from OLD.role) and (caller_email is distinct from 'admin@xenoent.com') then
+      raise exception 'Akses ditolak: Peran akun admin@xenoent.com dilindungi dan tidak dapat diubah oleh pengguna lain.';
+    end if;
+  end if;
+
+  return NEW;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists trg_protect_root_admin on public.profiles;
+create trigger trg_protect_root_admin
+  before update or delete on public.profiles
+  for each row
+  execute function public.protect_root_admin_account();
+
+-- ------------------------------------------------------------------------------
 -- 5. PERFORMANCE & LOOKUP INDEXES
 -- ------------------------------------------------------------------------------
 create index if not exists idx_events_start_date on public.events(start_date);

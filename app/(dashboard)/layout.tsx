@@ -55,14 +55,30 @@ export default async function DashboardLayout({
   }
   const avatarColor = profile?.avatar_color || null;
 
+  // Evaluate effective session role and permissions (respects active impersonation)
+  const isEffectiveStaff = userRole.toLowerCase() === "staff";
+  const effectiveIsSuperAdmin = impersonation.isImpersonating
+    ? normalizedRole === "super_admin"
+    : (realIsSuperAdmin || normalizedRole === "super_admin");
+
+  // Settings access is strictly forbidden for STAFF, and only granted if user has settings permissions
   const canAccessSettings =
-    isAdminUser || hasRbacManage || hasTemplatesManage || hasUsersManage || realIsSuperAdmin;
+    !isEffectiveStaff &&
+    (isAdminUser ||
+      hasRbacManage ||
+      hasTemplatesManage ||
+      hasUsersManage ||
+      effectiveIsSuperAdmin);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans transition-colors duration-150">
       <Sidebar
         canAccessSettings={canAccessSettings}
-        isSuperAdmin={realIsSuperAdmin}
+        isSuperAdmin={effectiveIsSuperAdmin}
+        userRole={userRole}
+        canManageTemplates={hasTemplatesManage}
+        canManageRbac={hasRbacManage}
+        canImpersonate={effectiveIsSuperAdmin}
       />
       <div className="flex-1 flex flex-col min-w-0 bg-background">
         {impersonation.isImpersonating && impersonation.impersonatedUser && (
@@ -77,7 +93,10 @@ export default async function DashboardLayout({
           avatarColor={avatarColor}
           canCreateEvent={canCreateEvent}
           canAccessSettings={canAccessSettings}
-          isSuperAdmin={realIsSuperAdmin}
+          isSuperAdmin={effectiveIsSuperAdmin}
+          canManageTemplates={hasTemplatesManage}
+          canManageRbac={hasRbacManage}
+          canImpersonate={effectiveIsSuperAdmin}
         />
         <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">{children}</main>
       </div>

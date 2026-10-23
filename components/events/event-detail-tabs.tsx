@@ -207,6 +207,7 @@ export function EventDetailTabs({
             eventId={event.id}
             initialSheets={sheets}
             canManage={manageSheets}
+            canManageSheets={manageSheets}
             canManageFamily={manageFamily}
             publicForm={publicForm}
           />

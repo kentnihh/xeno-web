@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Loader2, Eye, EyeOff, Palette, Check } from "lucide-react";
+import { useState, useEffect, useTransition } from "react";
+import { Loader2, Eye, EyeOff, Palette, Check, Lock } from "lucide-react";
 import { createUser, updateUser } from "@/app/(dashboard)/users/actions";
 import { Combobox } from "@/components/ui/combobox";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { ModalShell } from "./modal-shell";
 import type { Role, UserWithRBAC } from "@/types/database";
@@ -27,22 +28,92 @@ export function UserModal({
   roles,
   onClose,
   onSuccess,
+  currentUserId,
+  currentUserRole,
 }: {
   user: UserWithRBAC | null;
   roles: Role[];
   onClose: () => void;
   onSuccess?: (message: string) => void;
+  currentUserId?: string | null;
+  currentUserRole?: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [callerRole, setCallerRole] = useState<string | null>(currentUserRole || null);
+
+  useEffect(() => {
+    if (currentUserRole) {
+      setCallerRole(currentUserRole);
+      return;
+    }
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user: authUser } }) => {
+      if (authUser) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", authUser.id)
+          .maybeSingle();
+        if (prof?.role) {
+          setCallerRole(prof.role.toUpperCase());
+        }
+      }
+    });
+  }, [currentUserRole]);
+
+  const effectiveCallerRole = (currentUserRole || callerRole || "").toUpperCase();
+  const isCallerAdminOrSuper = effectiveCallerRole === "SUPER_ADMIN" || effectiveCallerRole === "ADMIN";
+  const isCallerSuper = effectiveCallerRole === "SUPER_ADMIN";
+
   const isEdit = Boolean(user);
+  const isSelf = Boolean(user && currentUserId && user.id === currentUserId);
+  const isRootAdmin = user?.email?.toLowerCase() === "admin@xenoent.com";
+
+  // Lock Role Selector:
+  // 1. Root admin account (admin@xenoent.com) cannot be edited by other users
+  // 2. Self-role edit is strictly blocked (users cannot change their own role)
+  // 3. If caller is NOT SUPER_ADMIN and NOT ADMIN (e.g. MANAGER, STAFF), role selector MUST be disabled/locked
+  const isRoleLocked = isRootAdmin || isSelf || !isCallerAdminOrSuper;
+
   const [roleId, setRoleId] = useState(user?.roles?.[0]?.id || user?.role || roles[0]?.id || "");
   const [avatarColor, setAvatarColor] = useState(user?.avatar_color || "#007aff");
 
   const isAdminRole =
     (roleId || "").toLowerCase() === "admin" ||
     (roleId || "").toLowerCase() === "super_admin";
+
+  const filteredRoleOptions = roles
+    .filter((r) => {
+      const id = r.id.toLowerCase();
+      const name = r.name.toLowerCase();
+
+      // Only SUPER_ADMIN can assign SUPER_ADMIN role
+      if (!isCallerSuper) {
+        if (
+          id === "super_admin" ||
+          id === "superadmin" ||
+          name.includes("super administrator")
+        ) {
+          return false;
+        }
+      }
+
+      // Non-admins cannot assign or see elevated admin roles
+      if (!isCallerAdminOrSuper) {
+        if (id === "admin" || id === "super_admin" || name.includes("administrator")) {
+          return false;
+        }
+      }
+
+      return true;
+    })
+    .map((r) => ({
+      value: r.id,
+      label: r.name,
+      subLabel: r.description || undefined,
+    }));
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,6 +163,13 @@ export function UserModal({
         {error && (
           <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
             {error}
+          </div>
+        )}
+
+        {isRootAdmin && !isSelf && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2 font-medium">
+            <Lock className="w-4 h-4 shrink-0" />
+            <span>Akun Sistem Utama (Terkunci) — Peran akun admin@xenoent.com dilindungi sistem dan tidak dapat diubah oleh pengguna lain.</span>
           </div>
         )}
 
@@ -167,30 +245,90 @@ export function UserModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-foreground mb-1.5">
-              Peran (Role) <span className="text-[#ff453a]">*</span>
-            </label>
-            <Combobox
-              name="roleId"
-              value={roleId}
-              onChange={setRoleId}
-              options={roles
-                .filter(
-                  (r) =>
-                    r.id !== "SUPER_ADMIN" &&
-                    r.id.toLowerCase() !== "super_admin" &&
-                    r.id.toLowerCase() !== "superadmin" &&
-                    r.name !== "Super Administrator" &&
-                    !r.name.toLowerCase().includes("super administrator")
-                )
-                .map((r) => ({
-                  value: r.id,
-                  label: r.name,
-                  subLabel: r.description || undefined,
-                }))}
-              placeholder="Pilih peran..."
-              searchPlaceholder="Cari peran..."
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-medium text-foreground">
+                Peran (Role) <span className="text-[#ff453a]">*</span>
+              </label>
+              {isRootAdmin ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md"
+                  title="Akun Sistem Utama (Terkunci)"
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Akun Sistem Utama (Terkunci)</span>
+                </span>
+              ) : isSelf ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md"
+                  title="Anda tidak dapat mengubah peran Anda sendiri."
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Anda tidak dapat mengubah peran Anda sendiri</span>
+                </span>
+              ) : !isCallerAdminOrSuper ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md"
+                  title="Hanya Administrator yang dapat mengubah peran staf."
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Hanya Administrator yang dapat mengubah peran staf</span>
+                </span>
+              ) : null}
+            </div>
+
+            {isRoleLocked ? (
+              <div
+                className="relative"
+                title={
+                  isRootAdmin
+                    ? "Akun Sistem Utama (Terkunci)"
+                    : isSelf
+                      ? "Anda tidak dapat mengubah peran Anda sendiri."
+                      : "Hanya Administrator yang dapat mengubah peran staf."
+                }
+              >
+                <input type="hidden" name="roleId" value={roleId} />
+                <div className="apple-input w-full px-3.5 py-2 text-sm bg-muted text-muted-foreground border-border cursor-not-allowed opacity-75 font-medium flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>
+                      {roles.find((r) => r.id === roleId)?.name ||
+                        (roleId === "super_admin" || roleId === "SUPER_ADMIN"
+                          ? "Super Administrator"
+                          : roleId === "admin" || roleId === "ADMIN"
+                            ? "Administrator"
+                            : roleId === "manager" || roleId === "MANAGER"
+                              ? "Event Manager"
+                              : roleId === "staff" || roleId === "STAFF"
+                                ? "Kru Operasional"
+                                : roleId)}
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-amber-500 font-bold uppercase">
+                    <span>(Terkunci)</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-amber-500 shrink-0" />
+                  <span>
+                    {isRootAdmin
+                      ? "Peran akun admin@xenoent.com dilindungi sistem dan tidak dapat diubah."
+                      : isSelf
+                        ? "Anda tidak dapat mengubah peran Anda sendiri."
+                        : "Hanya Administrator yang dapat mengubah peran staf."}
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <Combobox
+                name="roleId"
+                value={roleId}
+                onChange={setRoleId}
+                options={filteredRoleOptions}
+                placeholder="Pilih peran..."
+                searchPlaceholder="Cari peran..."
+              />
+            )}
           </div>
         </div>
 
@@ -266,8 +404,9 @@ export function UserModal({
           </button>
           <button
             type="submit"
-            disabled={isPending}
-            className="apple-btn-primary w-full sm:w-auto px-4 py-2 text-xs justify-center gap-1.5 disabled:opacity-50"
+            disabled={isPending || (isRootAdmin && !isSelf)}
+            title={isRootAdmin && !isSelf ? "Akun Sistem Utama (Terkunci)" : undefined}
+            className="apple-btn-primary w-full sm:w-auto px-4 py-2 text-xs justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             <span>{isEdit ? "Simpan Perubahan" : "Buat Pengguna"}</span>

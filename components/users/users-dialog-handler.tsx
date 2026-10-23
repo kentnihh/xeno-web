@@ -27,6 +27,8 @@ export function UsersDialogHandler({
   roles,
   permissions,
   rolePermissionsMap,
+  currentUserId,
+  currentUserRole,
 }: {
   dialog: DialogState;
   onClose: () => void;
@@ -34,14 +36,16 @@ export function UsersDialogHandler({
   roles: Role[];
   permissions: Permission[];
   rolePermissionsMap: Record<string, string[]>;
+  currentUserId?: string | null;
+  currentUserRole?: string | null;
 }) {
   if (!dialog) return null;
 
   if (dialog.type === "create_user") {
-    return <UserModal user={null} roles={roles} onClose={onClose} onSuccess={onSuccess} />;
+    return <UserModal user={null} roles={roles} onClose={onClose} onSuccess={onSuccess} currentUserId={currentUserId} currentUserRole={currentUserRole} />;
   }
   if (dialog.type === "edit_user") {
-    return <UserModal user={dialog.user} roles={roles} onClose={onClose} onSuccess={onSuccess} />;
+    return <UserModal user={dialog.user} roles={roles} onClose={onClose} onSuccess={onSuccess} currentUserId={currentUserId} currentUserRole={currentUserRole} />;
   }
   if (dialog.type === "reset_password") {
     return <ResetPasswordModal user={dialog.user} onClose={onClose} onSuccess={onSuccess} />;

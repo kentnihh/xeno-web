@@ -14,12 +14,14 @@ export function UsersManagementView({
   initialPermissions,
   initialRolePermissions,
   currentUserId,
+  currentUserRole,
 }: {
   initialUsers: UserWithRBAC[];
   initialRoles: Role[];
   initialPermissions: Permission[];
   initialRolePermissions: RolePermission[];
   currentUserId: string | null;
+  currentUserRole?: string | null;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"users" | "roles" | "permissions">("users");
@@ -189,6 +191,8 @@ export function UsersManagementView({
         roles={manageableRoles}
         permissions={initialPermissions}
         rolePermissionsMap={rolePermissionsMap}
+        currentUserId={currentUserId}
+        currentUserRole={currentUserRole}
       />
 
       {toast && (

@@ -218,7 +218,12 @@ export const getRealUser = cache(async (): Promise<User | null> => {
       data: { user },
       error,
     } = await supabase.auth.getUser();
-    if (error || !user) return null;
+    if (error || !user) {
+      if (error?.code === "refresh_token_not_found" || error?.status === 400) {
+        console.warn("[getRealUser] Stale or invalid refresh token detected:", error.message);
+      }
+      return null;
+    }
     return user;
   } catch (err) {
     console.warn("[getRealUser] Error fetching user:", err);

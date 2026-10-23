@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requirePermission, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
+import { requirePermission, isSuperAdmin, isSuperAdminRole, getCurrentUser, getCurrentProfile, isAdmin } from "@/lib/auth";
 import { FALLBACK_PERMISSIONS } from "@/lib/rbac-fallbacks";
 import type { UserRole } from "@/types/database";
 
@@ -44,9 +44,22 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
       return { error: "Kata sandi minimal 6 karakter." };
     }
 
+    // Role Hierarchy Check: Only SUPER_ADMIN and ADMIN can create and assign roles
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: "Autentikasi diperlukan." };
+    }
+    const callerIsSuper = await isSuperAdmin(currentUser.id);
+    const callerIsAdmin = await isAdmin(currentUser.id);
+
+    if (!callerIsSuper && !callerIsAdmin) {
+      return {
+        error: "Akses ditolak: Hanya Super Admin dan Administrator yang dapat membuat akun pengguna.",
+      };
+    }
+
     // Guardrail: Only SUPER_ADMIN can assign SUPER_ADMIN role
     if (isSuperAdminRole(roleId)) {
-      const callerIsSuper = await isSuperAdmin();
       if (!callerIsSuper) {
         return {
           error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
@@ -112,41 +125,74 @@ export async function createUser(formData: FormData): Promise<ActionResult> {
 /** Update user profile and assigned role */
 export async function updateUser(formData: FormData): Promise<ActionResult> {
   try {
-    await requirePermission("users.manage");
+    // 1. Strict Permission Verification: require rbac:manage or users:manage
+    await requirePermission("rbac.manage");
 
     const id = formData.get("id") as string;
     const fullName = (formData.get("fullName") as string)?.trim();
     const phone = (formData.get("phone") as string)?.trim() || null;
-    const roleId = ((formData.get("roleId") as string)?.trim() || "staff").toLowerCase();
+    let roleId = ((formData.get("roleId") as string)?.trim() || "staff").toLowerCase();
     const avatarColor = (formData.get("avatarColor") as string)?.trim() || null;
 
     if (!id || !fullName) return { error: "ID dan nama lengkap wajib diisi." };
 
-    // Guardrail: Only SUPER_ADMIN can assign SUPER_ADMIN role
-    if (isSuperAdminRole(roleId)) {
-      const callerIsSuper = await isSuperAdmin();
-      if (!callerIsSuper) {
-        return {
-          error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
-        };
-      }
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: "Autentikasi diperlukan." };
     }
+    const callerProfile = await getCurrentProfile(currentUser.id);
+    const callerRole = (callerProfile?.role || "staff").toUpperCase();
+    const callerIsSuper = callerRole === "SUPER_ADMIN" || (await isSuperAdmin(currentUser.id));
+    const callerIsAdmin = callerRole === "ADMIN" || (await isAdmin(currentUser.id));
 
     const supabase = await getRBACClient();
 
     // Guardrail: Non-Super Admin cannot modify a Super Admin profile
     const { data: targetProfile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("email, role")
       .eq("id", id)
       .maybeSingle();
 
-    if (targetProfile && isSuperAdminRole(targetProfile.role)) {
-      const callerIsSuper = await isSuperAdmin();
-      if (!callerIsSuper) {
+    const targetCurrentRole = (targetProfile?.role || "staff").toLowerCase();
+    const isRoleChange = targetProfile ? roleId.toLowerCase() !== targetCurrentRole : false;
+
+    // Root Super Admin Protection:
+    // Only admin@xenoent.com operating from their own authenticated session can modify their own record.
+    if (targetProfile?.email?.toLowerCase() === "admin@xenoent.com" && currentUser.email?.toLowerCase() !== "admin@xenoent.com") {
+      return { error: "Peran akun admin@xenoent.com dilindungi sistem dan tidak dapat diubah." };
+    }
+
+    if (targetProfile && isSuperAdminRole(targetProfile.role) && !callerIsSuper) {
+      return {
+        error: "Akses ditolak: Akun Super Admin hanya dapat dikelola oleh sesama Super Admin.",
+      };
+    }
+
+    // If update payload includes a role field that differs from the target user's current role:
+    if (isRoleChange) {
+      // Check 1 (Self-edit block):
+      if (id === currentUser.id) {
+        if (targetProfile && targetProfile.role.toLowerCase() !== roleId.toLowerCase()) {
+          return { error: "Anda tidak dapat mengubah peran akun Anda sendiri." };
+        }
+      }
+
+      // Check 2 (Privilege check): Only SUPER_ADMIN and ADMIN can modify roles.
+      if (!["SUPER_ADMIN", "ADMIN"].includes(callerRole) || (!callerIsSuper && !callerIsAdmin)) {
+        return { error: "Akses ditolak: Anda tidak memiliki wewenang untuk mengubah peran." };
+      }
+
+      // Check 3 (Role hierarchy check): Only SUPER_ADMIN can assign SUPER_ADMIN
+      if (isSuperAdminRole(roleId) && !callerIsSuper) {
         return {
-          error: "Akses ditolak: Akun Super Admin hanya dapat dikelola oleh sesama Super Admin.",
+          error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
         };
+      }
+    } else {
+      // Role was not changed, keep current role in database
+      if (targetProfile) {
+        roleId = targetCurrentRole;
       }
     }
     const { error: profileError } = await supabase
@@ -162,18 +208,118 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
 
     if (profileError) return { error: profileError.message };
 
-    const { error: delError } = await supabase.from("user_roles").delete().eq("user_id", id);
-    if (delError) return { error: delError.message };
+    if (id !== currentUser.id) {
+      const { error: delError } = await supabase.from("user_roles").delete().eq("user_id", id);
+      if (delError) return { error: delError.message };
 
-    if (!isSuperAdminRole(roleId)) {
-      const { error: insError } = await supabase.from("user_roles").insert({ user_id: id, role_id: roleId });
-      if (insError) return { error: insError.message };
+      if (!isSuperAdminRole(roleId)) {
+        const { error: insError } = await supabase.from("user_roles").insert({ user_id: id, role_id: roleId });
+        if (insError) return { error: insError.message };
+      }
     }
 
     revalidateRBAC();
     return { success: true };
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan sistem." };
+  }
+}
+
+/** Directly updates a user's role with strict RBAC guards and self-role elevation prevention */
+export async function updateUserRole(
+  userId: string,
+  newRole: UserRole,
+  avatarColor?: string | null
+): Promise<ActionResult> {
+  try {
+    // 1. Strict Permission Verification
+    await requirePermission("rbac.manage");
+
+    if (!userId || !newRole) {
+      return { error: "ID pengguna dan peran baru wajib diisi." };
+    }
+
+    // 2. Prevent Self-Role Modification
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: "Autentikasi diperlukan." };
+    }
+    const callerProfile = await getCurrentProfile(currentUser.id);
+    const callerRole = (callerProfile?.role || "staff").toUpperCase();
+
+    if (userId === currentUser.id) {
+      return { error: "Anda tidak dapat mengubah peran akun Anda sendiri." };
+    }
+
+    // 3. Role Hierarchy Check:
+    // Only SUPER_ADMIN and ADMIN can assign roles. MANAGER and STAFF can NEVER assign roles.
+    const callerIsSuper = callerRole === "SUPER_ADMIN" || (await isSuperAdmin(currentUser.id));
+    const callerIsAdmin = callerRole === "ADMIN" || (await isAdmin(currentUser.id));
+
+    if (!callerIsSuper && !callerIsAdmin) {
+      return {
+        error: "Akses ditolak: Hanya Super Admin dan Administrator yang dapat mengelola peran pengguna.",
+      };
+    }
+
+    if (!["SUPER_ADMIN", "ADMIN"].includes(callerRole)) {
+      return {
+        error: "Akses ditolak: Anda tidak memiliki wewenang untuk mengubah peran.",
+      };
+    }
+
+    // Standard ADMIN cannot assign or touch SUPER_ADMIN
+    if (isSuperAdminRole(newRole) && !callerIsSuper) {
+      return {
+        error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
+      };
+    }
+
+    const supabase = await getRBACClient();
+
+    // Guardrail: Non-Super Admin cannot modify a Super Admin profile
+    const { data: targetProfile } = await supabase
+      .from("profiles")
+      .select("email, role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    // Root Super Admin Protection:
+    // Only admin@xenoent.com operating from their own authenticated session can modify their own record.
+    if (targetProfile?.email?.toLowerCase() === "admin@xenoent.com" && currentUser.email?.toLowerCase() !== "admin@xenoent.com") {
+      return { error: "Peran akun admin@xenoent.com dilindungi sistem dan tidak dapat diubah." };
+    }
+
+    if (targetProfile && isSuperAdminRole(targetProfile.role) && !callerIsSuper) {
+      return {
+        error: "Akses ditolak: Akun Super Admin hanya dapat dikelola oleh sesama Super Admin.",
+      };
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      role: newRole,
+      updated_at: new Date().toISOString(),
+    };
+    if (newRole === "admin" && avatarColor) {
+      updatePayload.avatar_color = avatarColor;
+    }
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update(updatePayload)
+      .eq("id", userId);
+
+    if (profileError) return { error: profileError.message };
+
+    await supabase.from("user_roles").delete().eq("user_id", userId);
+    if (!isSuperAdminRole(newRole)) {
+      await supabase.from("user_roles").insert({ user_id: userId, role_id: newRole });
+    }
+
+    revalidateRBAC();
+    return { success: true };
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : "Gagal memperbarui peran pengguna." };
   }
 }
 
@@ -198,6 +344,22 @@ export async function resetUserPassword(formData: FormData): Promise<ActionResul
       };
     }
 
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: "Autentikasi diperlukan." };
+    }
+
+    const checkClient = await getRBACClient();
+    const { data: targetProfile } = await checkClient
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (targetProfile?.email?.toLowerCase() === "admin@xenoent.com" && currentUser.email?.toLowerCase() !== "admin@xenoent.com") {
+      return { error: "Kata sandi akun root admin dilindungi sistem dan tidak dapat direset oleh pengguna lain." };
+    }
+
     const supabaseAdmin = createAdminClient();
     const { error: resetError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password: newPassword,
@@ -219,15 +381,43 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
   try {
     await requirePermission("users.manage");
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.id === userId) {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: "Autentikasi diperlukan." };
+    }
+    if (currentUser.id === userId) {
       return { error: "Anda tidak dapat menghapus akun Anda sendiri." };
+    }
+
+    const callerIsSuper = await isSuperAdmin(currentUser.id);
+    const callerIsAdmin = await isAdmin(currentUser.id);
+    if (!callerIsSuper && !callerIsAdmin) {
+      return {
+        error: "Akses ditolak: Hanya Super Admin dan Administrator yang dapat menghapus akun pengguna.",
+      };
+    }
+
+    const checkClient = await getRBACClient();
+    const { data: targetProfile } = await checkClient
+      .from("profiles")
+      .select("email, role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    // Root Admin Protection: Prevent deletion of root admin
+    if (targetProfile?.email?.toLowerCase() === "admin@xenoent.com") {
+      return { error: "Akses ditolak: Akun root admin tidak dapat dihapus." };
+    }
+
+    if (targetProfile && isSuperAdminRole(targetProfile.role) && !callerIsSuper) {
+      return {
+        error: "Akses ditolak: Akun Super Admin tidak dapat dihapus oleh Admin standar.",
+      };
     }
 
     const adminClient = createAdminClient();
     await adminClient.auth.admin.deleteUser(userId);
-    const { error } = await supabase.from("profiles").delete().eq("id", userId);
+    const { error } = await checkClient.from("profiles").delete().eq("id", userId);
     if (error) return { error: error.message };
 
     revalidateRBAC();
@@ -457,4 +647,8 @@ export async function deletePermission(permId: string): Promise<ActionResult> {
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan sistem." };
   }
 }
+
+/** Alias for updateUser providing explicit semantic naming */
+export const updateStaff = updateUser;
+
 

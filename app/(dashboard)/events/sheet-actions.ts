@@ -172,28 +172,58 @@ export async function saveEventSheet(
   }
 }
 
+/** Semantic alias for saveEventSheet */
+export const updateEventSheet = saveEventSheet;
+
 /**
  * Delete a spreadsheet tab from the event.
+ * Supports calling with (eventId, sheetNameOrId) or (sheetId).
  */
 export async function deleteEventSheet(
-  eventId: string,
-  sheetName: string
+  eventIdOrSheetId: string,
+  sheetNameOrId?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await requirePermission("events:sheets:manage");
 
     const supabase = await createClient();
-    const { error } = await supabase
-      .from("event_sheets")
-      .delete()
-      .eq("event_id", eventId)
-      .eq("sheet_name", sheetName);
 
-    if (error) {
-      return { success: false, error: error.message };
+    if (!sheetNameOrId) {
+      // Called with single argument: sheetId
+      const { data: sheet } = await supabase
+        .from("event_sheets")
+        .select("event_id")
+        .eq("id", eventIdOrSheetId)
+        .maybeSingle();
+
+      const { error } = await supabase
+        .from("event_sheets")
+        .delete()
+        .eq("id", eventIdOrSheetId);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (sheet?.event_id) {
+        revalidatePath(`/events/${sheet.event_id}`);
+      }
+      return { success: true };
     }
 
-    revalidatePath(`/events/${eventId}`);
+    // Called with (eventId, sheetNameOrId)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sheetNameOrId);
+    const query = supabase.from("event_sheets").delete().eq("event_id", eventIdOrSheetId);
+
+    if (isUuid) {
+      const { error } = await query.or(`id.eq.${sheetNameOrId},sheet_name.eq.${sheetNameOrId}`);
+      if (error) return { success: false, error: error.message };
+    } else {
+      const { error } = await query.eq("sheet_name", sheetNameOrId);
+      if (error) return { success: false, error: error.message };
+    }
+
+    revalidatePath(`/events/${eventIdOrSheetId}`);
     return { success: true };
   } catch (err: unknown) {
     return {

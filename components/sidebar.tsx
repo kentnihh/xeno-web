@@ -37,15 +37,50 @@ const baseSettingsSubNav = [
 interface SidebarProps {
   canAccessSettings?: boolean;
   isSuperAdmin?: boolean;
+  userRole?: string;
+  canManageTemplates?: boolean;
+  canManageRbac?: boolean;
+  canImpersonate?: boolean;
 }
 
-export function Sidebar({ canAccessSettings = false, isSuperAdmin = false }: SidebarProps) {
-  const settingsSubNavigation = isSuperAdmin
-    ? [
-        ...baseSettingsSubNav,
-        { name: "Impersonate", href: "/settings/impersonate", icon: UserCheck },
-      ]
-    : baseSettingsSubNav;
+export interface SettingsSubNavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission?: string;
+}
+
+const allSettingsSubNav: SettingsSubNavItem[] = [
+  { name: "Master Template", href: "/settings/templates", icon: FileSpreadsheet, permission: "templates:manage" },
+  { name: "Manajemen RBAC", href: "/settings/rbac", icon: ShieldCheck, permission: "rbac:manage" },
+  { name: "Impersonate", href: "/settings/impersonate", icon: UserCheck, permission: "impersonate:access" },
+];
+
+export function Sidebar({
+  canAccessSettings = false,
+  isSuperAdmin = false,
+  userRole = "staff",
+  canManageTemplates,
+  canManageRbac,
+  canImpersonate,
+}: SidebarProps) {
+  const isStaff = userRole?.toUpperCase() === "STAFF";
+
+  // Filter settings sub-navigation items based on effective permissions & role
+  const settingsSubNavigation = !isStaff && canAccessSettings
+    ? allSettingsSubNav.filter((item) => {
+        if (item.href === "/settings/impersonate") {
+          return Boolean(canImpersonate ?? isSuperAdmin);
+        }
+        if (item.href === "/settings/templates") {
+          return canManageTemplates !== undefined ? canManageTemplates : true;
+        }
+        if (item.href === "/settings/rbac") {
+          return canManageRbac !== undefined ? canManageRbac : true;
+        }
+        return true;
+      })
+    : [];
   const pathname = usePathname();
   const router = useRouter();
   const isSettingsActive = pathname.startsWith("/settings");
@@ -143,7 +178,7 @@ export function Sidebar({ canAccessSettings = false, isSuperAdmin = false }: Sid
           </div>
 
           {/* Settings Section (Pengaturan) */}
-          {canAccessSettings && (
+          {canAccessSettings && !isStaff && settingsSubNavigation.length > 0 && (
             <div className="space-y-1 pt-2 border-t border-sidebar-border">
               <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 Pengaturan
@@ -163,7 +198,7 @@ export function Sidebar({ canAccessSettings = false, isSuperAdmin = false }: Sid
                   onClick={() => setIsSettingsOpen((prev) => !prev)}
                 >
                   <Link
-                    href="/settings/templates"
+                    href={settingsSubNavigation[0]?.href || "/settings/templates"}
                     onClick={(e) => e.stopPropagation()}
                     className="flex items-center gap-3 min-w-0 flex-1"
                   >

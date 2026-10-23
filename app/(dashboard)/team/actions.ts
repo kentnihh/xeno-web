@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requirePermission, isSuperAdmin, isSuperAdminRole } from "@/lib/auth";
+import { requirePermission, isSuperAdmin, isSuperAdminRole, getCurrentUser, getCurrentProfile, isAdmin } from "@/lib/auth";
 import type { UserRole } from "@/types/database";
 
 const updateMemberRoleSchema = z.object({
@@ -19,38 +19,75 @@ export async function updateMemberRoleAction(
   avatarColor?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requirePermission("team.manage");
+    // 1. Strict Permission Verification: rbac.manage required to change roles
+    await requirePermission("rbac.manage");
 
     const validated = updateMemberRoleSchema.parse({ userId, newRole, avatarColor });
 
-    // Guardrail: Only SUPER_ADMIN can assign SUPER_ADMIN role
-    if (isSuperAdminRole(validated.newRole)) {
-      const callerIsSuper = await isSuperAdmin();
-      if (!callerIsSuper) {
-        return {
-          success: false,
-          error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
-        };
-      }
+    // 2. Prevent Self-Role Modification
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { success: false, error: "Autentikasi diperlukan." };
+    }
+    const callerProfile = await getCurrentProfile(currentUser.id);
+    const callerRole = (callerProfile?.role || "staff").toUpperCase();
+
+    // Check 1 (Self-edit block):
+    if (validated.userId === currentUser.id) {
+      return { success: false, error: "Anda tidak dapat mengubah peran akun Anda sendiri." };
     }
 
-    const supabase = await createClient();
+    // 3. Role Hierarchy Check:
+    // Only SUPER_ADMIN and ADMIN can assign roles. MANAGER and STAFF can NEVER assign roles.
+    const callerIsSuper = callerRole === "SUPER_ADMIN" || (await isSuperAdmin(currentUser.id));
+    const callerIsAdmin = callerRole === "ADMIN" || (await isAdmin(currentUser.id));
+
+    if (!callerIsSuper && !callerIsAdmin) {
+      return {
+        success: false,
+        error: "Akses ditolak: Hanya Super Admin dan Administrator yang dapat mengelola peran pengguna.",
+      };
+    }
+
+    if (!["SUPER_ADMIN", "ADMIN"].includes(callerRole)) {
+      return {
+        success: false,
+        error: "Akses ditolak: Anda tidak memiliki wewenang untuk mengubah peran.",
+      };
+    }
+
+    // Standard ADMIN cannot assign or touch SUPER_ADMIN
+    if (isSuperAdminRole(validated.newRole) && !callerIsSuper) {
+      return {
+        success: false,
+        error: "Akses ditolak: Hanya Super Admin yang berwenang menetapkan peran Super Admin.",
+      };
+    }
+
+    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? createAdminClient()
+      : await createClient();
 
     // Guardrail: Non-Super Admin cannot modify a Super Admin profile
     const { data: targetProfile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("email, role")
       .eq("id", validated.userId)
       .maybeSingle();
 
-    if (targetProfile && isSuperAdminRole(targetProfile.role)) {
-      const callerIsSuper = await isSuperAdmin();
-      if (!callerIsSuper) {
-        return {
-          success: false,
-          error: "Akses ditolak: Akun Super Admin tidak dapat diubah oleh peran Admin standar.",
-        };
-      }
+    // Root Admin Protection:
+    if (targetProfile?.email?.toLowerCase() === "admin@xenoent.com" && currentUser.email?.toLowerCase() !== "admin@xenoent.com") {
+      return {
+        success: false,
+        error: "Peran akun admin@xenoent.com dilindungi sistem dan tidak dapat diubah.",
+      };
+    }
+
+    if (targetProfile && isSuperAdminRole(targetProfile.role) && !callerIsSuper) {
+      return {
+        success: false,
+        error: "Akses ditolak: Akun Super Admin tidak dapat diubah oleh peran Admin standar.",
+      };
     }
 
     const updatePayload: Record<string, unknown> = {
@@ -130,14 +167,50 @@ export async function deleteMemberAction(userId: string): Promise<{ success: boo
     await requirePermission("team.manage");
 
     const validId = z.string().min(1, "ID pengguna wajib diisi").parse(userId);
-    const supabase = await createClient();
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { success: false, error: "Autentikasi diperlukan." };
+    }
 
     // Prevent self-deletion
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user?.id === validId) {
+    if (currentUser.id === validId) {
       return { success: false, error: "Anda tidak dapat menghapus akun Anda sendiri." };
+    }
+
+    const callerIsSuper = await isSuperAdmin(currentUser.id);
+    const callerIsAdmin = await isAdmin(currentUser.id);
+
+    if (!callerIsSuper && !callerIsAdmin) {
+      return {
+        success: false,
+        error: "Akses ditolak: Hanya Super Admin dan Administrator yang dapat menghapus akun anggota tim.",
+      };
+    }
+
+    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? createAdminClient()
+      : await createClient();
+
+    // Guardrail: Non-Super Admin cannot delete a Super Admin profile
+    const { data: targetProfile } = await supabase
+      .from("profiles")
+      .select("email, role")
+      .eq("id", validId)
+      .maybeSingle();
+
+    // Root Admin Protection:
+    if (targetProfile?.email?.toLowerCase() === "admin@xenoent.com") {
+      return {
+        success: false,
+        error: "Akses ditolak: Akun root admin tidak dapat dihapus.",
+      };
+    }
+
+    if (targetProfile && isSuperAdminRole(targetProfile.role) && !callerIsSuper) {
+      return {
+        success: false,
+        error: "Akses ditolak: Akun Super Admin tidak dapat dihapus oleh Admin standar.",
+      };
     }
 
     // Delete from Supabase Auth via Admin API if service key exists
@@ -167,3 +240,10 @@ export async function deleteMemberAction(userId: string): Promise<{ success: boo
     };
   }
 }
+
+/** Updates staff profile and validates caller authorization against role modifications */
+export async function updateStaff(formData: FormData) {
+  const { updateUser } = await import("@/app/(dashboard)/settings/rbac/actions");
+  return updateUser(formData);
+}
+

@@ -1,91 +1,148 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Trash2, Loader2 } from "lucide-react";
-import { updateMemberRoleAction, deleteMemberAction } from "@/app/(dashboard)/team/actions";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2, Pencil, Lock } from "lucide-react";
+import { deleteMemberAction } from "@/app/(dashboard)/team/actions";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import type { UserRole } from "@/types/database";
+import { UserModal } from "@/components/users/user-modal";
+import type { UserRole, Profile, Role } from "@/types/database";
 
 interface TeamMemberActionsProps {
+  member?: Profile;
   memberId: string;
   memberName: string;
   currentRole: UserRole;
   isSelf: boolean;
+  canEditRole?: boolean;
+  isRootAdmin?: boolean;
+  roles?: Role[];
+  currentUserId?: string | null;
+  currentUserRole?: string | null;
 }
 
 export function TeamMemberActions({
+  member,
   memberId,
   memberName,
   currentRole,
   isSelf,
+  canEditRole = false,
+  isRootAdmin = false,
+  roles = [],
+  currentUserId,
+  currentUserRole,
 }: TeamMemberActionsProps) {
-  const [role, setRole] = useState<UserRole>(currentRole);
-  const [isUpdating, startRoleTransition] = useTransition();
+  const router = useRouter();
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
-  const handleRoleChange = (newRole: UserRole) => {
-    if (newRole === role) return;
-    const prev = role;
-    setRole(newRole);
-
-    startRoleTransition(async () => {
-      const res = await updateMemberRoleAction(memberId, newRole);
-      if (!res.success) {
-        setRole(prev);
-        alert(res.error || "Gagal mengubah peran");
-      }
-    });
-  };
+  const id = member?.id || memberId;
+  const name = member?.full_name || memberName;
+  const isTargetRootAdmin = isRootAdmin || member?.email?.toLowerCase() === "admin@xenoent.com";
 
   const confirmDelete = async () => {
-    const res = await deleteMemberAction(memberId);
+    const res = await deleteMemberAction(id);
     if (!res.success) {
       throw new Error(res.error || "Gagal menghapus anggota tim");
     }
+    router.refresh();
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="relative flex items-center">
-        <select
-          value={role}
-          disabled={isUpdating || role.toLowerCase() === "super_admin"}
-          onChange={(e) => handleRoleChange(e.target.value as UserRole)}
-          className="apple-input text-[11px] uppercase font-bold px-2.5 py-1 bg-muted text-foreground border-border cursor-pointer disabled:opacity-50"
-          title="Ubah peran staf"
-        >
-          {role.toLowerCase() === "super_admin" && (
-            <option value="super_admin" className="bg-card text-foreground">Super Admin</option>
-          )}
-          <option value="staff" className="bg-card text-foreground">Staff</option>
-          <option value="admin" className="bg-card text-foreground">Admin</option>
-        </select>
-        {isUpdating && (
-          <Loader2 className="w-3 h-3 animate-spin text-[#007aff] absolute right-6 pointer-events-none" />
+    <>
+      <div className="flex items-center gap-1">
+        {isSelf && (
+          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-[#007aff]/15 text-[#007aff]">
+            Anda
+          </span>
+        )}
+
+        {!isSelf && isTargetRootAdmin && (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md"
+            title="Akun Sistem Utama (Terkunci)"
+          >
+            <Lock className="w-2.5 h-2.5" />
+            <span>Terkunci</span>
+          </span>
+        )}
+
+        {canEditRole && (
+          <button
+            type="button"
+            onClick={() => setShowEditModal(true)}
+            disabled={isTargetRootAdmin && !isSelf}
+            title={
+              isTargetRootAdmin && !isSelf
+                ? "Akun Sistem Utama (Terkunci)"
+                : "Edit Profil & Peran Staf"
+            }
+            className={`p-1.5 rounded-lg transition-colors ${
+              isTargetRootAdmin && !isSelf
+                ? "text-muted-foreground/30 cursor-not-allowed"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+            }`}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {!isSelf && !isTargetRootAdmin && (
+          <button
+            type="button"
+            onClick={() => setShowConfirm(true)}
+            className="text-muted-foreground hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+            title="Hapus Akun Staf"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
 
-      {!isSelf && (
-        <>
-          <button
-            type="button"
-            disabled={isUpdating}
-            onClick={() => setShowConfirm(true)}
-            className="text-muted-foreground hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
-            title="Hapus Akun Staf"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-
-          <ConfirmModal
-            isOpen={showConfirm}
-            title="Konfirmasi Hapus Akun Staf"
-            itemName={memberName}
-            onConfirm={confirmDelete}
-            onClose={() => setShowConfirm(false)}
-          />
-        </>
+      {!isSelf && !isTargetRootAdmin && (
+        <ConfirmModal
+          isOpen={showConfirm}
+          title="Konfirmasi Hapus Akun Staf"
+          itemName={name}
+          onConfirm={confirmDelete}
+          onClose={() => setShowConfirm(false)}
+        />
       )}
-    </div>
+
+      {showEditModal && (
+        <UserModal
+          user={
+            member
+              ? {
+                  ...member,
+                  roles: [{ id: member.role, name: member.role, description: null, created_at: member.created_at }],
+                  permissions: [],
+                }
+              : {
+                  id,
+                  full_name: name,
+                  email: "",
+                  phone: null,
+                  avatar_url: null,
+                  role: currentRole,
+                  avatar_color: null,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  roles: [{ id: currentRole, name: currentRole, description: null, created_at: new Date().toISOString() }],
+                  permissions: [],
+                }
+          }
+          roles={roles}
+          currentUserId={currentUserId || (isSelf ? id : null)}
+          currentUserRole={currentUserRole}
+          onClose={() => setShowEditModal(false)}
+          onSuccess={() => {
+            setShowEditModal(false);
+            router.refresh();
+          }}
+        />
+      )}
+    </>
   );
 }

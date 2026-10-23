@@ -61,6 +61,8 @@ export default async function SettingsRBACPage() {
       !role.name.toLowerCase().includes("super administrator")
   );
 
+  const callerRole = isSuperAdminUser ? "SUPER_ADMIN" : isAdminUser ? "ADMIN" : "STAFF";
+
   return (
     <UsersManagementView
       initialUsers={usersWithRBAC}
@@ -68,6 +70,7 @@ export default async function SettingsRBACPage() {
       initialPermissions={permissions}
       initialRolePermissions={rolePermissions}
       currentUserId={user?.id || null}
+      currentUserRole={callerRole}
     />
   );
 }

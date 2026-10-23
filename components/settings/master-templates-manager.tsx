@@ -234,12 +234,27 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
 
   // Manual save: reads the current spreadsheet state from the ref and persists it ONCE.
   // This is the ONLY path that triggers a network request for template data.
-  const handleManualSave = () => {
+  const handleManualSave = async () => {
     if (!activeTemplate) return;
+
+    // 1. Force blur active cell input to trigger FortuneSheet internal blur/change commit
+    if (typeof window !== "undefined" && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    // Invoke explicit exitEditMode if exposed on ref
+    gridRef.current?.exitEditMode?.();
+
+    // 2. Allow event loop / React state to flush internal cell value
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    setStatusMessage("");
+    setSaveStatus("saving");
+
+    // 3. Now safely retrieve the latest committed template data
     const rawData = gridRef.current?.getData() || activeTemplate.jsonb_structure;
     const currentData = sanitizeSheetData(rawData);
 
-    setSaveStatus("saving");
     startTransition(async () => {
       const res = await saveMasterTemplate(
         activeTemplate.id,
@@ -254,10 +269,18 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
           )
         );
         setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 2500);
+        setStatusMessage("Template berhasil disimpan");
+        setTimeout(() => {
+          setSaveStatus("idle");
+          setStatusMessage("");
+        }, 2500);
       } else {
         setSaveStatus("error");
         setStatusMessage(res.error || "Gagal menyimpan template");
+        setTimeout(() => {
+          setSaveStatus("idle");
+          setStatusMessage("");
+        }, 3500);
       }
     });
   };

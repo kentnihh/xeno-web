@@ -42,6 +42,8 @@ const Workbook = dynamic(
 export interface DynamicSheetGridHandle {
   getData: () => SheetData;
   getAllSheets: () => Sheet[];
+  exitEditMode?: () => void;
+  flushActiveCell?: () => void;
 }
 
 export interface DynamicSheetGridProps {
@@ -119,7 +121,28 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
     useImperativeHandle(
       ref,
       () => ({
+        exitEditMode: () => {
+          if (typeof window !== "undefined" && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        },
+        flushActiveCell: () => {
+          if (typeof window !== "undefined" && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        },
         getData: () => {
+          // Force blur active cell input if still focused inside FortuneSheet editor
+          if (typeof window !== "undefined" && document.activeElement instanceof HTMLElement) {
+            const tag = document.activeElement.tagName.toLowerCase();
+            const isInput =
+              tag === "input" ||
+              tag === "textarea" ||
+              document.activeElement.getAttribute("contenteditable") === "true";
+            if (isInput) {
+              document.activeElement.blur();
+            }
+          }
           let sheet: Sheet | null = null;
           if (workbookRef.current?.getAllSheets) {
             const all = workbookRef.current.getAllSheets();

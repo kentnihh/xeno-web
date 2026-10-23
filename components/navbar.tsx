@@ -32,6 +32,9 @@ interface NavbarProps {
   canCreateEvent?: boolean;
   canAccessSettings?: boolean;
   isSuperAdmin?: boolean;
+  canManageTemplates?: boolean;
+  canManageRbac?: boolean;
+  canImpersonate?: boolean;
 }
 
 const mainNavigation = [
@@ -54,13 +57,28 @@ export function Navbar({
   canCreateEvent = false,
   canAccessSettings = false,
   isSuperAdmin = false,
+  canManageTemplates,
+  canManageRbac,
+  canImpersonate,
 }: NavbarProps) {
-  const settingsSubNavigation = isSuperAdmin
+  const isStaff = userRole?.toUpperCase() === "STAFF";
+
+  const settingsSubNavigation = !isStaff && canAccessSettings
     ? [
         ...baseSettingsSubNav,
-        { name: "Impersonate", href: "/settings/impersonate", icon: UserCheck },
-      ]
-    : baseSettingsSubNav;
+        ...((canImpersonate ?? isSuperAdmin)
+          ? [{ name: "Impersonate", href: "/settings/impersonate", icon: UserCheck }]
+          : []),
+      ].filter((item) => {
+        if (item.href === "/settings/templates" && canManageTemplates !== undefined) {
+          return canManageTemplates;
+        }
+        if (item.href === "/settings/rbac" && canManageRbac !== undefined) {
+          return canManageRbac;
+        }
+        return true;
+      })
+    : [];
   const router = useRouter();
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -291,7 +309,7 @@ export function Navbar({
               </nav>
 
               {/* Settings Subnavigation (if privileged) */}
-              {canAccessSettings && (
+              {canAccessSettings && !isStaff && settingsSubNavigation.length > 0 && (
                 <nav className="space-y-1 pt-2 border-t border-border">
                   <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     Pengaturan

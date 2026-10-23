@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, KeyRound } from "lucide-react";
+import { Pencil, Trash2, KeyRound, Lock } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { RoleBadge } from "@/components/ui/role-badge";
 import type { UserWithRBAC } from "@/types/database";
@@ -42,6 +42,7 @@ export function UsersTable({
               const roleName = u.roles?.[0]?.name || u.role || "Staff";
               const isAdmin = (u.roles?.[0]?.id || u.role) === "admin";
               const isSelf = currentUserId === u.id;
+              const isRootAdmin = u.email?.toLowerCase() === "admin@xenoent.com";
 
               return (
                 <tr key={u.id} className="hover:bg-muted/40 transition-colors">
@@ -49,8 +50,17 @@ export function UsersTable({
                     <div className="flex items-center gap-3">
                       <UserAvatar user={u} size="md" />
                       <div>
-                        <div className="font-bold text-foreground flex items-center gap-1.5">
+                        <div className="font-bold text-foreground flex items-center gap-1.5 flex-wrap">
                           <span>{u.full_name}</span>
+                          {isRootAdmin && (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/30"
+                              title="Akun Sistem Utama (Terkunci)"
+                            >
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Akun Sistem Utama (Terkunci)</span>
+                            </span>
+                          )}
                           {isSelf && (
                             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#007aff]/15 text-[#007aff] font-mono font-bold">
                               Anda
@@ -63,7 +73,14 @@ export function UsersTable({
                   </td>
 
                   <td className="py-3.5 px-4">
-                    <RoleBadge role={u.roles?.[0]?.id || u.role} size="sm" />
+                    <div className="flex items-center gap-1.5">
+                      <RoleBadge role={u.roles?.[0]?.id || u.role} size="sm" />
+                      {isRootAdmin && (
+                        <span title="Akun Sistem Utama (Terkunci)" className="text-amber-500 inline-flex">
+                          <Lock className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="py-3.5 px-4">
@@ -92,27 +109,51 @@ export function UsersTable({
                       <button
                         type="button"
                         onClick={() => onEdit(u)}
-                        title="Edit Data Staf"
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                        disabled={isRootAdmin && !isSelf}
+                        title={
+                          isRootAdmin && !isSelf
+                            ? "Akun Sistem Utama (Terkunci)"
+                            : "Edit Data Staf"
+                        }
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          isRootAdmin && !isSelf
+                            ? "text-muted-foreground/30 cursor-not-allowed"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                        }`}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => onResetPassword(u)}
-                        title="Reset Sandi"
+                        disabled={isRootAdmin && !isSelf}
+                        title={
+                          isRootAdmin && !isSelf
+                            ? "Akun Sistem Utama (Terkunci)"
+                            : "Reset Sandi"
+                        }
                         aria-label="Reset Sandi"
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-[#007aff] hover:bg-[#007aff]/10 transition-colors cursor-pointer"
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          isRootAdmin && !isSelf
+                            ? "text-muted-foreground/30 cursor-not-allowed"
+                            : "text-muted-foreground hover:text-[#007aff] hover:bg-[#007aff]/10 cursor-pointer"
+                        }`}
                       >
                         <KeyRound className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => onDelete(u)}
-                        disabled={isSelf}
-                        title={isSelf ? "Tidak dapat menghapus akun sendiri" : "Hapus Pengguna"}
+                        disabled={isSelf || isRootAdmin}
+                        title={
+                          isRootAdmin
+                            ? "Akun Sistem Utama (Terkunci)"
+                            : isSelf
+                            ? "Tidak dapat menghapus akun sendiri"
+                            : "Hapus Pengguna"
+                        }
                         className={`p-1.5 rounded-lg transition-colors ${
-                          isSelf
+                          isSelf || isRootAdmin
                             ? "text-muted-foreground/30 cursor-not-allowed"
                             : "text-muted-foreground/70 hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer"
                         }`}

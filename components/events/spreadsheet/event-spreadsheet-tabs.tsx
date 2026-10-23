@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronDown,
   Plus,
@@ -18,6 +19,9 @@ import {
   Minimize2,
   ZoomIn,
   ZoomOut,
+  Pencil,
+  Copy,
+  X,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
@@ -27,6 +31,13 @@ import {
   setFortuneSheetZoomLevel,
   ZOOM_PRESETS,
 } from "@/lib/spreadsheet-zoom";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 const DynamicSheetGrid = dynamic(
   () => import("./dynamic-sheet-grid").then((m) => m.DynamicSheetGrid),
@@ -50,6 +61,7 @@ interface EventSpreadsheetTabsProps {
   initialSheets: EventSheet[];
   canManage?: boolean;
   canManageFamily?: boolean;
+  canManageSheets?: boolean;
   onSheetsChange?: (sheets: EventSheet[]) => void;
   publicForm?: EventPublicForm | null;
 }
@@ -59,18 +71,22 @@ export function EventSpreadsheetTabs({
   initialSheets,
   canManage = true,
   canManageFamily,
+  canManageSheets,
   onSheetsChange,
   publicForm = null,
 }: EventSpreadsheetTabsProps) {
+  const router = useRouter();
+  const isSheetsManageable = canManageSheets ?? canManage;
+
   const [sheets, setSheets] = useState<EventSheet[]>(initialSheets);
   const [activeTabName, setActiveTabName] = useState<string>(
     initialSheets[0]?.sheet_name || "CHECKLIST"
   );
-  const [openMenuSheet, setOpenMenuSheet] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "saving" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState<string>("");
-  const [deletingSheetName, setDeletingSheetName] = useState<string | null>(null);
+  const [deletingSheet, setDeletingSheet] = useState<EventSheet | null>(null);
   const [resettingSheetName, setResettingSheetName] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [gridRevision, setGridRevision] = useState<number>(0);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [showGridLines, setShowGridLines] = useState<boolean>(true);
@@ -80,9 +96,14 @@ export function EventSpreadsheetTabs({
   const [isZoomMenuOpen, setIsZoomMenuOpen] = useState<boolean>(false);
   const [, startTransition] = useTransition();
 
-  const menuRef = useRef<HTMLDivElement>(null);
   const zoomMenuRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<DynamicSheetGridHandle | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -153,20 +174,12 @@ export function EventSpreadsheetTabs({
     }
   }, [sheets, onSheetsChange]);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuSheet(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const activeSheet = sheets.find((s) => s.sheet_name === activeTabName) || sheets[0];
 
   const handleTabClick = (nextSheetName: string) => {
     if (nextSheetName === activeTabName) return;
+    setStatusMessage("");
+    setSaveStatus("idle");
     // Commit any pending (unsaved) grid data into in-memory sheets before switching tabs
     if (activeSheet && gridRef.current) {
       const rawData = gridRef.current.getData();
@@ -210,30 +223,54 @@ export function EventSpreadsheetTabs({
         if (res.success) {
           setSaveStatus("saved");
           setStatusMessage("Urutan tab tersimpan");
-          setTimeout(() => setSaveStatus("idle"), 2000);
+          setTimeout(() => {
+            setSaveStatus("idle");
+            setStatusMessage("");
+          }, 2000);
         } else {
           setSaveStatus("error");
           setStatusMessage(res.error || "Gagal menyimpan urutan tab");
-          setTimeout(() => setSaveStatus("idle"), 3000);
+          setTimeout(() => {
+            setSaveStatus("idle");
+            setStatusMessage("");
+          }, 3000);
         }
       } catch (err: unknown) {
         console.error("[EventSpreadsheetTabs] Gagal reorder tabs:", err);
         setSaveStatus("error");
         setStatusMessage("Gagal menyimpan urutan tab");
-        setTimeout(() => setSaveStatus("idle"), 3000);
+        setTimeout(() => {
+          setSaveStatus("idle");
+          setStatusMessage("");
+        }, 3000);
       }
     });
   };
 
   // Manual save: reads the current spreadsheet state from the ref and persists it ONCE.
   // This is the ONLY path that triggers a network request for sheet data.
-  const handleManualSave = () => {
+  const handleManualSave = async () => {
     if (!activeSheet) return;
+
+    // 1. Force blur active cell input to trigger FortuneSheet internal blur/change commit
+    if (typeof window !== "undefined" && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    // Invoke explicit exitEditMode if exposed on ref
+    gridRef.current?.exitEditMode?.();
+
+    // 2. Allow event loop / React state to flush internal cell value
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    setStatusMessage("");
+    setSaveStatus("saving");
+
+    // 3. Now safely retrieve the latest committed sheet data
     const rawData = gridRef.current?.getData() || activeSheet.data;
     // Intercept data and sanitize newline characters & formatting for safe JSON payload serialization
     const currentData = sanitizeSheetData(rawData);
 
-    setSaveStatus("saving");
     startTransition(async () => {
       try {
         const res = await saveEventSheet(
@@ -249,20 +286,33 @@ export function EventSpreadsheetTabs({
             )
           );
           setSaveStatus("saved");
+          setStatusMessage("Perubahan berhasil disimpan");
+          setToast("Lembar kerja berhasil disimpan.");
           if (typeof window !== "undefined") {
             const merged = sheets.map((s) =>
               s.sheet_name === activeSheet.sheet_name ? { ...s, data: currentData } : s
             );
             window.dispatchEvent(new CustomEvent("xeno_sheets_updated", { detail: merged }));
           }
-          setTimeout(() => setSaveStatus("idle"), 2500);
+          setTimeout(() => {
+            setSaveStatus("idle");
+            setStatusMessage("");
+          }, 2500);
         } else {
           setSaveStatus("error");
           setStatusMessage(res.error || "Gagal menyimpan");
+          setTimeout(() => {
+            setSaveStatus("idle");
+            setStatusMessage("");
+          }, 3500);
         }
       } catch {
         setSaveStatus("error");
         setStatusMessage("Gagal menghubungi server");
+        setTimeout(() => {
+          setSaveStatus("idle");
+          setStatusMessage("");
+        }, 3500);
       }
     });
   };
@@ -296,64 +346,172 @@ export function EventSpreadsheetTabs({
     });
   };
 
-  const handleRenameSheet = (oldName: string) => {
-    const nextName = prompt("Ubah nama:", oldName)?.trim();
+  const handleRenameSheet = (sheetOrName: EventSheet | string) => {
+    const sheet = typeof sheetOrName === "string" ? sheets.find((s) => s.sheet_name === sheetOrName) : sheetOrName;
+    if (!sheet) return;
+    const oldName = sheet.sheet_name;
+    const nextName = prompt("Ubah nama lembar kerja:", oldName)?.trim();
     if (!nextName || nextName === oldName) return;
-    const target = sheets.find((s) => s.sheet_name === oldName);
-    if (!target) return;
 
-    setSheets(sheets.map((s) => (s.sheet_name === oldName ? { ...s, sheet_name: nextName } : s)));
+    if (sheets.some((s) => s.sheet_name.toLowerCase() === nextName.toLowerCase())) {
+      alert(`Lembar kerja "${nextName}" sudah ada. Silakan gunakan nama lain.`);
+      return;
+    }
+
+    const nextSheets = sheets.map((s) => (s.sheet_name === oldName ? { ...s, sheet_name: nextName } : s));
+    setSheets(nextSheets);
     if (activeTabName === oldName) setActiveTabName(nextName);
-    setOpenMenuSheet(null);
+    onSheetsChange?.(nextSheets);
 
     startTransition(async () => {
       await deleteEventSheet(eventId, oldName);
-      await saveEventSheet(eventId, nextName, target.data, target.order_index);
+      await saveEventSheet(eventId, nextName, sheet.data, sheet.order_index);
+      setToast("Nama sheet berhasil diubah.");
+      router.refresh();
     });
   };
 
+  const handleDuplicateSheet = (sheetOrName: EventSheet | string) => {
+    const sheet = typeof sheetOrName === "string" ? sheets.find((s) => s.sheet_name === sheetOrName) : sheetOrName;
+    if (!sheet) return;
+
+    const baseName = `${sheet.sheet_name} (Salinan)`;
+    let copyName = baseName;
+    let counter = 1;
+    while (sheets.some((s) => s.sheet_name.toLowerCase() === copyName.toLowerCase())) {
+      counter++;
+      copyName = `${sheet.sheet_name} (Salinan ${counter})`;
+    }
+
+    const nextOrder = sheets.length;
+    const duplicatedSheet: EventSheet = {
+      id: `sheet-${Date.now()}`,
+      event_id: eventId,
+      sheet_name: copyName,
+      order_index: nextOrder,
+      sort_order: nextOrder,
+      data: JSON.parse(JSON.stringify(sheet.data)),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const nextSheets = [...sheets, duplicatedSheet];
+    setSheets(nextSheets);
+    setActiveTabName(copyName);
+    onSheetsChange?.(nextSheets);
+
+    startTransition(async () => {
+      const res = await saveEventSheet(eventId, copyName, duplicatedSheet.data, nextOrder);
+      if (res.success) {
+        setToast(`Sheet "${copyName}" berhasil diduplikasi.`);
+        router.refresh();
+      }
+    });
+  };
+
+  const openDeleteConfirm = (sheetOrName: EventSheet | string) => {
+    if (sheets.length <= 1) {
+      alert("Event minimal harus memiliki satu lembar kerja.");
+      return;
+    }
+    const sheet = typeof sheetOrName === "string" ? sheets.find((s) => s.sheet_name === sheetOrName) : sheetOrName;
+    if (!sheet) return;
+    setDeletingSheet(sheet);
+  };
+
   const confirmDeleteSheet = async () => {
-    if (!deletingSheetName || sheets.length <= 1) return;
-    const sheetName = deletingSheetName;
-    const next = sheets.filter((s) => s.sheet_name !== sheetName);
+    if (!deletingSheet || sheets.length <= 1) return;
+    const target = deletingSheet;
+    const next = sheets.filter((s) => (target.id ? s.id !== target.id : s.sheet_name !== target.sheet_name));
     setSheets(next);
-    if (activeTabName === sheetName) setActiveTabName(next[0].sheet_name);
-    await deleteEventSheet(eventId, sheetName);
+    if (activeTabName === target.sheet_name) {
+      setActiveTabName(next[0]?.sheet_name || "");
+    }
+    onSheetsChange?.(next);
+    setDeletingSheet(null);
+
+    try {
+      const isUuid = target.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(target.id);
+      const res = isUuid
+        ? await deleteEventSheet(target.id)
+        : await deleteEventSheet(eventId, target.sheet_name);
+      if (res.success) {
+        setToast("Sheet berhasil dihapus.");
+        router.refresh();
+      } else {
+        alert(res.error || "Gagal menghapus lembar kerja.");
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Gagal menghapus lembar kerja.");
+    }
   };
 
   const handleResetSheet = (sheetName: string) => {
-    setOpenMenuSheet(null);
+    // Check if the sheet is a duplicated or custom sheet without a linked master template
+    const isLinked = INITIAL_EVENT_SHEETS.some(
+      (t) => t.name.toLowerCase() === sheetName.toLowerCase()
+    );
+    const isDuplicateOrCustom =
+      sheetName.toLowerCase().includes("(salinan") ||
+      sheetName.toLowerCase().includes("(copy") ||
+      !isLinked;
+
+    if (isDuplicateOrCustom) {
+      setToast("Sheet ini tidak terhubung dengan master template.");
+      return;
+    }
+
+    setStatusMessage("");
     setResettingSheetName(sheetName);
   };
 
   const confirmResetSheet = async () => {
     if (!resettingSheetName) return;
     const sheetName = resettingSheetName;
+    setResettingSheetName(null);
+    setStatusMessage("");
     setSaveStatus("saving");
-    const res = await resetSheetToMaster(eventId, sheetName);
-    if (res.success && res.data) {
-      setSheets((prev) =>
-        prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: res.data! } : s))
-      );
-      setGridRevision((v) => v + 1);
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2500);
-    } else {
-      // Fallback to static template
-      const tpl = INITIAL_EVENT_SHEETS.find((t) => t.name.toLowerCase() === sheetName.toLowerCase());
-      if (tpl) {
+
+    try {
+      const res = await resetSheetToMaster(eventId, sheetName);
+      if (res.success && res.data) {
         setSheets((prev) =>
-          prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: tpl.data } : s))
+          prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: res.data! } : s))
         );
         setGridRevision((v) => v + 1);
-        await saveEventSheet(eventId, sheetName, tpl.data);
         setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 2500);
+        setStatusMessage("Lembar kerja berhasil direset");
+        setToast("Lembar kerja berhasil direset ke template.");
+        setTimeout(() => {
+          setSaveStatus("idle");
+          setStatusMessage("");
+        }, 2500);
       } else {
-        setSaveStatus("error");
-        setStatusMessage(res.error || "Gagal mereset");
-        throw new Error(res.error || "Gagal mereset");
+        // Fallback to static template
+        const tpl = INITIAL_EVENT_SHEETS.find((t) => t.name.toLowerCase() === sheetName.toLowerCase());
+        if (tpl) {
+          setSheets((prev) =>
+            prev.map((s) => (s.sheet_name === sheetName ? { ...s, data: tpl.data } : s))
+          );
+          setGridRevision((v) => v + 1);
+          await saveEventSheet(eventId, sheetName, tpl.data);
+          setSaveStatus("saved");
+          setStatusMessage("Lembar kerja berhasil direset");
+          setToast("Lembar kerja berhasil direset.");
+          setTimeout(() => {
+            setSaveStatus("idle");
+            setStatusMessage("");
+          }, 2500);
+        } else {
+          setSaveStatus("idle");
+          setStatusMessage("");
+          setToast(res.error || "Sheet ini tidak terhubung dengan master template.");
+        }
       }
+    } catch {
+      setSaveStatus("idle");
+      setStatusMessage("");
+      setToast("Sheet ini tidak terhubung dengan master template.");
     }
   };
 
@@ -361,6 +519,7 @@ export function EventSpreadsheetTabs({
     if (isRefreshing || saveStatus === "saving") return;
     setIsRefreshing(true);
     setStatusMessage("");
+    setSaveStatus("idle");
 
     startTransition(async () => {
       try {
@@ -374,18 +533,25 @@ export function EventSpreadsheetTabs({
           setGridRevision((v) => v + 1);
           setSaveStatus("saved");
           setStatusMessage("Data berhasil disegarkan");
+          setToast("Data lembar kerja berhasil disegarkan.");
           if (typeof window !== "undefined") {
             window.dispatchEvent(
               new CustomEvent("xeno_sheets_updated", { detail: freshSheets })
             );
           }
-          setTimeout(() => setSaveStatus("idle"), 2000);
+          setTimeout(() => {
+            setSaveStatus("idle");
+            setStatusMessage("");
+          }, 2000);
         }
       } catch (err: unknown) {
         console.error("[EventSpreadsheetTabs] Gagal menyegarkan data:", err);
         setSaveStatus("error");
         setStatusMessage("Gagal menyegarkan data");
-        setTimeout(() => setSaveStatus("idle"), 3000);
+        setTimeout(() => {
+          setSaveStatus("idle");
+          setStatusMessage("");
+        }, 3000);
       } finally {
         setIsRefreshing(false);
       }
@@ -455,7 +621,6 @@ export function EventSpreadsheetTabs({
                 >
                   {sheets.map((sheet, index) => {
                     const isActive = sheet.sheet_name === activeTabName;
-                    const isMenuOpen = openMenuSheet === sheet.sheet_name;
 
                     return (
                       <Draggable
@@ -500,60 +665,52 @@ export function EventSpreadsheetTabs({
                                 {sheet.sheet_name}
                               </button>
 
-                              {canManage && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenMenuSheet(isMenuOpen ? null : sheet.sheet_name);
-                                  }}
-                                  className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer ${
-                                    isActive ? "text-[#007aff]" : "text-muted-foreground"
-                                  }`}
-                                  title="Opsi Lembar Kerja"
-                                >
-                                  <ChevronDown className="w-3.5 h-3.5" />
-                                </button>
+                              {isSheetsManageable && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition cursor-pointer"
+                                      title="Opsi Lembar Kerja"
+                                    >
+                                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start" className="z-50 w-48 shadow-lg">
+                                    <DropdownMenuItem onClick={() => handleRenameSheet(sheet)}>
+                                      <Pencil className="w-4 h-4 mr-2" /> Ganti Nama
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDuplicateSheet(sheet)}>
+                                      <Copy className="w-4 h-4 mr-2" /> Duplikat Sheet
+                                    </DropdownMenuItem>
+                                    {INITIAL_EVENT_SHEETS.some((t) => t.name.toLowerCase() === sheet.sheet_name.toLowerCase()) &&
+                                    !sheet.sheet_name.toLowerCase().includes("(salinan") &&
+                                    !sheet.sheet_name.toLowerCase().includes("(copy") ? (
+                                      <DropdownMenuItem onClick={() => handleResetSheet(sheet.sheet_name)}>
+                                        <RotateCcw className="w-4 h-4 mr-2 text-amber-500" /> Reset ke Master
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem
+                                        onClick={() => handleResetSheet(sheet.sheet_name)}
+                                        className="opacity-60 cursor-pointer"
+                                        title="Sheet ini tidak terhubung dengan master template"
+                                      >
+                                        <RotateCcw className="w-4 h-4 mr-2 text-slate-400" /> Reset ke Master
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => openDeleteConfirm(sheet)}
+                                      disabled={sheets.length <= 1}
+                                      className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" /> Hapus Sheet
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               )}
                             </div>
-
-                            {/* Dropdown Menu for Tab */}
-                            {isMenuOpen && (
-                              <div
-                                ref={menuRef}
-                                className="absolute top-full left-0 mt-1 z-30 w-44 rounded-xl bg-card border border-border shadow-lg p-1 text-xs"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => handleRenameSheet(sheet.sheet_name)}
-                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-foreground hover:bg-muted text-left"
-                                >
-                                  <Edit2 className="w-3 h-3 text-[#007aff]" />
-                                  <span>Ubah Nama Sheet</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleResetSheet(sheet.sheet_name)}
-                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-foreground hover:bg-muted text-left"
-                                >
-                                  <RotateCcw className="w-3 h-3 text-amber-500" />
-                                  <span>Reset ke Bawaan</span>
-                                </button>
-                                {sheets.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenMenuSheet(null);
-                                      setDeletingSheetName(sheet.sheet_name);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-500/10 text-left cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                    <span>Hapus Sheet</span>
-                                  </button>
-                                )}
-                              </div>
-                            )}
                           </div>
                         )}
                       </Draggable>
@@ -709,14 +866,14 @@ export function EventSpreadsheetTabs({
           )}
           {saveStatus === "saved" && (
             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-              <Check className="w-3 h-3" />
-              <span>{statusMessage || "Tersimpan"}</span>
+              <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span>{statusMessage || "Perubahan berhasil disimpan"}</span>
             </span>
           )}
           {saveStatus === "error" && (
             <span className="inline-flex items-center gap-1 text-[11px] text-rose-500 font-medium" title={statusMessage}>
-              <AlertCircle className="w-3 h-3" />
-              <span>Gagal simpan</span>
+              <AlertCircle className="w-3 h-3 text-rose-500" />
+              <span>{statusMessage || "Gagal menyimpan"}</span>
             </span>
           )}
         </div>
@@ -749,11 +906,13 @@ export function EventSpreadsheetTabs({
       )}
 
       <ConfirmModal
-        isOpen={!!deletingSheetName}
+        isOpen={Boolean(deletingSheet)}
         title="Konfirmasi Hapus Lembar Kerja"
-        itemName={deletingSheetName || undefined}
+        itemName={deletingSheet?.sheet_name}
+        message="Apakah Anda yakin ingin menghapus lembar kerja ini? Data di dalam sheet ini akan hilang."
+        confirmLabel="Hapus"
         onConfirm={confirmDeleteSheet}
-        onClose={() => setDeletingSheetName(null)}
+        onClose={() => setDeletingSheet(null)}
       />
 
       <ConfirmModal
@@ -765,6 +924,24 @@ export function EventSpreadsheetTabs({
         onConfirm={confirmResetSheet}
         onClose={() => setResettingSheetName(null)}
       />
+
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 px-4 py-2.5 rounded-xl shadow-xl text-xs font-medium animate-in fade-in slide-in-from-bottom-2"
+        >
+          <span>{toast}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-2 hover:opacity-70 p-0.5 cursor-pointer rounded"
+            aria-label="Tutup notifikasi"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
