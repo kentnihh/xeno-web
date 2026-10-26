@@ -22,6 +22,7 @@ import {
   Pencil,
   Copy,
   X,
+  FileSpreadsheet,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
@@ -879,18 +880,43 @@ export function EventSpreadsheetTabs({
         </div>
       </div>
 
-      {/* Dynamic Spreadsheet Data Grid — NO onChange prop, manual save only */}
-      {activeSheet && (
-        <DynamicSheetGrid
-          ref={gridRef}
-          key={`${activeSheet.sheet_name}_rev${gridRevision}_grid${showGridLines ? 1 : 0}`}
-          sheetName={activeSheet.sheet_name}
-          data={activeSheet.data}
-          readOnly={!canManage}
-          showGridLines={showGridLines}
-          isFullscreen={isFullscreen}
-          zoomRatio={zoomRatio}
-        />
+      {/* Empty State when no sheets exist */}
+      {sheets.length === 0 ? (
+        <div className="w-full flex flex-col items-center justify-center p-12 text-center bg-card border border-dashed border-border rounded-2xl space-y-4 my-4">
+          <div className="w-14 h-14 rounded-2xl bg-[#007aff]/10 flex items-center justify-center text-[#007aff]">
+            <FileSpreadsheet className="w-7 h-7" />
+          </div>
+          <div className="space-y-1.5 max-w-sm">
+            <h3 className="text-base font-bold text-foreground">Belum Ada Lembar Kerja</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Acara ini dimulai tanpa template bawaan. Buat lembar kerja baru untuk mulai mencatat rundown, daftar kru, atau anggaran.
+            </p>
+          </div>
+          {canManage && (
+            <button
+              type="button"
+              onClick={handleAddNewSheet}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#007aff] hover:bg-[#0066d6] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Tambah Sheet Baru</span>
+            </button>
+          )}
+        </div>
+      ) : (
+        /* Dynamic Spreadsheet Data Grid — NO onChange prop, manual save only */
+        activeSheet && (
+          <DynamicSheetGrid
+            ref={gridRef}
+            key={`${activeSheet.sheet_name}_rev${gridRevision}_grid${showGridLines ? 1 : 0}`}
+            sheetName={activeSheet.sheet_name}
+            data={activeSheet.data}
+            readOnly={!canManage}
+            showGridLines={showGridLines}
+            isFullscreen={isFullscreen}
+            zoomRatio={zoomRatio}
+          />
+        )
       )}
 
       {/* Append Family Data directly below the FortuneSheet container (only in normal mode) */}

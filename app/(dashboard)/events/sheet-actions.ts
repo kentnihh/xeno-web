@@ -10,9 +10,7 @@ import type { EventSheet, SheetData, MasterTemplate } from "@/types/database";
 
 /**
  * Fetch all spreadsheet tabs for an event.
- * If no sheets exist for this event, fetches default templates from `master_templates`
- * database table, seeds `event_sheets`, and returns them.
- * Falls back to static templates if DB table is unpopulated.
+ * Returns empty array if no sheets exist (e.g. event created with use_template=false).
  */
 export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
   try {
@@ -25,63 +23,15 @@ export async function getEventSheets(eventId: string): Promise<EventSheet[]> {
       .order("sort_order", { ascending: true })
       .order("order_index", { ascending: true });
 
-    if (!error && data && data.length > 0) {
-      return data as EventSheet[];
+    if (error) {
+      console.warn(`[getEventSheets] Error fetching sheets for event ${eventId}:`, error.message);
+      return [];
     }
 
-    // Try fetching from cached master_templates
-    const dbTemplates = await getMasterTemplatesCached();
-
-    let initialRows: Array<{
-      event_id: string;
-      sheet_name: string;
-      order_index: number;
-      sort_order: number;
-      data: SheetData;
-    }> = [];
-
-    if (dbTemplates && dbTemplates.length > 0) {
-      initialRows = (dbTemplates as MasterTemplate[]).map((tpl, idx) => ({
-        event_id: eventId,
-        sheet_name: tpl.sheet_name,
-        order_index: tpl.order_index ?? idx,
-        sort_order: tpl.sort_order ?? tpl.order_index ?? idx,
-        data: tpl.jsonb_structure,
-      }));
-    } else {
-      // Fallback to static templates
-      initialRows = INITIAL_EVENT_SHEETS.map((tpl, idx) => ({
-        event_id: eventId,
-        sheet_name: tpl.name,
-        order_index: idx,
-        sort_order: idx,
-        data: tpl.data,
-      }));
-    }
-
-    // Seed into event_sheets so edits persist reliably
-    const { data: inserted, error: insertError } = await supabase
-      .from("event_sheets")
-      .insert(initialRows)
-      .select("*");
-
-    if (!insertError && inserted && inserted.length > 0) {
-      return inserted as EventSheet[];
-    }
-
-    // If insertion failed (e.g. read-only context or conflict), return constructed objects
-    return initialRows.map((r, i) => ({
-      id: `sheet-${i + 1}-${eventId}`,
-      event_id: r.event_id,
-      sheet_name: r.sheet_name,
-      order_index: r.order_index,
-      data: r.data,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
+    return (data as EventSheet[]) || [];
   } catch (err) {
     console.warn(`[getEventSheets] Exception fetching sheets for event ${eventId}:`, err);
-    return buildDefaultEventSheets(eventId);
+    return [];
   }
 }
 

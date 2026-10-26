@@ -60,6 +60,8 @@ export function CreateEventForm({ clients }: CreateEventFormProps) {
     e.preventDefault();
     setErrorMsg(null);
     const fd = new FormData(e.currentTarget);
+    const isUseTemplateChecked = (e.currentTarget.elements.namedItem("use_template") as HTMLInputElement)?.checked ?? false;
+    fd.set("use_template", String(isUseTemplateChecked));
 
     startTransition(async () => {
       const res = await createEvent(fd);
@@ -175,6 +177,7 @@ export function CreateEventForm({ clients }: CreateEventFormProps) {
         </div>
 
         <div className="flex items-start gap-3 p-3.5 rounded-xl bg-muted/40 border border-border">
+          <input type="hidden" name="use_template_present" value="1" />
           <input
             id="use_template"
             name="use_template"
@@ -189,9 +192,7 @@ export function CreateEventForm({ clients }: CreateEventFormProps) {
           >
             <span className="font-bold block">Gunakan Template Excel Bawaan?</span>
             <span className="text-muted-foreground text-[11px] block mt-0.5">
-              Jika dicentang, 10 template lembar kerja standar (Rundown, Kru, dsb.)
-              akan dibuat otomatis. Jika tidak dicentang, hanya lembar kosong yang
-              akan dibuat.
+              Jika dicentang, template lembar kerja standar akan dibuat otomatis. Jika tidak dicentang, lembar kerja akan dimulai dari kosong tanpa sheet awal.
             </span>
           </label>
         </div>

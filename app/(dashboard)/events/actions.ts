@@ -63,6 +63,24 @@ export async function createEvent(
       }
     }
 
+    const hasTemplatePresentFlag = formData.has("use_template_present");
+    const rawTemplate =
+      formData.get("use_template") ??
+      formData.get("useDefaultTemplates") ??
+      formData.get("useTemplateExcel");
+
+    const templateStr = typeof rawTemplate === "string" ? rawTemplate.toLowerCase().trim() : "";
+
+    let parsedUseTemplate = true;
+    if (hasTemplatePresentFlag) {
+      parsedUseTemplate =
+        formData.has("use_template") &&
+        (templateStr === "true" || templateStr === "on" || templateStr === "1");
+    } else if (rawTemplate !== null && rawTemplate !== undefined) {
+      parsedUseTemplate =
+        templateStr === "true" || templateStr === "on" || templateStr === "1";
+    }
+
     const hasFamilyPresentFlag = formData.has("use_family_template_present");
     const rawFamilyTemplate = formData.get("use_family_template");
     const parsedUseFamilyTemplate = hasFamilyPresentFlag
@@ -77,7 +95,7 @@ export async function createEvent(
       pic: formData.get("pic"),
       client_id: formData.get("client_id") || null,
       pax: formData.get("pax"),
-      use_template: formData.get("use_template") !== null ? formData.get("use_template") : true,
+      use_template: parsedUseTemplate,
       use_family_template: parsedUseFamilyTemplate,
       description: formData.get("description") || null,
       expenses: parsedExpenses,
@@ -127,7 +145,9 @@ export async function createEvent(
       await supabase.from("event_documents").insert(docRows);
     }
 
-    if (validated.use_template) {
+    const useTemplates = Boolean(validated.use_template === true);
+
+    if (useTemplates) {
       // Fetch master templates from cached database table instead of hardcoded file
       const dbTemplates = await getMasterTemplatesCached();
 
@@ -153,25 +173,8 @@ export async function createEvent(
         }
       }
     } else {
-      // Insert single blank sheet
-      const blankSheet = {
-        event_id: data.id,
-        sheet_name: "Sheet 1",
-        order_index: 0,
-        data: {
-          columns: [
-            { id: "col_1", name: "Kolom 1", width: 180 },
-            { id: "col_2", name: "Kolom 2", width: 240 },
-          ],
-          rows: [
-            { id: "row_1", col_1: "", col_2: "" },
-          ],
-        },
-      };
-      const { error: blankSheetErr } = await supabase.from("event_sheets").insert([blankSheet]);
-      if (blankSheetErr) {
-        console.warn(`[createEvent] Warning inserting blank sheet for ${data.id}:`, blankSheetErr.message);
-      }
+      // DO NOT create any blank sheets or default sheets.
+      // Skip event_sheets insertion completely so count remains 0!
     }
 
     // Initialize event_public_forms record for this event based on use_family_template setting
