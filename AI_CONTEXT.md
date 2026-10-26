@@ -312,6 +312,6 @@ This builds the Next.js standalone container, restarts the app service, and Cadd
 
 
 <!-- LAST_ARCH_SYNC -->
-> **Last Architecture Sync**: 0d126eb docs(context): sync architectural invariants and operational rules in AI_CONTEXT.md
-94dbb6d fix(events): prevent sheet creation when default template checkbox is unchecked
-592c66c chore: update ai_context.md with latest architecture sync [skip ci]
+> **Last Architecture Sync**: 0cd06a2 fix: resolve public form creation errors and strip vendor financial fields
+0faf0ef chore: update ai_context.md with latest architecture sync [skip ci]
+0d126eb docs(context): sync architectural invariants and operational rules in AI_CONTEXT.md
