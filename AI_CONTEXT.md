@@ -312,6 +312,6 @@ This builds the Next.js standalone container, restarts the app service, and Cadd
 
 
 <!-- LAST_ARCH_SYNC -->
-> **Last Architecture Sync**: c019cb4 Merge branch 'main' of https://github.com/kentnihh/xeno-web
-25edf9e feat(rbac): tighten user management permissions and role editing guards
-859546f fix(security,events): harden RBAC permissions, prevent redirect loops, and improve sheet management
+> **Last Architecture Sync**: 8ae8098 Merge branch 'main' of https://github.com/kentnihh/xeno-web
+c2ea663 fix(spreadsheet): expand hitbox and fix hover bridge for border color and style submenus
+7d14535 chore: update ai_context.md with latest architecture sync [skip ci]
