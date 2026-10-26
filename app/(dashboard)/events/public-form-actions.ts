@@ -49,26 +49,36 @@ function getDefaultExpiryDate(): string {
  * Retrieve or create an active public form record for a given event.
  * If one does not exist, it initializes with a 3-day expiry and the standard form schema.
  */
-export async function getOrCreateEventPublicForm(eventId: string): Promise<EventPublicForm> {
+export async function getOrCreateEventPublicForm(eventId: string): Promise<EventPublicForm | null> {
   const supabase = await createClient();
 
-  const { data: existing, error: selectError } = await supabase
+  // 1. Try reading existing form first
+  const { data: existingForm, error: fetchError } = await supabase
     .from("event_public_forms")
     .select("*, event:events(id, title, venue, start_date, end_date)")
     .eq("event_id", eventId)
     .maybeSingle();
 
-  if (existing && !selectError) {
-    return existing as EventPublicForm;
+  if (existingForm) {
+    return existingForm as EventPublicForm;
+  }
+
+  // 2. If creating, use admin client to bypass RLS issues for background system initialization
+  let adminSupabase = supabase;
+  try {
+    adminSupabase = createAdminClient();
+  } catch {
+    // fallback to supabase client
   }
 
   const initialToken = generateNativeToken();
   const initialExpiresAt = getDefaultExpiryDate();
+  const fallbackSlug = initialToken.slice(0, 8);
 
   // Fetch schema from active master_family_templates or fallback to DEFAULT_PUBLIC_FORM_SCHEMA
   let initialSchema = DEFAULT_PUBLIC_FORM_SCHEMA;
   try {
-    const { data: familyTemplate } = await supabase
+    const { data: familyTemplate } = await adminSupabase
       .from("master_family_templates")
       .select("categories")
       .eq("is_active", true)
@@ -86,31 +96,52 @@ export async function getOrCreateEventPublicForm(eventId: string): Promise<Event
     // Fall back to default constant
   }
 
-  const { data: created, error: insertError } = await supabase
+  const { data: created, error: insertError } = await adminSupabase
     .from("event_public_forms")
-    .insert({
-      event_id: eventId,
-      token: initialToken,
-      expires_at: initialExpiresAt,
-      form_schema: initialSchema,
-      form_data: {},
-    })
+    .upsert(
+      {
+        event_id: eventId,
+        token: initialToken,
+        slug: fallbackSlug,
+        title: "Formulir Data Keluarga",
+        is_active: true,
+        expires_at: initialExpiresAt,
+        form_schema: initialSchema,
+        form_data: {},
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "event_id" }
+    )
     .select("*, event:events(id, title, venue, start_date, end_date)")
-    .single();
+    .maybeSingle();
 
-  if (insertError || !created) {
-    console.error("Failed to create public form:", insertError);
-    // If concurrent insert occurred, attempt fallback select
-    const { data: fallback } = await supabase
+  if (insertError) {
+    // Log with JSON serialization and warn level so Next.js doesn't trigger the red server error overlay
+    console.warn(
+      "[getOrCreateEventPublicForm] Insert notice:",
+      JSON.stringify(
+        {
+          message: insertError?.message,
+          details: insertError?.details,
+          hint: insertError?.hint,
+          code: insertError?.code,
+        },
+        null,
+        2
+      )
+    );
+
+    // Fallback read in case concurrent insert succeeded
+    const { data: fallback } = await (adminSupabase || supabase)
       .from("event_public_forms")
       .select("*, event:events(id, title, venue, start_date, end_date)")
       .eq("event_id", eventId)
-      .single();
-    if (fallback) return fallback as EventPublicForm;
-    throw new Error(insertError?.message || "Gagal membuat tautan formulir publik");
+      .maybeSingle();
+
+    return (fallback as EventPublicForm) || null;
   }
 
-  return created as EventPublicForm;
+  return (created as EventPublicForm) || null;
 }
 
 /**

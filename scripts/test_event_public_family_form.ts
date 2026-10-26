@@ -23,98 +23,107 @@ async function main() {
   // 3. Database operations with Supabase Admin Client
   const admin = createAdminClient();
 
-  // Find an existing event to test with
-  const { data: events, error: eventErr } = await admin
+  // Create a dedicated temporary event for testing
+  const { data: testEvent, error: tempEventErr } = await admin
     .from("events")
+    .insert({
+      title: `Test Event Public Family Form ${Date.now()}`,
+      venue: "Grand Ballroom",
+      status: "draft",
+      start_date: new Date().toISOString(),
+      end_date: new Date(Date.now() + 3600000).toISOString(),
+      pax: 100,
+    })
     .select("id, title")
-    .limit(1);
+    .single();
 
-  if (eventErr || !events || events.length === 0) {
-    console.warn("No events found in database to test DB operations. Skipping DB write test.");
-    console.log("All unit checks passed successfully!");
-    return;
+  if (tempEventErr || !testEvent) {
+    throw new Error(`Failed to create temporary test event: ${tempEventErr?.message}`);
   }
 
-  const testEvent = events[0];
   console.log(`3. Using test event: "${testEvent.title}" (${testEvent.id})`);
 
-  // Insert or Upsert a test record in event_public_forms
-  const testToken = `test_${crypto.randomBytes(14).toString("hex")}`;
-  const testExpiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    // Insert or Upsert a test record in event_public_forms
+    const testToken = `test_${crypto.randomBytes(14).toString("hex")}`;
+    const testExpiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: insertedForm, error: insertErr } = await admin
-    .from("event_public_forms")
-    .insert({
-      event_id: testEvent.id,
-      token: testToken,
-      expires_at: testExpiry,
-      form_schema: [
-        { id: "groom_family", name: "Keluarga Groom (Mempelai Pria)" },
-        { id: "bride_family", name: "Keluarga Bride (Mempelai Wanita)" },
+    const { data: insertedForm, error: insertErr } = await admin
+      .from("event_public_forms")
+      .insert({
+        event_id: testEvent.id,
+        token: testToken,
+        expires_at: testExpiry,
+        form_schema: [
+          { id: "groom_family", name: "Keluarga Groom (Mempelai Pria)" },
+          { id: "bride_family", name: "Keluarga Bride (Mempelai Wanita)" },
+        ],
+        form_data: {},
+      })
+      .select()
+      .single();
+
+    if (insertErr || !insertedForm) {
+      throw new Error(`Failed to insert into event_public_forms: ${insertErr?.message}`);
+    }
+
+    console.log("4. Successfully created event_public_forms record:", {
+      id: insertedForm.id,
+      token: insertedForm.token,
+      expires_at: insertedForm.expires_at,
+    });
+
+    // Test submitting form_data
+    const testSubmission = {
+      groom_family: [
+        { id: "m-1", name: "Bambang Wijaya", role: "Ayah Kandung", phone: "08123456789" },
+        { id: "m-2", name: "Sri Mulyani", role: "Ibu Kandung", phone: "08198765432" },
       ],
-      form_data: {},
-    })
-    .select()
-    .single();
+      bride_family: [
+        { id: "m-3", name: "Hendra Gunawan", role: "Ayah Kandung", phone: "0811223344" },
+      ],
+    };
 
-  if (insertErr || !insertedForm) {
-    throw new Error(`Failed to insert into event_public_forms: ${insertErr?.message}`);
+    const { data: updatedForm, error: updateErr } = await admin
+      .from("event_public_forms")
+      .update({
+        form_data: testSubmission,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", insertedForm.id)
+      .select()
+      .single();
+
+    if (updateErr || !updatedForm) {
+      throw new Error(`Failed to update form_data: ${updateErr?.message}`);
+    }
+
+    console.log("5. Successfully updated form_data:", {
+      groomCount: updatedForm.form_data?.groom_family?.length,
+      brideCount: updatedForm.form_data?.bride_family?.length,
+    });
+
+    // Verify expiry checking logic
+    const isExpiredBefore = new Date() > new Date(updatedForm.expires_at);
+    console.log("6. Expiry check (should be false for fresh 3-day token):", isExpiredBefore);
+    if (isExpiredBefore !== false) {
+      throw new Error("Active token falsely reported as expired");
+    }
+
+    // Test simulating expired token
+    const pastExpiry = new Date(Date.now() - 3600000).toISOString();
+    const isExpiredAfter = new Date() > new Date(pastExpiry);
+    console.log("7. Expiry check simulation for past date (should be true):", isExpiredAfter);
+    if (isExpiredAfter !== true) {
+      throw new Error("Expired token simulation failed");
+    }
+
+    // Clean up test record
+    await admin.from("event_public_forms").delete().eq("id", insertedForm.id);
+    console.log("8. Cleaned up test record from database.");
+  } finally {
+    await admin.from("events").delete().eq("id", testEvent.id);
   }
-
-  console.log("4. Successfully created event_public_forms record:", {
-    id: insertedForm.id,
-    token: insertedForm.token,
-    expires_at: insertedForm.expires_at,
-  });
-
-  // Test submitting form_data
-  const testSubmission = {
-    groom_family: [
-      { id: "m-1", name: "Bambang Wijaya", role: "Ayah Kandung", phone: "08123456789" },
-      { id: "m-2", name: "Sri Mulyani", role: "Ibu Kandung", phone: "08198765432" },
-    ],
-    bride_family: [
-      { id: "m-3", name: "Hendra Gunawan", role: "Ayah Kandung", phone: "0811223344" },
-    ],
-  };
-
-  const { data: updatedForm, error: updateErr } = await admin
-    .from("event_public_forms")
-    .update({
-      form_data: testSubmission,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", insertedForm.id)
-    .select()
-    .single();
-
-  if (updateErr || !updatedForm) {
-    throw new Error(`Failed to update form_data: ${updateErr?.message}`);
-  }
-
-  console.log("5. Successfully updated form_data:", {
-    groomCount: updatedForm.form_data?.groom_family?.length,
-    brideCount: updatedForm.form_data?.bride_family?.length,
-  });
-
-  // Verify expiry checking logic
-  const isExpiredBefore = new Date() > new Date(updatedForm.expires_at);
-  console.log("6. Expiry check (should be false for fresh 3-day token):", isExpiredBefore);
-  if (isExpiredBefore !== false) {
-    throw new Error("Active token falsely reported as expired");
-  }
-
-  // Test simulating expired token
-  const pastExpiry = new Date(Date.now() - 3600000).toISOString();
-  const isExpiredAfter = new Date() > new Date(pastExpiry);
-  console.log("7. Expiry check simulation for past date (should be true):", isExpiredAfter);
-  if (isExpiredAfter !== true) {
-    throw new Error("Expired token simulation failed");
-  }
-
-  // Clean up test record
-  await admin.from("event_public_forms").delete().eq("id", insertedForm.id);
-  console.log("8. Cleaned up test record from database.");
 
   console.log("=== ALL TEST VERIFICATIONS PASSED SUCCESSFULLY! ===");
 }

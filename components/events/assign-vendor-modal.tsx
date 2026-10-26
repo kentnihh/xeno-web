@@ -29,7 +29,6 @@ export function AssignVendorModal({
   const [selectedVendorId, setSelectedVendorId] = useState<string>("");
 
   const [serviceName, setServiceName] = useState("");
-  const [cost, setCost] = useState("");
   const [status, setStatus] = useState<VendorStatus>("proposed");
   const [notes, setNotes] = useState("");
 
@@ -71,7 +70,6 @@ export function AssignVendorModal({
     fd.append("event_id", eventId);
     fd.append("vendor_id", selectedVendorId);
     fd.append("service_name", serviceName.trim());
-    if (cost) fd.append("cost", cost);
     fd.append("status", status);
     if (notes.trim()) fd.append("notes", notes.trim());
     onAssignExisting(fd);
@@ -92,7 +90,6 @@ export function AssignVendorModal({
 
     const effectiveService = serviceName.trim() || `Layanan ${newCategory.trim()}`;
     fd.append("service_name", effectiveService);
-    if (cost) fd.append("cost", cost);
     fd.append("status", status);
     if (notes.trim()) fd.append("notes", notes.trim());
 
@@ -217,35 +214,21 @@ export function AssignVendorModal({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-foreground block mb-1.5">Nilai Kontrak (IDR)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="100000"
-                    value={cost}
-                    onChange={(e) => setCost(e.target.value)}
-                    placeholder="35000000"
-                    className="apple-input w-full px-3.5 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-foreground block mb-1.5">Status Kontrak</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as VendorStatus)}
-                    className="apple-input w-full px-3.5 py-2 text-sm bg-muted text-foreground border-border cursor-pointer"
-                  >
-                    <option value="proposed" className="bg-card text-foreground">Proposed</option>
-                    <option value="contracted" className="bg-card text-foreground">Contracted</option>
-                    <option value="paid" className="bg-card text-foreground">Paid</option>
-                  </select>
-                </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1.5">Status Layanan Operasional</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as VendorStatus)}
+                  className="apple-input w-full px-3.5 py-2 text-sm bg-muted text-foreground border-border cursor-pointer"
+                >
+                  <option value="proposed" className="bg-card text-foreground">Proposed (Penawaran)</option>
+                  <option value="contracted" className="bg-card text-foreground">Contracted (Terkonfirmasi)</option>
+                  <option value="paid" className="bg-card text-foreground">Completed (Selesai / Aktif)</option>
+                </select>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-foreground block mb-1.5">Catatan Teknis</label>
+                <label className="text-xs font-medium text-foreground block mb-1.5">Catatan Teknis Operasional</label>
                 <input
                   type="text"
                   value={notes}
@@ -358,7 +341,7 @@ export function AssignVendorModal({
             </div>
 
             <div className="border-t border-border pt-3 space-y-3">
-              <div className="text-[11px] font-semibold text-[#007aff] uppercase tracking-wider">Kontrak Acara</div>
+              <div className="text-[11px] font-semibold text-[#007aff] uppercase tracking-wider">Penugasan Layanan Acara</div>
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Rincian Layanan</label>
                 <input
@@ -370,31 +353,17 @@ export function AssignVendorModal({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-foreground block mb-1.5">Biaya (IDR)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="100000"
-                    value={cost}
-                    onChange={(e) => setCost(e.target.value)}
-                    placeholder="0"
-                    className="apple-input w-full px-3.5 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-foreground block mb-1.5">Status Kontrak</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as VendorStatus)}
-                    className="apple-input w-full px-3.5 py-2 text-sm bg-muted text-foreground border-border cursor-pointer"
-                  >
-                    <option value="proposed" className="bg-card text-foreground">Proposed</option>
-                    <option value="contracted" className="bg-card text-foreground">Contracted</option>
-                    <option value="paid" className="bg-card text-foreground">Paid</option>
-                  </select>
-                </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1.5">Status Layanan Operasional</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as VendorStatus)}
+                  className="apple-input w-full px-3.5 py-2 text-sm bg-muted text-foreground border-border cursor-pointer"
+                >
+                  <option value="proposed" className="bg-card text-foreground">Proposed (Penawaran)</option>
+                  <option value="contracted" className="bg-card text-foreground">Contracted (Terkonfirmasi)</option>
+                  <option value="paid" className="bg-card text-foreground">Completed (Selesai / Aktif)</option>
+                </select>
               </div>
             </div>
 

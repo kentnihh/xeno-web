@@ -123,13 +123,13 @@ export interface EventTask {
   assignee?: Profile | null;
 }
 
-/** Junction mapping vendors hired for an event with contracted cost */
+/** Junction mapping vendors hired for an event */
 export interface EventVendor {
   id: string;
   event_id: string;
   vendor_id: string;
   service_name: string;
-  cost: number;
+  cost?: number | null;
   status: VendorStatus;
   notes: string | null;
   created_at: string;
@@ -316,6 +316,9 @@ export interface EventPublicForm {
   id: string;
   event_id: string;
   token: string;
+  slug?: string | null;
+  title?: string | null;
+  is_active?: boolean;
   expires_at: string;
   form_schema: FormCategorySchema[];
   form_data: EventFormData;

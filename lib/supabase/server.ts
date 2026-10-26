@@ -7,7 +7,20 @@ import { cookies } from "next/headers";
  * Synchronizes auth session tokens across HTTP request cookies.
  */
 export async function createClient() {
-  const cookieStore = await cookies();
+  let cookieStore: {
+    getAll: () => { name: string; value: string }[];
+    set?: (name: string, value: string, options?: any) => void;
+  };
+
+  try {
+    cookieStore = await cookies();
+  } catch {
+    // Fallback for non-request environments (e.g. CLI scripts, static generation)
+    cookieStore = {
+      getAll: () => [],
+      set: () => {},
+    };
+  }
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,7 +33,7 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set?.(name, value, options)
             );
           } catch {
             // Silently caught when called from Server Components where response headers are read-only

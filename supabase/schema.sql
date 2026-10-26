@@ -237,12 +237,35 @@ create table if not exists public.event_public_forms (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
   token text not null unique,
+  slug text,
+  title text default 'Formulir Data Keluarga',
+  is_active boolean not null default true,
   expires_at timestamptz not null,
   form_schema jsonb not null default '[]'::jsonb,
   form_data jsonb not null default '{}'::jsonb,
   created_at timestamptz default now() not null,
-  updated_at timestamptz default now() not null
+  updated_at timestamptz default now() not null,
+  constraint event_public_forms_event_id_unique unique (event_id)
 );
+
+-- Ensure slug, title, is_active, and unique constraint on event_id exist
+alter table public.event_public_forms 
+  add column if not exists is_active boolean not null default true,
+  add column if not exists slug text,
+  add column if not exists title text default 'Formulir Data Keluarga';
+
+alter table public.event_public_forms 
+  alter column id set default gen_random_uuid(),
+  alter column is_active set default true;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'event_public_forms_event_id_unique'
+  ) then
+    alter table public.event_public_forms add constraint event_public_forms_event_id_unique unique (event_id);
+  end if;
+end $$;
 
 -- Master Family Templates (Default blueprint for event public forms)
 create table if not exists public.master_family_templates (
@@ -739,6 +762,39 @@ drop policy if exists "Master templates deletable by authenticated users" on pub
 create policy "Master templates deletable by authenticated users" on public.master_templates for delete to authenticated using (true);
 
 -- Event Public Forms Policies (Authenticated & Anonymous Token-Based Access)
+alter table public.event_public_forms enable row level security;
+
+-- Allow authenticated users full access to event_public_forms
+drop policy if exists "Allow authenticated all event_public_forms" on public.event_public_forms;
+create policy "Allow authenticated all event_public_forms"
+  on public.event_public_forms
+  for all
+  to authenticated
+  using (true)
+  with check (true);
+
+-- Allow authenticated users to view forms
+drop policy if exists "Allow authenticated read event_public_forms" on public.event_public_forms;
+create policy "Allow authenticated read event_public_forms"
+  on public.event_public_forms for select
+  to authenticated
+  using (true);
+
+-- Allow authenticated users to create/insert forms
+drop policy if exists "Allow authenticated insert event_public_forms" on public.event_public_forms;
+create policy "Allow authenticated insert event_public_forms"
+  on public.event_public_forms for insert
+  to authenticated
+  with check (true);
+
+-- Allow authenticated users to update forms
+drop policy if exists "Allow authenticated update event_public_forms" on public.event_public_forms;
+create policy "Allow authenticated update event_public_forms"
+  on public.event_public_forms for update
+  to authenticated
+  using (true);
+
+-- Backward-compatible policies
 drop policy if exists "Authenticated users can select event_public_forms" on public.event_public_forms;
 create policy "Authenticated users can select event_public_forms" on public.event_public_forms for select to authenticated using (true);
 drop policy if exists "Authenticated users can insert event_public_forms" on public.event_public_forms;

@@ -171,76 +171,88 @@ async function run() {
   // =========================================================================
   console.log("\n--- 3. Testing Dynamic Event Public Form Operations ---");
 
-  // Fetch an existing event for testing
-  const { data: events, error: eventErr } = await admin
+  // Create a dedicated temporary test event
+  const { data: testEvent, error: tempEventErr } = await admin
     .from("events")
+    .insert({
+      title: `Test Dynamic Event ${Date.now()}`,
+      venue: "Grand Ballroom",
+      status: "draft",
+      start_date: new Date().toISOString(),
+      end_date: new Date(Date.now() + 3600000).toISOString(),
+      pax: 100,
+    })
     .select("id, title")
-    .limit(1);
+    .single();
 
-  assert(events && events.length > 0, "At least one event must exist in database");
-  const testEventId = events[0].id;
+  assert(testEvent, `Failed to create test event: ${tempEventErr?.message}`);
+  const testEventId = testEvent.id;
   const testToken = `test_dyn_${Date.now().toString(16)}`;
 
-  // Define dynamic schema with 5 arbitrary categories
-  const dynamicSchema: FormCategorySchema[] = [
-    { id: "cat_1", title: "Keluarga Groom", name: "Keluarga Groom" },
-    { id: "cat_2", title: "Keluarga Bride", name: "Keluarga Bride" },
-    { id: "cat_3", title: "Saksi Pemberkatan", name: "Saksi Pemberkatan" },
-    { id: "cat_4", title: "Keluarga Inti", name: "Keluarga Inti" },
-    { id: "cat_5", title: "Tamu Spesial VIP", name: "Tamu Spesial VIP" },
-  ];
+  try {
+    // Define dynamic schema with 5 arbitrary categories
+    const dynamicSchema: FormCategorySchema[] = [
+      { id: "cat_1", title: "Keluarga Groom", name: "Keluarga Groom" },
+      { id: "cat_2", title: "Keluarga Bride", name: "Keluarga Bride" },
+      { id: "cat_3", title: "Saksi Pemberkatan", name: "Saksi Pemberkatan" },
+      { id: "cat_4", title: "Keluarga Inti", name: "Keluarga Inti" },
+      { id: "cat_5", title: "Tamu Spesial VIP", name: "Tamu Spesial VIP" },
+    ];
 
-  // Insert event public form with 5 dynamic categories
-  const { data: createdForm, error: formInsertErr } = await admin
-    .from("event_public_forms")
-    .insert({
-      event_id: testEventId,
-      token: testToken,
-      expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-      form_schema: dynamicSchema,
-      form_data: {},
-    })
-    .select("*")
-    .single();
+    // Insert event public form with 5 dynamic categories
+    const { data: createdForm, error: formInsertErr } = await admin
+      .from("event_public_forms")
+      .insert({
+        event_id: testEventId,
+        token: testToken,
+        expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        form_schema: dynamicSchema,
+        form_data: {},
+      })
+      .select("*")
+      .single();
 
-  assert.strictEqual(formInsertErr, null, "Inserting dynamic event public form must succeed");
-  assert.strictEqual(createdForm.form_schema.length, 5, "form_schema must contain 5 categories");
-  console.log(`✓ Created event_public_forms with ${createdForm.form_schema.length} dynamic categories.`);
+    assert.strictEqual(formInsertErr, null, "Inserting dynamic event public form must succeed");
+    assert.strictEqual(createdForm.form_schema.length, 5, "form_schema must contain 5 categories");
+    console.log(`✓ Created event_public_forms with ${createdForm.form_schema.length} dynamic categories.`);
 
-  // Test submitting data for these 5 categories
-  const submittedData: EventFormData = {
-    cat_1: [{ id: "m1", name: "Bpk. Suryo", role: "Ayah Groom", phone: "0811111111" }],
-    cat_2: [{ id: "m2", name: "Ibu Rina", role: "Ibu Bride", phone: "0822222222" }],
-    cat_3: [{ id: "m3", name: "Bpk. Pendeta / Saksi", role: "Saksi Utama", phone: "0833333333" }],
-    cat_4: [{ id: "m4", name: "Kevin", role: "Adik Kandung", phone: "0844444444" }],
-    cat_5: [{ id: "m5", name: "Prof. H. Hartono", role: "Tamu Kehormatan", phone: "0855555555" }],
-  };
+    // Test submitting data for these 5 categories
+    const submittedData: EventFormData = {
+      cat_1: [{ id: "m1", name: "Bpk. Suryo", role: "Ayah Groom", phone: "0811111111" }],
+      cat_2: [{ id: "m2", name: "Ibu Rina", role: "Ibu Bride", phone: "0822222222" }],
+      cat_3: [{ id: "m3", name: "Bpk. Pendeta / Saksi", role: "Saksi Utama", phone: "0833333333" }],
+      cat_4: [{ id: "m4", name: "Kevin", role: "Adik Kandung", phone: "0844444444" }],
+      cat_5: [{ id: "m5", name: "Prof. H. Hartono", role: "Tamu Kehormatan", phone: "0855555555" }],
+    };
 
-  const { error: submitErr } = await admin
-    .from("event_public_forms")
-    .update({
-      form_data: submittedData,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", createdForm.id);
+    const { error: submitErr } = await admin
+      .from("event_public_forms")
+      .update({
+        form_data: submittedData,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", createdForm.id);
 
-  assert.strictEqual(submitErr, null, "Updating form_data with dynamic categories must succeed");
+    assert.strictEqual(submitErr, null, "Updating form_data with dynamic categories must succeed");
 
-  // Query back and verify
-  const { data: retrievedForm } = await admin
-    .from("event_public_forms")
-    .select("*")
-    .eq("id", createdForm.id)
-    .single();
+    // Query back and verify
+    const { data: retrievedForm } = await admin
+      .from("event_public_forms")
+      .select("*")
+      .eq("id", createdForm.id)
+      .single();
 
-  assert.strictEqual(retrievedForm.form_schema.length, 5);
-  assert.strictEqual(retrievedForm.form_data.cat_3[0].name, "Bpk. Pendeta / Saksi");
-  assert.strictEqual(retrievedForm.form_data.cat_3[0].role, "Saksi Utama");
-  console.log("✓ Dynamic submission roundtrip verified for custom categories (e.g. Saksi Pemberkatan).");
+    assert.strictEqual(retrievedForm.form_schema.length, 5);
+    assert.strictEqual(retrievedForm.form_data.cat_3[0].name, "Bpk. Pendeta / Saksi");
+    assert.strictEqual(retrievedForm.form_data.cat_3[0].role, "Saksi Utama");
+    console.log("✓ Dynamic submission roundtrip verified for custom categories (e.g. Saksi Pemberkatan).");
 
-  // Clean up test public form record
-  await admin.from("event_public_forms").delete().eq("id", createdForm.id);
-  console.log("✓ Cleaned up test event public form.");
+    // Clean up test public form record
+    await admin.from("event_public_forms").delete().eq("id", createdForm.id);
+    console.log("✓ Cleaned up test event public form.");
+  } finally {
+    await admin.from("events").delete().eq("id", testEventId);
+  }
 
   console.log("\n🎉 ALL DYNAMIC FAMILY DATA SCHEMA ARCHITECTURE TESTS PASSED! 🚀");
 }

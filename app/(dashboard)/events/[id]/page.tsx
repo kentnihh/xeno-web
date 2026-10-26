@@ -80,7 +80,13 @@ export default async function EventDetailPage({
     supabase.from("event_expenses").select("*").eq("event_id", id).order("expense_date", { ascending: false }),
     supabase.from("event_documents").select("*, uploader:profiles(*)").eq("event_id", id).order("created_at", { ascending: false }),
     getEventSheets(id),
-    getOrCreateEventPublicForm(id).catch(() => null),
+    (async () => {
+      try {
+        return (await getOrCreateEventPublicForm(id)) ?? null;
+      } catch {
+        return null;
+      }
+    })(),
   ]);
 
   if (!rawEvent) {

@@ -870,15 +870,12 @@ export async function assignEventVendor(formData: FormData): Promise<{ success: 
   const eventId = formData.get("event_id") as string;
   const vendorId = formData.get("vendor_id") as string;
   const serviceName = (formData.get("service_name") as string)?.trim();
-  const costRaw = formData.get("cost") as string;
   const status = ((formData.get("status") as string) || "proposed") as VendorStatus;
   const notes = (formData.get("notes") as string)?.trim() || null;
 
   if (!eventId || !vendorId || !serviceName) {
     return { success: false, error: "Event, vendor, dan rincian layanan wajib diisi." };
   }
-
-  const cost = costRaw ? Math.max(0, Number(costRaw) || 0) : 0;
 
   const { data, error } = await supabase
     .from("event_vendors")
@@ -887,7 +884,7 @@ export async function assignEventVendor(formData: FormData): Promise<{ success: 
         event_id: eventId,
         vendor_id: vendorId,
         service_name: serviceName,
-        cost,
+        cost: null,
         status,
         notes,
       },
@@ -926,7 +923,6 @@ export async function createAndAssignVendor(formData: FormData): Promise<{ succe
 
   // Event assignment data
   const serviceName = (formData.get("service_name") as string)?.trim() || category;
-  const costRaw = formData.get("cost") as string;
   const status = ((formData.get("status") as string) || "proposed") as VendorStatus;
   const assignmentNotes = (formData.get("notes") as string)?.trim() || null;
 
@@ -953,16 +949,14 @@ export async function createAndAssignVendor(formData: FormData): Promise<{ succe
     return { success: false, error: vendorError?.message || "Gagal membuat vendor baru." };
   }
 
-  const cost = costRaw ? Math.max(0, Number(costRaw) || 0) : 0;
-
-  // 2. Link to event_vendors
+  // 2. Link to event_vendors without price/cost
   const { data: eventVendor, error: linkError } = await supabase
     .from("event_vendors")
     .insert({
       event_id: eventId,
       vendor_id: newVendor.id,
       service_name: serviceName || "Layanan Vendor",
-      cost,
+      cost: null,
       status,
       notes: assignmentNotes,
     })
@@ -981,7 +975,7 @@ export async function createAndAssignVendor(formData: FormData): Promise<{ succe
 }
 
 /**
- * Updates an event vendor's service details, cost, status, or notes.
+ * Updates an event vendor's service details, status, or notes.
  */
 export async function updateEventVendor(formData: FormData): Promise<{ success: boolean; error?: string; eventVendor?: EventVendor }> {
   await requirePermission("events:operations:manage");
@@ -989,7 +983,6 @@ export async function updateEventVendor(formData: FormData): Promise<{ success: 
   const eventVendorId = formData.get("id") as string;
   const eventId = formData.get("event_id") as string;
   const serviceName = (formData.get("service_name") as string)?.trim();
-  const costRaw = formData.get("cost") as string;
   const status = ((formData.get("status") as string) || "proposed") as VendorStatus;
   const notes = (formData.get("notes") as string)?.trim() || null;
 
@@ -997,13 +990,11 @@ export async function updateEventVendor(formData: FormData): Promise<{ success: 
     return { success: false, error: "ID, Event ID, dan nama layanan wajib diisi." };
   }
 
-  const cost = costRaw ? Math.max(0, Number(costRaw) || 0) : 0;
-
   const { data, error } = await supabase
     .from("event_vendors")
     .update({
       service_name: serviceName,
-      cost,
+      cost: null,
       status,
       notes,
     })
@@ -1041,6 +1032,10 @@ export async function removeEventVendor(eventVendorId: string, eventId: string):
   revalidatePath("/dashboard");
   return { success: true };
 }
+
+/** Semantic aliases */
+export const assignVendorToEvent = assignEventVendor;
+export const linkVendor = assignEventVendor;
 
 
 
