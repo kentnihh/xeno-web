@@ -294,11 +294,11 @@ export function PriorityTasksWidget({
 
   return (
     <>
-      <div className="bg-card border border-border rounded-3xl p-6 shadow-xs flex flex-col justify-between">
+      <div className="bg-card border border-border rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col justify-between">
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
                 <AlertCircle className="w-4 h-4" />
               </div>
               <div>
@@ -311,7 +311,7 @@ export function PriorityTasksWidget({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Diurutkan berdasarkan tingkat urgensi & tenggat
+                  Diurutkan berdasarkan tingkat urgensi & tenggat waktu
                 </p>
               </div>
             </div>
@@ -319,27 +319,27 @@ export function PriorityTasksWidget({
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              className="text-xs font-semibold text-[#007aff] hover:underline flex items-center gap-0.5 cursor-pointer"
+              className="text-xs font-semibold text-[#007aff] hover:underline flex items-center gap-1 cursor-pointer self-start sm:self-auto"
             >
-              Lihat Semua ({tasks.length})
+              Lihat Seluruh Tugas ({tasks.length})
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {preview.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground">
+            <div className="py-10 text-center text-xs text-muted-foreground border border-dashed border-border/80 rounded-2xl">
               Tidak ada tugas kru aktif saat ini.
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               {preview.map((task) => (
                 <div
                   key={task.id}
                   onClick={() => setModalOpen(true)}
-                  className="p-3 rounded-2xl bg-muted/30 border border-border/80 hover:border-[#007aff]/60 hover:bg-muted/60 transition-all cursor-pointer flex items-center justify-between gap-3"
+                  className="apple-card-interactive p-4 rounded-2xl bg-card border border-border/80 hover:border-[#007aff] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-3 group"
                 >
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
                       <span
                         className={`text-[9px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${
                           PRIORITY_BADGE_STYLES[(task.priority || "").toLowerCase()] ||
@@ -348,44 +348,50 @@ export function PriorityTasksWidget({
                       >
                         {task.priority || "medium"}
                       </span>
-                      <span className="font-bold text-xs text-foreground truncate">
-                        {task.title}
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                          STATUS_BADGE_STYLES[(task.status || "").toLowerCase()] ||
+                          STATUS_BADGE_STYLES.todo
+                        }`}
+                      >
+                        {STATUS_LABELS[(task.status || "").toLowerCase()] || task.status}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-medium">
-                      {task.event && (
-                        <span className="truncate text-foreground/80 font-semibold">
+                    <h4 className="font-bold text-xs sm:text-sm text-foreground group-hover:text-[#007aff] transition-colors line-clamp-2 leading-snug">
+                      {task.title}
+                    </h4>
+                  </div>
+
+                  <div className="pt-2.5 border-t border-border/60 space-y-1.5 text-[11px] text-muted-foreground">
+                    {task.event && (
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Calendar className="w-3.5 h-3.5 text-[#007aff] shrink-0" />
+                        <span className="truncate font-semibold text-foreground/85">
                           {task.event.title}
                         </span>
-                      )}
-                      {task.assignee?.full_name && (
-                        <span className="flex items-center gap-1 truncate">
-                          <User className="w-3 h-3 text-[#007aff]" />
-                          {task.assignee.full_name}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                      <span className="flex items-center gap-1 truncate text-muted-foreground">
+                        <User className="w-3 h-3 text-[#007aff] shrink-0" />
+                        <span className="truncate">
+                          {task.assignee?.full_name || "Belum Ditugaskan"}
                         </span>
-                      )}
+                      </span>
+
                       {task.due_date && (
-                        <span className="flex items-center gap-1 shrink-0">
-                          <Calendar className="w-3 h-3 text-amber-500" />
-                          {formatDate(task.due_date)}
+                        <span className="flex items-center gap-1 shrink-0 text-amber-600 dark:text-amber-400 font-medium">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatDate(task.due_date)}</span>
                         </span>
                       )}
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                 </div>
               ))}
             </div>
           )}
         </div>
-
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="mt-4 w-full py-2.5 rounded-2xl bg-muted hover:bg-muted/80 text-foreground font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
-        >
-          Buka Seluruh Tugas Kru ({tasks.length})
-        </button>
       </div>
 
       <ConsolidatedTasksModal

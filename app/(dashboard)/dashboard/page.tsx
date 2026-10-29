@@ -187,10 +187,15 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <MonthlyCalendar events={events} />
+      {/* 4. Kalender Acara Bulanan & Jadwal Terdekat (Bersebelahan di Desktop) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Kolom Kalender (Rasio 7:5 di Desktop) */}
+        <div className="lg:col-span-7">
+          <MonthlyCalendar events={events} />
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 apple-card p-6 space-y-4">
+        {/* Kolom Jadwal Acara Terdekat (Rasio 7:5 di Desktop) */}
+        <div className="lg:col-span-5 apple-card p-5 sm:p-6 space-y-4">
           <div className="flex justify-between items-center pb-2 border-b border-border">
             <h2 className="text-sm font-bold text-foreground tracking-tight">
               {isStaff ? "Jadwal Acara Saya Terdekat" : "Jadwal Acara Terdekat"}
@@ -215,10 +220,10 @@ export default async function DashboardPage() {
                 <Link
                   key={ev.id}
                   href={`/events/${ev.id}`}
-                  className="apple-card-interactive block p-4 rounded-xl border border-border shadow-xs hover:shadow-md hover:border-[#007aff] transition-all group"
+                  className="apple-card-interactive block p-3.5 sm:p-4 rounded-xl border border-border shadow-xs hover:shadow-md hover:border-[#007aff] transition-all group"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-foreground text-sm group-hover:text-[#007aff] transition-colors truncate">
                           {ev.title}
@@ -245,10 +250,11 @@ export default async function DashboardPage() {
             )}
           </div>
         </div>
+      </div>
 
-        <div>
-          <PriorityTasksWidget tasks={tasks} />
-        </div>
+      {/* 5. Tugas Kru Prioritas (Full Width 100%) */}
+      <div className="w-full">
+        <PriorityTasksWidget tasks={tasks} />
       </div>
     </div>
   );
