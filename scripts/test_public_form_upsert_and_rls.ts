@@ -162,7 +162,6 @@ async function main() {
       .insert({
         title: `Auth Test Event ${Date.now()}`,
         venue: "Skyline Ballroom",
-        status: "draft",
         start_date: new Date().toISOString(),
         end_date: new Date(Date.now() + 3600000).toISOString(),
         pax: 80,
@@ -213,7 +212,6 @@ async function main() {
     .insert({
       title: tempEventTitle,
       venue: "Grand Ballroom",
-      status: "draft",
       start_date: new Date().toISOString(),
       end_date: new Date(Date.now() + 3600000).toISOString(),
       pax: 100,

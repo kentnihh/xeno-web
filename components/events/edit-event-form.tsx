@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MapPin, User, Users, Building2, FileText, Activity, Loader2 } from "lucide-react";
+import { MapPin, User, Users, Building2, FileText, Loader2 } from "lucide-react";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Combobox } from "@/components/ui/combobox";
 import { updateEvent } from "@/app/(dashboard)/events/actions";
@@ -116,25 +116,7 @@ export function EditEventForm({ event, clients = [] }: { event: Event; clients?:
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-[#007aff]" /> Status Acara *
-            </label>
-            <select
-              name="status"
-              defaultValue={event.status || "planning"}
-              className="apple-input w-full px-3.5 py-2.5 text-xs font-semibold bg-muted border-border cursor-pointer"
-            >
-              <option value="draft">Draft</option>
-              <option value="planning">Planning</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="ongoing">Ongoing</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
               <User className="w-3.5 h-3.5 text-[#007aff]" /> PIC (Person In Charge)

@@ -274,6 +274,13 @@ export function EventTasksSection({
                     <span className="text-neutral-400 dark:text-neutral-500 font-medium">Unassigned</span>
                   )}
 
+                  {task.creator?.full_name && (
+                    <span className="flex items-center gap-1 text-muted-foreground font-medium bg-muted/60 px-2 py-0.5 rounded-full border border-border">
+                      <span className="text-[9px] text-muted-foreground/70">Dibuat oleh:</span>
+                      <span className="font-semibold text-foreground">{task.creator.full_name}</span>
+                    </span>
+                  )}
+
                   {task.due_date && (
                     <span className="flex items-center gap-1 text-neutral-500 dark:text-neutral-400 ml-auto font-medium">
                       <Calendar className="w-3 h-3 text-[#007aff]" />

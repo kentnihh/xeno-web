@@ -27,6 +27,8 @@ export interface ConsolidatedTask {
   created_at?: string;
   event?: { id?: string; title: string } | null;
   assignee?: { id?: string; full_name: string; role?: string } | null;
+  created_by?: string | null;
+  creator?: { id?: string; full_name: string; role?: string } | null;
 }
 
 export const PRIORITY_BADGE_STYLES: Record<string, string> = {
@@ -83,7 +85,8 @@ export function ConsolidatedTasksModal({
         (t) =>
           t.title.toLowerCase().includes(q) ||
           t.event?.title.toLowerCase().includes(q) ||
-          t.assignee?.full_name.toLowerCase().includes(q)
+          t.assignee?.full_name.toLowerCase().includes(q) ||
+          t.creator?.full_name?.toLowerCase().includes(q)
       );
     }
     return sortTasksByPriority(result);
@@ -249,14 +252,23 @@ export function ConsolidatedTasksModal({
                 )}
 
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/60 text-[11px] text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <User className="w-3 h-3 text-[#007aff]" />
-                    <span className="font-medium text-foreground">
-                      {task.assignee?.full_name || "Belum Ditugaskan"}
-                    </span>
-                    {task.assignee?.role && (
-                      <span className="text-[10px] uppercase text-muted-foreground">
-                        ({task.assignee.role})
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <User className="w-3 h-3 text-[#007aff]" />
+                      <span className="font-medium text-foreground">
+                        {task.assignee?.full_name || "Belum Ditugaskan"}
+                      </span>
+                      {task.assignee?.role && (
+                        <span className="text-[10px] uppercase text-muted-foreground">
+                          ({task.assignee.role})
+                        </span>
+                      )}
+                    </div>
+
+                    {task.creator?.full_name && (
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border">
+                        <span className="text-muted-foreground/70">Dibuat oleh:</span>
+                        <span className="font-semibold text-foreground">{task.creator.full_name}</span>
                       </span>
                     )}
                   </div>
@@ -352,7 +364,7 @@ export function PriorityTasksWidget({
                         {task.title}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-medium">
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-medium flex-wrap">
                       {task.event && (
                         <span className="truncate text-foreground/80 font-semibold">
                           {task.event.title}
@@ -362,6 +374,12 @@ export function PriorityTasksWidget({
                         <span className="flex items-center gap-1 truncate">
                           <User className="w-3 h-3 text-[#007aff]" />
                           {task.assignee.full_name}
+                        </span>
+                      )}
+                      {task.creator?.full_name && (
+                        <span className="text-[10px] text-muted-foreground/80 flex items-center gap-1 truncate">
+                          <span>Dibuat:</span>
+                          <span className="font-medium text-foreground">{task.creator.full_name}</span>
                         </span>
                       )}
                       {task.due_date && (

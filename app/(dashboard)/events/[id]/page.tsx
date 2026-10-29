@@ -9,7 +9,6 @@ import { hasPermission, getUserRoles } from "@/lib/auth";
 import { ArrowLeft, Calendar, MapPin, User, Users, Trash2 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/ui/confirm-modal";
 import { EventDetailTabs } from "@/components/events/event-detail-tabs";
-import { EventStatusSelect } from "@/components/events/event-status-select";
 import { EventActionButtons } from "@/components/events/event-action-buttons";
 import type { EventCrew, Profile, EventTask, EventVendor, Vendor, EventExpense, EventDocument } from "@/types/database";
 
@@ -72,7 +71,7 @@ export default async function EventDetailPage({
     publicForm,
   ] = await Promise.all([
     supabase.from("events").select("*, client:clients(*)").eq("id", id).single(),
-    supabase.from("event_tasks").select("*, assignee:profiles(*)").eq("event_id", id).order("created_at", { ascending: false }),
+    supabase.from("event_tasks").select("*, assignee:profiles!assigned_to(*), creator:profiles!created_by(*)").eq("event_id", id).order("created_at", { ascending: false }),
     supabase.from("event_crew").select("*, profile:profiles(*)").eq("event_id", id),
     supabase.from("profiles").select("*").order("full_name"),
     supabase.from("event_vendors").select("*, vendor:vendors(*)").eq("event_id", id).order("created_at", { ascending: false }),
@@ -151,11 +150,7 @@ export default async function EventDetailPage({
         </div>
       </div>
 
-      <div className="apple-card p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 border border-border shadow-xs">
-        <div>
-          <div className="text-xs font-medium text-muted-foreground mb-1">Status</div>
-          <EventStatusSelect eventId={event.id} initialStatus={event.status} disabled={!canEditEvent} />
-        </div>
+      <div className="apple-card p-5 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 border border-border shadow-xs">
         <div>
           <div className="text-xs font-medium text-muted-foreground">Venue</div>
           <div className="text-xs font-bold text-foreground mt-1.5 truncate flex items-center gap-1.5">

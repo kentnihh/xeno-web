@@ -13,7 +13,6 @@ interface EventItem {
   venue: string;
   pic?: string | null;
   budget?: number | null;
-  status: string;
 }
 
 interface Props {

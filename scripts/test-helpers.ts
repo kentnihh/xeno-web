@@ -134,7 +134,6 @@ const testPdfDoc = buildEventSummaryPdf({
     title: "Testing Gala",
     venue: "Main Hall",
     start_date: "2026-12-01T10:00:00Z",
-    status: "confirmed",
     budget: 100000000,
   },
   crew: [],

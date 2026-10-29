@@ -5,7 +5,6 @@ import type {
   EventCrew,
   EventTask,
   EventExpense,
-  EventStatus,
 } from "@/types/database";
 
 let _jsPdfConstructor: any = null;
@@ -41,7 +40,6 @@ export interface EventSummaryPdfData {
         venue: string;
         start_date: string;
         end_date?: string;
-        status: EventStatus;
         pic?: string | null;
         pax?: number | null;
         budget?: number | null; // ponytail: optional for legacy test caller compatibility
@@ -176,30 +174,6 @@ export function buildEventSummaryPdf(data: EventSummaryPdfData, customDoc?: jsPD
   doc.setFontSize(13);
   doc.setTextColor(17, 24, 39);
   doc.text(event.title, marginX + 5, cursorY + 8);
-
-  // Status Badge Pill
-  const statusUpper = (event.status || "DRAFT").toUpperCase();
-  const badgeWidth = doc.getTextWidth(statusUpper) + 7;
-  const badgeX = marginX + contentWidth - badgeWidth - 5;
-  const badgeY = cursorY + 4;
-
-  if (event.status === "confirmed" || event.status === "completed") {
-    doc.setFillColor(16, 185, 129);
-  } else if (event.status === "ongoing" || event.status === "planning") {
-    doc.setFillColor(0, 122, 255);
-  } else if (event.status === "cancelled") {
-    doc.setFillColor(239, 68, 68);
-  } else {
-    doc.setFillColor(107, 114, 128);
-  }
-
-  doc.roundedRect(badgeX, badgeY, badgeWidth, 5.5, 2, 2, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.5);
-  doc.setTextColor(255, 255, 255);
-  doc.text(statusUpper, badgeX + badgeWidth / 2, badgeY + 4, {
-    align: "center",
-  });
 
   // Card Content Grid (2 columns)
   const col1X = marginX + 5;

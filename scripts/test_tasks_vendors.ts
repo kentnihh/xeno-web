@@ -43,7 +43,7 @@ async function main() {
       status: "todo",
       due_date: new Date(Date.now() + 86400000).toISOString(),
     })
-    .select("*, assignee:profiles(*)")
+    .select("*, assignee:profiles!assigned_to(*)")
     .single();
 
   if (taskCreateErr || !task) throw new Error(`Task create failed: ${taskCreateErr?.message}`);

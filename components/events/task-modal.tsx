@@ -210,6 +210,12 @@ export function TaskModal({
       onClose={onClose}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {isEditing && task?.creator?.full_name && (
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs text-muted-foreground">
+            <span className="text-[11px] text-muted-foreground/80">Dibuat oleh:</span>
+            <span className="font-semibold text-foreground">{task.creator.full_name}</span>
+          </div>
+        )}
         <div>
           <label className="text-xs font-medium text-foreground block mb-1.5">Judul Tugas *</label>
           <input

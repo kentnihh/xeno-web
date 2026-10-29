@@ -74,7 +74,7 @@ console.log("✓ updateEventSchema correctly validates and parses pax.");
 // 2. Audit UI Files
 console.log("3. Auditing UI components and detail header...");
 const detailPage = fs.readFileSync("app/(dashboard)/events/[id]/page.tsx", "utf-8");
-assert(detailPage.includes("md:grid-cols-5"), "Detail header must have 5-column grid layout (md:grid-cols-5)");
+assert(detailPage.includes("md:grid-cols-4") || detailPage.includes("md:grid-cols-5"), "Detail header must have clean grid layout (md:grid-cols-4 or md:grid-cols-5)");
 assert(detailPage.includes("Pax"), "Detail header must render 'Pax' label");
 assert(detailPage.includes("event.pax ? `${event.pax.toLocaleString(\"id-ID\")} Pax` : \"-\"") ||
        detailPage.includes("event.pax ? `${event.pax.toLocaleString('id-ID')} Pax` : '-'"),

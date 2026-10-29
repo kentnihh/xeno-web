@@ -7,7 +7,6 @@ import type {
   EventCrew,
   EventTask,
   EventExpense,
-  EventStatus,
 } from "@/types/database";
 
 interface ExportPdfButtonProps {
@@ -19,7 +18,6 @@ interface ExportPdfButtonProps {
         venue: string;
         start_date: string;
         end_date?: string;
-        status: EventStatus;
         pic?: string | null;
         budget?: number | null;
         client?: {

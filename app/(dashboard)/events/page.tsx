@@ -15,7 +15,6 @@ import { EditEventButton } from "@/components/events/edit-event-modal";
 import { MonthlyCalendar } from "@/components/dashboard/monthly-calendar";
 import { EventSearchBar } from "@/components/dashboard/event-search-bar";
 import {
-  EventStatusBadge,
   EventCountdownBadge,
 } from "@/components/events/event-status-badge";
 import { SyncGCalButton } from "@/components/events/sync-gcal-button";
@@ -25,17 +24,9 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 15;
 
-
-
-const STATUS_FILTERS: { key: string; label: string }[] = [
+const TIMELINE_FILTERS: { key: string; label: string }[] = [
   { key: "active", label: "Aktif" },
   { key: "past", label: "Terlewat" },
-  { key: "all", label: "Semua Status" },
-  { key: "planning", label: "Planning" },
-  { key: "confirmed", label: "Confirmed" },
-  { key: "in_progress", label: "In Progress" },
-  { key: "completed", label: "Selesai" },
-  { key: "cancelled", label: "Batal" },
 ];
 
 export default async function EventsPage({
@@ -56,9 +47,10 @@ export default async function EventsPage({
   ]);
 
   const page = Math.max(1, parseInt(resolved?.page || "1", 10) || 1);
-  const statusFilter = resolved?.status || "active";
+  const statusParam = resolved?.status;
+  const isPastFilter = statusParam === "past" || statusParam === "terlewat";
+  const statusFilter = isPastFilter ? "past" : "active";
   const viewMode = resolved?.view === "calendar" ? "calendar" : "list";
-  const isPastFilter = statusFilter === "past" || statusFilter === "terlewat";
   const currentUserId = user?.id;
 
   const isAdminUser = userProfile?.role === "admin" || userRoles.includes("admin");
@@ -107,10 +99,11 @@ export default async function EventsPage({
 
   if (isPastFilter) {
     query = query.lt("start_date", todayStartISO);
-  } else if (statusFilter === "active") {
-    query = query.neq("status", "completed").gte("start_date", todayStartISO);
-  } else if (statusFilter !== "all") {
-    query = query.eq("status", statusFilter);
+  } else if (statusParam === "all") {
+    // Show all events without date filter
+  } else {
+    // Default: Aktif (today & future)
+    query = query.gte("start_date", todayStartISO);
   }
 
   if (viewMode === "list") {
@@ -121,7 +114,7 @@ export default async function EventsPage({
 
   let allSearchQuery = supabase
     .from("events")
-    .select("id, title, start_date, venue, status, pic")
+    .select("id, title, start_date, venue, pic")
     .order("start_date", { ascending: true });
 
   if (isStaff) {
@@ -179,7 +172,7 @@ export default async function EventsPage({
         {/* List vs Calendar Toggle */}
         <div className="flex items-center gap-1 p-1 bg-muted rounded-2xl border border-border shrink-0 self-start md:self-auto">
           <Link
-            href={`/events?view=list&status=${statusFilter}`}
+            href={`/events?view=list${isPastFilter ? "&status=past" : ""}`}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
               viewMode === "list"
                 ? "bg-card text-foreground shadow-xs border border-border/80"
@@ -190,7 +183,7 @@ export default async function EventsPage({
             <span>List</span>
           </Link>
           <Link
-            href={`/events?view=calendar&status=${statusFilter}`}
+            href={`/events?view=calendar${isPastFilter ? "&status=past" : ""}`}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
               viewMode === "calendar"
                 ? "bg-card text-foreground shadow-xs border border-border/80"
@@ -203,12 +196,10 @@ export default async function EventsPage({
         </div>
       </div>
 
-      {/* Status Filter Tabs */}
+      {/* Timeline Filter Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-        {STATUS_FILTERS.map((f) => {
-          const isActive =
-            statusFilter === f.key ||
-            (f.key === "past" && isPastFilter);
+        {TIMELINE_FILTERS.map((f) => {
+          const isActive = f.key === "past" ? isPastFilter : !isPastFilter;
           return (
             <Link
               key={f.key}
@@ -240,7 +231,7 @@ export default async function EventsPage({
                 <p>
                   {isPastFilter
                     ? "Tidak ada riwayat acara yang telah terlewat."
-                    : "Coba ubah filter status atau tambahkan acara baru ke portofolio."}
+                    : "Belum ada acara mendatang. Tambahkan acara baru ke portofolio."}
                 </p>
               </div>
             ) : (
@@ -256,7 +247,6 @@ export default async function EventsPage({
                         {event.title}
                       </span>
                       <EventCountdownBadge startDate={event.start_date} />
-                      <EventStatusBadge status={event.status} />
                     </div>
 
                     <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">

@@ -11,7 +11,10 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-/** Lifecycle status for an event */
+/**
+ * @deprecated Permanently dropped from database schema (events.status column removed).
+ * Preserved for legacy validation/test compatibility.
+ */
 export const EVENT_STATUS_LIST = [
   'draft',
   'planning',
@@ -21,6 +24,9 @@ export const EVENT_STATUS_LIST = [
   'cancelled',
 ] as const;
 
+/**
+ * @deprecated Permanently dropped from database schema (events.status column removed).
+ */
 export type EventStatus = (typeof EVENT_STATUS_LIST)[number];
 
 /** Progress status for crew tasks */
@@ -96,7 +102,6 @@ export interface Event {
   venue: string;
   start_date: string;
   end_date: string;
-  status: EventStatus;
   pax?: number | null;
   created_by: string | null;
   created_at: string;
@@ -112,6 +117,7 @@ export interface EventTask {
   title: string;
   description: string | null;
   assigned_to: string | null;
+  created_by?: string | null;
   due_date: string | null;
   gcal_event_id?: string | null;
   gcal_start?: string | null;
@@ -121,6 +127,7 @@ export interface EventTask {
   created_at: string;
   updated_at: string;
   assignee?: Profile | null;
+  creator?: Profile | null;
 }
 
 /** Junction mapping vendors hired for an event */

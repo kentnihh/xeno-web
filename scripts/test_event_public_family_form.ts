@@ -29,7 +29,6 @@ async function main() {
     .insert({
       title: `Test Event Public Family Form ${Date.now()}`,
       venue: "Grand Ballroom",
-      status: "draft",
       start_date: new Date().toISOString(),
       end_date: new Date(Date.now() + 3600000).toISOString(),
       pax: 100,
