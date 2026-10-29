@@ -729,7 +729,11 @@ create policy "Staff can insert expenses" on public.event_expenses for insert to
 drop policy if exists "Staff can update expenses" on public.event_expenses;
 create policy "Staff can update expenses" on public.event_expenses for update to authenticated using (true);
 drop policy if exists "Staff can delete expenses" on public.event_expenses;
-create policy "Staff can delete expenses" on public.event_expenses for delete to authenticated using (true);
+drop policy if exists "Admin or manager can delete expenses" on public.event_expenses;
+create policy "Admin or manager can delete expenses" on public.event_expenses for delete to authenticated
+  using (public.is_admin() or exists (
+    select 1 from public.user_roles ur where ur.user_id = auth.uid() and ur.role_id in ('admin', 'manager')
+  ));
 
 -- Event Documents Policies
 drop policy if exists "Event documents viewable by authenticated users" on public.event_documents;
@@ -739,7 +743,11 @@ create policy "Authenticated users can upload event documents" on public.event_d
 drop policy if exists "Authenticated users can update event documents" on public.event_documents;
 create policy "Authenticated users can update event documents" on public.event_documents for update to authenticated using (true) with check (true);
 drop policy if exists "Authenticated users can delete event documents" on public.event_documents;
-create policy "Authenticated users can delete event documents" on public.event_documents for delete to authenticated using (true);
+drop policy if exists "Admin or manager or uploader can delete event documents" on public.event_documents;
+create policy "Admin or manager or uploader can delete event documents" on public.event_documents for delete to authenticated
+  using (public.is_admin() or uploaded_by = auth.uid() or exists (
+    select 1 from public.user_roles ur where ur.user_id = auth.uid() and ur.role_id in ('admin', 'manager')
+  ));
 
 -- Event Sheets Policies
 drop policy if exists "Event sheets viewable by authenticated users" on public.event_sheets;
@@ -749,7 +757,11 @@ create policy "Authenticated users can insert event sheets" on public.event_shee
 drop policy if exists "Authenticated users can update event sheets" on public.event_sheets;
 create policy "Authenticated users can update event sheets" on public.event_sheets for update to authenticated using (true) with check (true);
 drop policy if exists "Authenticated users can delete event sheets" on public.event_sheets;
-create policy "Authenticated users can delete event sheets" on public.event_sheets for delete to authenticated using (true);
+drop policy if exists "Admin or manager can delete event sheets" on public.event_sheets;
+create policy "Admin or manager can delete event sheets" on public.event_sheets for delete to authenticated
+  using (public.is_admin() or exists (
+    select 1 from public.user_roles ur where ur.user_id = auth.uid() and ur.role_id in ('admin', 'manager')
+  ));
 
 -- Master Templates Policies
 drop policy if exists "Master templates viewable by authenticated users" on public.master_templates;
@@ -804,13 +816,9 @@ create policy "Authenticated users can update event_public_forms" on public.even
 drop policy if exists "Authenticated users can delete event_public_forms" on public.event_public_forms;
 create policy "Authenticated users can delete event_public_forms" on public.event_public_forms for delete to authenticated using (true);
 
--- Public / Anonymous Clients Form Access via Unexpired Token
+-- Public / Anonymous Clients Form Access (Handled strictly via Server Actions using Service Role)
 drop policy if exists "Public can view event_public_forms with valid token" on public.event_public_forms;
-create policy "Public can view event_public_forms with valid token" on public.event_public_forms for select to anon using (token is not null);
 drop policy if exists "Public can update form_data with valid unexpired token" on public.event_public_forms;
-create policy "Public can update form_data with valid unexpired token" on public.event_public_forms for update to anon
-  using (token is not null and expires_at > now())
-  with check (token is not null and expires_at > now());
 
 -- Master Family Templates Policies
 drop policy if exists "Authenticated users can select master_family_templates" on public.master_family_templates;

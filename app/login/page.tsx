@@ -160,7 +160,7 @@ export default function LoginPage() {
   const activeSlideData = SHOWCASE_SLIDES[currentSlide];
 
   return (
-    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f5f5f7] text-[#1d1d1f] font-sans antialiased selection:bg-[#007aff]/20 selection:text-[#007aff]">
+    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f5f5f7] dark:bg-[#000000] text-[#1d1d1f] dark:text-[#f5f5f7] font-sans antialiased selection:bg-[#007aff]/20 selection:text-[#007aff]">
       {/* =========================================================================
           LEFT / SHOWCASE PANEL (Desktop: 58% width, Mobile: Top Banner)
          ========================================================================= */}
@@ -195,9 +195,6 @@ export default function LoginPage() {
           );
         })}
 
-        {/* Ambient Top Glow */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#007aff]/25 rounded-full blur-3xl pointer-events-none z-10" />
-
         {/* --- TOP BAR: Brand Identity & Status --- */}
         <header className="relative z-20 flex items-center justify-between w-full">
           {/* Brand Pill */}
@@ -225,10 +222,7 @@ export default function LoginPage() {
           {/* Status & Counter Badges */}
           <div className="flex items-center gap-2">
             <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/15 text-xs font-medium text-white/90 shadow-md">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
               <span>Live Production Suite</span>
             </div>
 
@@ -359,17 +353,14 @@ export default function LoginPage() {
       </section>
 
       {/* =========================================================================
-          RIGHT / AUTHENTICATION PANEL (Apple Minimalist Light Mode)
+          RIGHT / AUTHENTICATION PANEL (Apple Minimalist Adaptive Mode)
          ========================================================================= */}
-      <section className="w-full lg:w-[42%] xl:w-[38%] flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-16 bg-[#fbfbfd] relative border-t lg:border-t-0 lg:border-l border-neutral-200/80">
-        {/* Subtle background ambient lighting for Apple-like depth */}
-        <div className="absolute top-12 right-12 w-80 h-80 bg-[#007aff]/5 rounded-full blur-3xl pointer-events-none" />
-
+      <section className="w-full lg:w-[42%] xl:w-[38%] flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-16 bg-[#fbfbfd] dark:bg-[#0c0c0e] text-[#1d1d1f] dark:text-[#f5f5f7] relative border-t lg:border-t-0 lg:border-l border-neutral-200/80 dark:border-white/10 transition-colors">
         {/* Top Header */}
         <div className="flex items-center justify-between w-full relative z-10">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-[#007aff]" />
-            <span className="text-xs font-semibold tracking-wider uppercase text-neutral-500">
+            <span className="text-xs font-semibold tracking-wider uppercase text-neutral-500 dark:text-neutral-400">
               Internal Portal
             </span>
           </div>
@@ -380,17 +371,17 @@ export default function LoginPage() {
 
         {/* Main Login Form Container */}
         <div className="my-auto py-8 w-full max-w-md mx-auto relative z-10">
-          <div className="apple-card bg-white p-7 sm:p-9 border border-neutral-200/80 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.06)] rounded-3xl space-y-7">
+          <div className="apple-card bg-white dark:bg-[#161618] p-7 sm:p-9 border border-neutral-200/80 dark:border-white/10 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)] rounded-3xl space-y-7">
             {/* Title & Introduction */}
             <div className="space-y-1.5">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#007aff]/10 text-[#007aff] text-xs font-bold mb-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#007aff]/10 text-[#007aff] dark:text-[#3894ff] text-xs font-bold mb-1">
                 <Calendar className="w-3.5 h-3.5" />
                 <span>Xeno Event Operations</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f]">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f] dark:text-[#f5f5f7]">
                 Masuk Sistem
               </h2>
-              <p className="text-xs sm:text-sm text-neutral-500 font-medium leading-relaxed">
+              <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 font-medium leading-relaxed">
                 Gunakan kredensial resmi tim Xeno Entertainment untuk mengakses lembar kerja acara dan rundown kru.
               </p>
             </div>
@@ -399,7 +390,7 @@ export default function LoginPage() {
             {error && !error.includes("NEXT_REDIRECT") && (
               <div
                 role="alert"
-                className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200"
+                className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200"
               >
                 <div className="w-2 h-2 rounded-full bg-rose-500 mt-1 shrink-0" />
                 <span className="leading-relaxed">{error}</span>
@@ -412,7 +403,7 @@ export default function LoginPage() {
               <div className="space-y-1.5">
                 <label
                   htmlFor="login-email"
-                  className="block text-xs font-bold text-neutral-700 tracking-wide"
+                  className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 tracking-wide"
                 >
                   Email Internal
                 </label>
@@ -427,7 +418,7 @@ export default function LoginPage() {
                     autoComplete="email"
                     required
                     placeholder="nama@xenoent.com"
-                    className="apple-input w-full pl-10 pr-4 py-2.5 text-sm bg-neutral-50/80 hover:bg-neutral-50 focus:bg-white border-neutral-300 focus:border-[#007aff] rounded-xl transition-all"
+                    className="apple-input w-full pl-10 pr-4 py-2.5 text-sm bg-neutral-50/80 dark:bg-white/5 hover:bg-neutral-50 dark:hover:bg-white/10 focus:bg-white dark:focus:bg-[#1c1c1e] border-neutral-300 dark:border-white/15 focus:border-[#007aff] dark:focus:border-[#007aff] text-neutral-900 dark:text-white rounded-xl transition-all"
                   />
                 </div>
               </div>
@@ -437,7 +428,7 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between">
                   <label
                     htmlFor="login-password"
-                    className="block text-xs font-bold text-neutral-700 tracking-wide"
+                    className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 tracking-wide"
                   >
                     Kata Sandi
                   </label>
@@ -453,12 +444,12 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     required
                     placeholder="••••••••"
-                    className="apple-input w-full pl-10 pr-11 py-2.5 text-sm bg-neutral-50/80 hover:bg-neutral-50 focus:bg-white border-neutral-300 focus:border-[#007aff] rounded-xl transition-all"
+                    className="apple-input w-full pl-10 pr-11 py-2.5 text-sm bg-neutral-50/80 dark:bg-white/5 hover:bg-neutral-50 dark:hover:bg-white/10 focus:bg-white dark:focus:bg-[#1c1c1e] border-neutral-300 dark:border-white/15 focus:border-[#007aff] dark:focus:border-[#007aff] text-neutral-900 dark:text-white rounded-xl transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 transition-colors p-1 cursor-pointer rounded-lg hover:bg-neutral-100"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors p-1 cursor-pointer rounded-lg hover:bg-neutral-100 dark:hover:bg-white/10"
                     aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -487,7 +478,7 @@ export default function LoginPage() {
             </form>
 
             {/* Quick System Badges */}
-            <div className="pt-2 border-t border-neutral-100 flex items-center justify-around text-[11px] text-neutral-500 font-medium">
+            <div className="pt-2 border-t border-neutral-100 dark:border-white/10 flex items-center justify-around text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">
               <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 Rundown Realtime
@@ -508,11 +499,11 @@ export default function LoginPage() {
 
         {/* Footer Security Assurance & Copyright */}
         <footer className="w-full max-w-md mx-auto pt-4 relative z-10 text-center space-y-2">
-          <div className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-neutral-500 bg-neutral-100/80 px-3 py-1.5 rounded-full border border-neutral-200/60">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300 bg-neutral-100/80 dark:bg-white/5 px-3 py-1.5 rounded-full border border-neutral-200/60 dark:border-white/10">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Koneksi Aman Terenkripsi Khusus Staf Xeno</span>
           </div>
-          <p className="text-[11px] text-neutral-400 font-medium">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 font-medium">
             © 2026 Xeno Entertainment. All rights reserved.
           </p>
         </footer>

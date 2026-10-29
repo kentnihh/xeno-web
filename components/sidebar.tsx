@@ -103,7 +103,7 @@ export function Sidebar({
   return (
     <aside className="w-64 bg-sidebar text-sidebar-foreground backdrop-blur-2xl border-r border-sidebar-border hidden md:flex flex-col justify-between shrink-0 h-screen sticky top-0 z-40 transition-colors duration-150">
       <div className="overflow-y-auto">
-        {/* macOS Traffic Lights + Brand */}
+        {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-sidebar-border sticky top-0 bg-sidebar/80 backdrop-blur-md z-10">
           <Link href="/dashboard" className="flex items-center gap-2.5">
             <div className="bg-white px-2 py-1 rounded-xl border border-black/10 dark:border-white/20 shadow-xs flex items-center justify-center shrink-0">
@@ -120,13 +120,6 @@ export function Sidebar({
               OPERATIONS
             </div>
           </Link>
-
-          {/* macOS Window Controls */}
-          <div className="flex items-center gap-1.5 opacity-75 hover:opacity-100 transition-opacity">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
-          </div>
         </div>
 
         {/* Navigation */}

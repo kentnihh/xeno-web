@@ -4,11 +4,6 @@ import { createServerClient } from "@supabase/ssr";
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // DO NOT redirect if req.nextUrl.pathname is already '/events'
-  if (request.nextUrl.pathname === "/events") {
-    return NextResponse.next();
-  }
-
   const isPublicRoute =
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||

@@ -49,10 +49,10 @@ async function runTests() {
   assert(seedSql.includes("'SUPER_ADMIN'::user_role"), "seed.sql must assign SUPER_ADMIN");
 
   const seedTs = fs.readFileSync("scripts/seed-database.ts", "utf-8");
-  assert(seedTs.includes('email: "admin@xenoent.com",\n    password: "Admin123!",\n    role: "SUPER_ADMIN",'), "seed-database.ts must assign SUPER_ADMIN to admin@xenoent.com");
+  assert(seedTs.includes('email: "admin@xenoent.com"') && seedTs.includes('role: "SUPER_ADMIN"'), "seed-database.ts must assign SUPER_ADMIN to admin@xenoent.com");
 
   const seedPy = fs.readFileSync("scripts/seed_database.py", "utf-8");
-  assert(seedPy.includes('"email": "admin@xenoent.com",\n        "password": "Admin123!",\n        "role": "SUPER_ADMIN",'), "seed_database.py must assign SUPER_ADMIN to admin@xenoent.com");
+  assert(seedPy.includes('"email": "admin@xenoent.com"') && seedPy.includes('"role": "SUPER_ADMIN"'), "seed_database.py must assign SUPER_ADMIN to admin@xenoent.com");
   console.log("   ✓ seed.sql, seed-database.ts, and seed_database.py properly assign SUPER_ADMIN to admin@xenoent.com.");
 
   console.log("\n3c. Verifying RBAC Cleanup Migration...");

@@ -17,19 +17,19 @@ PRODUCTION_USERS = [
     {
         "name": "Jonathan Kent",
         "email": "admin@xenoent.com",
-        "password": "Admin123!",
+        "password": os.environ.get("SEED_ADMIN_PASSWORD", "Admin123!"),
         "role": "SUPER_ADMIN",
     },
     {
         "name": "Edja",
         "email": "edjamoo@xenoent.com",
-        "password": "295200",
+        "password": os.environ.get("SEED_EDJA_PASSWORD", "295200"),
         "role": "admin",
     },
     {
         "name": "Vinna",
         "email": "vinna@xenoent.com",
-        "password": "290394",
+        "password": os.environ.get("SEED_VINNA_PASSWORD", "290394"),
         "role": "admin",
     },
 ]

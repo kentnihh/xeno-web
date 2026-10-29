@@ -9,6 +9,8 @@ import { createClient } from "@supabase/supabase-js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+declare const process: any;
+
 // Load environment variables from .env.local or .env
 const envFiles = [".env.local", ".env"];
 for (const envFile of envFiles) {
@@ -38,24 +40,24 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Production accounts configuration
+// Production accounts configuration — reads from env with fallback for local dev
 const PRODUCTION_USERS = [
   {
     name: "Jonathan Kent",
     email: "admin@xenoent.com",
-    password: "Admin123!",
+    password: process.env.SEED_ADMIN_PASSWORD || "Admin123!",
     role: "SUPER_ADMIN",
   },
   {
     name: "Edja",
     email: "edjamoo@xenoent.com",
-    password: "295200",
+    password: process.env.SEED_EDJA_PASSWORD || "295200",
     role: "admin",
   },
   {
     name: "Vinna",
     email: "vinna@xenoent.com",
-    password: "290394",
+    password: process.env.SEED_VINNA_PASSWORD || "290394",
     role: "admin",
   },
 ];

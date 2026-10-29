@@ -16,19 +16,6 @@ async function run() {
   const proxyCode = fs.readFileSync(proxyPath, "utf-8");
 
   assert(
-    proxyCode.includes('request.nextUrl.pathname === "/events"') ||
-    proxyCode.includes("request.nextUrl.pathname === '/events'") ||
-    proxyCode.includes('req.nextUrl.pathname === "/events"') ||
-    proxyCode.includes("req.nextUrl.pathname === '/events'"),
-    "proxy.ts must explicitly check if pathname is already '/events'."
-  );
-
-  assert(
-    proxyCode.includes("return NextResponse.next();"),
-    "proxy.ts must return NextResponse.next() to avoid redirecting requests already on /events."
-  );
-
-  assert(
     !proxyCode.includes('eventsUrl.pathname = "/events"') &&
     !proxyCode.includes("eventsUrl.pathname = '/events'"),
     "proxy.ts must NOT redirect authenticated login requests to /events."
@@ -61,16 +48,16 @@ async function run() {
   // 3. Unit Test proxy() Behavior with NextRequest
   console.log("\n3. Testing proxy() middleware unit behavior...");
 
-  // 3.1. Route /events must NEVER be redirected by proxy
+  // 3.1. Route /events must redirect unauthenticated users to /login
   const eventsReq = new NextRequest("http://localhost:3000/events");
   const eventsRes = await proxy(eventsReq);
   assert.strictEqual(
     eventsRes.headers.get("location"),
-    null,
-    "proxy() must NOT return a redirect for /events (location header must be null)."
+    "http://localhost:3000/login",
+    "proxy() must return a redirect to /login for unauthenticated /events."
   );
-  assert.strictEqual(eventsRes.status, 200, "proxy() response for /events must be 200 (next).");
-  console.log("   ✓ GET /events produces status 200 (NextResponse.next) without redirect.");
+  assert.strictEqual(eventsRes.status, 307, "proxy() response for /events must be 307 redirect.");
+  console.log("   ✓ GET /events produces status 307 (redirect to /login).");
 
   // 3.2. Unauthenticated request to /dashboard must redirect to /login
   const dashboardReq = new NextRequest("http://localhost:3000/dashboard");

@@ -8,6 +8,8 @@ import { DEFAULT_PUBLIC_FORM_SCHEMA } from "@/lib/constants/public-forms";
 import { publicFormDataPayloadSchema } from "@/lib/validations/public-form";
 import type { EventPublicForm, EventFormData, FormCategorySchema, FormFieldSchema } from "@/types/database";
 
+declare const process: any;
+
 /**
  * Generates a secure random 32-character hex token using Node's native crypto module.
  * Falls back to Web Crypto API in Edge environments.
@@ -50,7 +52,15 @@ function getDefaultExpiryDate(): string {
  * If one does not exist, it initializes with a 3-day expiry and the standard form schema.
  */
 export async function getOrCreateEventPublicForm(eventId: string): Promise<EventPublicForm | null> {
+  if (!eventId) return null;
   const supabase = await createClient();
+
+  // Route guard: Require authenticated session in production
+  const { data: { user } } = await supabase.auth.getUser();
+  const isProd = typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+  if (!user && isProd) {
+    throw new Error("Autentikasi diperlukan untuk mengakses data formulir acara.");
+  }
 
   // 1. Try reading existing form first
   const { data: existingForm, error: fetchError } = await supabase
@@ -369,7 +379,13 @@ export async function submitPublicFormData(
 
   // Validate submitted form data against dynamic public form schema (all fields optional)
   const validation = publicFormDataPayloadSchema.safeParse(formData);
-  const validatedData = validation.success ? validation.data : formData;
+  if (!validation.success) {
+    return {
+      success: false,
+      error: "Format data formulir tidak valid atau tidak sesuai skema.",
+    };
+  }
+  const validatedData = validation.data;
 
   // Perform an upsert/merge into form_data, preserving existing categories and updating modified ones
   const existingFormData: EventFormData =
