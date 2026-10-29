@@ -177,7 +177,6 @@ async function run() {
     .insert({
       title: `Test Dynamic Event ${Date.now()}`,
       venue: "Grand Ballroom",
-      status: "draft",
       start_date: new Date().toISOString(),
       end_date: new Date(Date.now() + 3600000).toISOString(),
       pax: 100,

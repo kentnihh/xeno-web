@@ -91,7 +91,10 @@ export const updateEventSchema = z.object({
   venue: z.string().trim().min(1, "Lokasi venue wajib diisi"),
   start_date: z.string().min(1, "Tanggal & waktu mulai wajib diisi"),
   end_date: z.string().min(1, "Tanggal & waktu selesai wajib diisi"),
-  status: z.enum(["draft", "planning", "confirmed", "ongoing", "completed", "cancelled"]).default("planning"),
+  status: z.preprocess(
+    (val) => (val === "" || val === undefined ? null : val),
+    z.enum(["draft", "planning", "confirmed", "ongoing", "completed", "cancelled"]).nullable().optional()
+  ),
   pic: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
   client_id: z.preprocess((val) => (val === "" || val === undefined ? null : val), z.string().trim().nullable().optional()),
   pax: eventPaxInputSchema.optional(),

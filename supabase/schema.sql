@@ -23,11 +23,6 @@ create extension if not exists "pgcrypto";
 -- 2. CUSTOM TYPES / ENUMS (IDEMPOTENT)
 -- ------------------------------------------------------------------------------
 do $$ begin
-  create type public.event_status as enum ('draft', 'planning', 'confirmed', 'ongoing', 'completed', 'cancelled');
-exception when duplicate_object then null;
-end $$;
-
-do $$ begin
   create type public.task_status as enum ('todo', 'in_progress', 'done');
 exception when duplicate_object then null;
 end $$;
@@ -119,7 +114,6 @@ create table if not exists public.events (
   venue text not null,
   start_date timestamptz not null,
   end_date timestamptz not null,
-  status public.event_status not null default 'planning',
   pax integer default null,
   created_by uuid references public.profiles(id) on delete set null,
   gcal_event_id text,
@@ -138,6 +132,7 @@ create table if not exists public.event_tasks (
   title text not null,
   description text,
   assigned_to uuid references public.profiles(id) on delete set null,
+  created_by uuid references public.profiles(id) on delete set null,
   due_date timestamptz,
   status public.task_status not null default 'todo',
   priority public.task_priority not null default 'medium',
@@ -152,6 +147,7 @@ create table if not exists public.event_tasks (
 alter table public.event_tasks add column if not exists gcal_event_id text;
 alter table public.event_tasks add column if not exists gcal_start timestamptz;
 alter table public.event_tasks add column if not exists gcal_end timestamptz;
+alter table public.event_tasks add column if not exists created_by uuid references public.profiles(id) on delete set null;
 
 -- Event Vendors (Junction)
 create table if not exists public.event_vendors (
@@ -562,12 +558,12 @@ create trigger trg_protect_root_admin
 -- 5. PERFORMANCE & LOOKUP INDEXES
 -- ------------------------------------------------------------------------------
 create index if not exists idx_events_start_date on public.events(start_date);
-create index if not exists idx_events_status on public.events(status);
 create index if not exists idx_events_client_id on public.events(client_id);
 create index if not exists idx_events_gcal_event_id on public.events(gcal_event_id);
 
 create index if not exists idx_event_tasks_event_id on public.event_tasks(event_id);
 create index if not exists idx_event_tasks_assigned_to on public.event_tasks(assigned_to);
+create index if not exists idx_event_tasks_created_by on public.event_tasks(created_by);
 create index if not exists idx_event_tasks_status on public.event_tasks(status);
 create index if not exists idx_event_tasks_due_date on public.event_tasks(due_date);
 create index if not exists idx_event_tasks_gcal_event_id on public.event_tasks(gcal_event_id);

@@ -27,6 +27,8 @@ export interface ConsolidatedTask {
   created_at?: string;
   event?: { id?: string; title: string } | null;
   assignee?: { id?: string; full_name: string; role?: string } | null;
+  created_by?: string | null;
+  creator?: { id?: string; full_name: string; role?: string } | null;
 }
 
 export const PRIORITY_BADGE_STYLES: Record<string, string> = {
@@ -83,7 +85,8 @@ export function ConsolidatedTasksModal({
         (t) =>
           t.title.toLowerCase().includes(q) ||
           t.event?.title.toLowerCase().includes(q) ||
-          t.assignee?.full_name.toLowerCase().includes(q)
+          t.assignee?.full_name.toLowerCase().includes(q) ||
+          t.creator?.full_name?.toLowerCase().includes(q)
       );
     }
     return sortTasksByPriority(result);
@@ -249,14 +252,23 @@ export function ConsolidatedTasksModal({
                 )}
 
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/60 text-[11px] text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <User className="w-3 h-3 text-[#007aff]" />
-                    <span className="font-medium text-foreground">
-                      {task.assignee?.full_name || "Belum Ditugaskan"}
-                    </span>
-                    {task.assignee?.role && (
-                      <span className="text-[10px] uppercase text-muted-foreground">
-                        ({task.assignee.role})
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <User className="w-3 h-3 text-[#007aff]" />
+                      <span className="font-medium text-foreground">
+                        {task.assignee?.full_name || "Belum Ditugaskan"}
+                      </span>
+                      {task.assignee?.role && (
+                        <span className="text-[10px] uppercase text-muted-foreground">
+                          ({task.assignee.role})
+                        </span>
+                      )}
+                    </div>
+
+                    {task.creator?.full_name && (
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border">
+                        <span className="text-muted-foreground/70">Dibuat oleh:</span>
+                        <span className="font-semibold text-foreground">{task.creator.full_name}</span>
                       </span>
                     )}
                   </div>
@@ -372,12 +384,19 @@ export function PriorityTasksWidget({
                       </div>
                     )}
                     <div className="flex items-center justify-between gap-2 pt-0.5">
-                      <span className="flex items-center gap-1 truncate text-muted-foreground">
-                        <User className="w-3 h-3 text-[#007aff] shrink-0" />
-                        <span className="truncate">
-                          {task.assignee?.full_name || "Belum Ditugaskan"}
+                      <div className="flex items-center gap-2 min-w-0 truncate">
+                        <span className="flex items-center gap-1 truncate text-muted-foreground">
+                          <User className="w-3 h-3 text-[#007aff] shrink-0" />
+                          <span className="truncate">
+                            {task.assignee?.full_name || "Belum Ditugaskan"}
+                          </span>
                         </span>
-                      </span>
+                        {task.creator?.full_name && (
+                          <span className="text-[10px] text-muted-foreground/75 truncate hidden sm:inline">
+                            • Oleh: {task.creator.full_name}
+                          </span>
+                        )}
+                      </div>
 
                       {task.due_date && (
                         <span className="flex items-center gap-1 shrink-0 text-amber-600 dark:text-amber-400 font-medium">

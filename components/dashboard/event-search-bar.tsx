@@ -4,15 +4,13 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X, CalendarDays, MapPin, ChevronRight } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import { EventStatusBadge, EventCountdownBadge } from "@/components/events/event-status-badge";
-import type { EventStatus } from "@/types/database";
+import { EventCountdownBadge } from "@/components/events/event-status-badge";
 
 export interface SearchableEvent {
   id: string;
   title: string;
   start_date: string;
   venue: string;
-  status: EventStatus | string;
   pic?: string | null;
   budget?: number | null;
 }
@@ -147,7 +145,6 @@ export function EventSearchBar({ events }: { events: SearchableEvent[] }) {
                         {ev.title}
                       </span>
                       <EventCountdownBadge startDate={ev.start_date} />
-                      <EventStatusBadge status={ev.status} />
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground font-medium">
                       <span className="flex items-center gap-1 truncate">

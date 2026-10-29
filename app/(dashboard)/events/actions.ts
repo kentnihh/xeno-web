@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requirePermission, requireRole } from "@/lib/auth";
+import { requirePermission, requireRole, getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { getMasterTemplatesCached } from "@/lib/data-cache";
 import { upsertTaskCalendarEvent, deleteTaskCalendarEvent } from "@/lib/gcal-task";
 import { deleteEventFromGoogleCalendar } from "@/app/actions/gcal-sync";
@@ -113,7 +113,6 @@ export async function createEvent(
         pax: validated.pax ?? null,
         description: validated.description,
         client_id: validated.client_id,
-        status: "planning" as EventStatus,
       })
       .select("id")
       .single();
@@ -262,74 +261,14 @@ export async function createEvent(
 
 export async function updateEventStatus(
   eventId: string,
-  status: EventStatus
+  _status?: EventStatus | string | null
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    await requirePermission("events.edit");
-
-    if (!eventId || typeof eventId !== "string") {
-      return { success: false, error: "ID acara tidak valid." };
-    }
-
-    if (!EVENT_STATUS_LIST.includes(status)) {
-      return { success: false, error: `Status "${status}" tidak valid.` };
-    }
-
-    const supabase = await createClient();
-    console.log(`[updateEventStatus] Updating event ${eventId} status to:`, status);
-
-    const { data, error } = await supabase
-      .from("events")
-      .update({
-        status,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", eventId)
-      .select("id, status");
-
-    if (error) {
-      console.error(`[updateEventStatus] Supabase error for event ${eventId}:`, error);
-      return { success: false, error: error.message };
-    }
-
-    if (!data || data.length === 0) {
-      console.warn(`[updateEventStatus] 0 rows updated for event ${eventId}. Checking existence or RLS policy.`);
-      const { data: existing, error: fetchErr } = await supabase
-        .from("events")
-        .select("id")
-        .eq("id", eventId)
-        .maybeSingle();
-
-      if (fetchErr) {
-        console.error(`[updateEventStatus] Error checking event existence:`, fetchErr);
-        return { success: false, error: fetchErr.message };
-      }
-
-      if (!existing) {
-        return { success: false, error: "Acara tidak ditemukan di database." };
-      }
-
-      return {
-        success: false,
-        error: "Gagal memperbarui status: Terhalang kebijakan izin (RLS). Pastikan Anda memiliki hak akses.",
-      };
-    }
-
-    console.log(`[updateEventStatus] Successfully updated event ${eventId} to:`, status);
-
-    revalidatePath(`/events/${eventId}`);
-    revalidatePath("/events");
-    revalidatePath("/dashboard");
-    revalidatePath("/");
-
-    return { success: true };
-  } catch (err: unknown) {
-    console.error(`[updateEventStatus] Unexpected error updating status for event ${eventId}:`, err);
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Terjadi kesalahan saat memperbarui status acara.",
-    };
-  }
+  // Event status is permanently deprecated and dropped from events table
+  console.log(`[updateEventStatus] Deprecated: status dropped from events table. Event ID: ${eventId}`);
+  revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
+  revalidatePath("/dashboard");
+  return { success: true };
 }
 
 /**
@@ -367,7 +306,6 @@ export async function updateEvent(formData: FormData): Promise<{ success: boolea
       pic: validated.pic ?? null,
       pax: validated.pax ?? null,
       description: validated.description,
-      status: validated.status,
       updated_at: new Date().toISOString(),
     };
 
@@ -501,6 +439,9 @@ export async function createEventTask(formData: FormData): Promise<{ success: bo
 
   const dueDate = dueDateRaw ? new Date(dueDateRaw).toISOString() : null;
 
+  const currentProfile = await getCurrentProfile();
+  const createdBy = currentProfile?.id ?? (await getCurrentUser())?.id ?? null;
+
   const { data, error } = await supabase
     .from("event_tasks")
     .insert({
@@ -508,11 +449,12 @@ export async function createEventTask(formData: FormData): Promise<{ success: bo
       title,
       description,
       assigned_to: assignedTo,
+      created_by: createdBy,
       priority,
       status,
       due_date: dueDate,
     })
-    .select("*, assignee:profiles(*)")
+    .select("*, assignee:profiles!assigned_to(*), creator:profiles!created_by(*)")
     .single();
 
   if (error) {
@@ -582,7 +524,7 @@ export async function updateEventTask(formData: FormData): Promise<{ success: bo
     })
     .eq("id", taskId)
     .eq("event_id", eventId)
-    .select("*, assignee:profiles(*)")
+    .select("*, assignee:profiles!assigned_to(*), creator:profiles!created_by(*)")
     .single();
 
   if (error) {

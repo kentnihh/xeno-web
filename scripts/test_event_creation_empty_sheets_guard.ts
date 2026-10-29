@@ -188,7 +188,6 @@ async function liveDbCheck() {
         venue: "Virtual Room",
         start_date: new Date().toISOString(),
         end_date: new Date(Date.now() + 3600000).toISOString(),
-        status: "planning",
       })
       .select("id")
       .single();

@@ -217,7 +217,6 @@ export async function syncEventToGoogleCalendar(eventId: string): Promise<SyncGC
       `Nama Acara: ${event.title}`,
       event.venue ? `Venue / Lokasi: ${event.venue}` : null,
       event.pic ? `PIC (Person in Charge): ${event.pic}` : null,
-      `Status: ${event.status || "Planning"}`,
       event.client?.name
         ? `Klien: ${event.client.name}${event.client.company ? ` (${event.client.company})` : ""}`
         : null,
@@ -435,7 +434,6 @@ export async function syncAllEventsToGoogleCalendar(): Promise<SyncGCalResponse>
     const { data: rawEvents } = await supabase
       .from("events")
       .select("*, client:clients(*)")
-      .neq("status", "completed")
       .gte("start_date", todayStart.toISOString())
       .order("start_date", { ascending: true });
 

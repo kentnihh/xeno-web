@@ -12,7 +12,6 @@ const mockEvent: Event = {
   venue: "Grand Ballroom Hotel Indonesia Kempinski Jakarta",
   start_date: "2026-10-20T11:00:00.000Z",
   end_date: "2026-10-20T16:00:00.000Z",
-  status: "confirmed",
   pic: "Jonathan Admin",
   created_by: "usr-1",
   created_at: "2026-10-01T00:00:00.000Z",

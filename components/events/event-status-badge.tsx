@@ -1,6 +1,5 @@
 import React from "react";
 import { getEventCountdown, CountdownTone } from "@/lib/utils";
-import type { EventStatus } from "@/types/database";
 
 const STATUS_CONFIG: Record<
   string,
@@ -41,7 +40,7 @@ export function EventStatusBadge({
   status,
   className = "",
 }: {
-  status: EventStatus | string;
+  status: string;
   className?: string;
 }) {
   const conf = STATUS_CONFIG[status.toLowerCase()] || {
