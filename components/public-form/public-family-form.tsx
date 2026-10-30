@@ -567,12 +567,9 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
           {/* Sticky / Pinned Submit Card (Desktop & Tablet only) */}
           <div className="hidden sm:flex sm:flex-row sm:items-center justify-between gap-4 bg-card rounded-2xl border border-border shadow-sm p-5 sticky bottom-4 z-20">
             <div className="space-y-1">
-              <div className="flex items-center gap-2">
+              <div>
                 <span className="text-xs font-bold text-foreground">
                   Progres: {filledCount} dari {categories.length} Kategori Terisi
-                </span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#007aff]/10 text-[#007aff]">
-                  {Math.round(categories.length > 0 ? (filledCount / categories.length) * 100 : 0)}%
                 </span>
               </div>
               <div className="text-[11px] text-muted-foreground">
@@ -606,21 +603,11 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
       {/* Mobile Floating Action Bar (Mobile only, dedicated safe-area handling) */}
       <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden bg-card/95 backdrop-blur-md border-t border-border px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] flex items-center justify-between gap-3 shadow-2xl">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-foreground truncate">
-              {filledCount} / {categories.length} Terisi
-            </span>
-            <span className="text-[10px] font-semibold text-muted-foreground">
-              ({Math.round(categories.length > 0 ? (filledCount / categories.length) * 100 : 0)}%)
-            </span>
+          <div className="text-xs font-bold text-foreground truncate">
+            {filledCount} dari {categories.length} Kategori Terisi
           </div>
-          <div className="w-full max-w-[130px] h-1.5 bg-muted rounded-full mt-1.5 overflow-hidden">
-            <div
-              className="h-full bg-[#007aff] transition-all duration-300 rounded-full"
-              style={{
-                width: `${categories.length > 0 ? (filledCount / categories.length) * 100 : 0}%`,
-              }}
-            />
+          <div className="text-[11px] text-muted-foreground truncate">
+            {hasExistingData ? "Data siap diperbarui" : "Isi anggota keluarga"}
           </div>
         </div>
 
