@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requirePermission, requireRole, getCurrentProfile, getCurrentUser } from "@/lib/auth";
+import { requirePermission, requireRole, getCurrentProfile, getCurrentUser, hasPermission, isAdmin } from "@/lib/auth";
 import { getMasterTemplatesCached } from "@/lib/data-cache";
 import { upsertTaskCalendarEvent, deleteTaskCalendarEvent } from "@/lib/gcal-task";
 import { deleteEventFromGoogleCalendar } from "@/app/actions/gcal-sync";
@@ -547,25 +547,63 @@ export async function updateEventTask(formData: FormData): Promise<{ success: bo
 
 /**
  * Toggles a crew task between 'done' and 'todo'.
+ * Accessible by operations managers, users with tasks:manage, admins, or the assigned crew member.
  */
-export async function toggleTaskStatus(taskId: string, currentStatus: string, eventId: string): Promise<{ success: boolean; error?: string }> {
-  await requirePermission("events:operations:manage");
-  const supabase = await createClient();
-  const nextStatus = currentStatus === "done" ? "todo" : "done";
-  const { error } = await supabase
-    .from("event_tasks")
-    .update({ status: nextStatus })
-    .eq("id", taskId)
-    .eq("event_id", eventId);
+export async function toggleTaskStatus(
+  taskId: string,
+  currentStatus: string,
+  eventId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, error: "Autentikasi diperlukan." };
+    }
 
-  if (error) {
-    return { success: false, error: error.message };
+    const supabase = await createClient();
+
+    const [hasOps, hasTasks, isAdm] = await Promise.all([
+      hasPermission("events:operations:manage"),
+      hasPermission("tasks:manage"),
+      isAdmin(),
+    ]);
+
+    if (!hasOps && !hasTasks && !isAdm) {
+      const { data: taskData } = await supabase
+        .from("event_tasks")
+        .select("assigned_to")
+        .eq("id", taskId)
+        .maybeSingle();
+
+      if (!taskData || taskData.assigned_to !== user.id) {
+        return {
+          success: false,
+          error: "Akses ditolak: Anda tidak memiliki wewenang untuk tugas ini.",
+        };
+      }
+    }
+
+    const nextStatus = currentStatus === "done" ? "todo" : "done";
+    const { error } = await supabase
+      .from("event_tasks")
+      .update({ status: nextStatus })
+      .eq("id", taskId)
+      .eq("event_id", eventId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath(`/events/${eventId}`);
+    revalidatePath("/events");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Gagal memperbarui status tugas.",
+    };
   }
-
-  revalidatePath(`/events/${eventId}`);
-  revalidatePath("/events");
-  revalidatePath("/dashboard");
-  return { success: true };
 }
 
 /**

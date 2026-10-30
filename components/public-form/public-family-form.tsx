@@ -479,7 +479,7 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-[#000000] text-foreground pt-8 pb-24 sm:pb-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-[#000000] text-foreground pt-8 pb-32 sm:pb-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header Branding Card */}
         <div className="bg-card rounded-2xl border border-border shadow-sm p-6 sm:p-8 space-y-4 relative overflow-hidden">
@@ -564,8 +564,8 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
             />
           ))}
 
-          {/* Sticky / Pinned Submit Card (Desktop & Tablet) */}
-          <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky bottom-4 z-20">
+          {/* Sticky / Pinned Submit Card (Desktop & Tablet only) */}
+          <div className="hidden sm:flex sm:flex-row sm:items-center justify-between gap-4 bg-card rounded-2xl border border-border shadow-sm p-5 sticky bottom-4 z-20">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-foreground">
@@ -584,7 +584,7 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#007aff] hover:bg-[#0066d6] text-white text-xs font-semibold shadow-md transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#007aff] hover:bg-[#0066d6] text-white text-xs font-semibold shadow-md transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
             >
               {isSubmitting ? (
                 <>
@@ -603,13 +603,18 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
         </form>
       </div>
 
-      {/* Mobile Floating Action Bar */}
-      <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden bg-card/95 backdrop-blur-md border-t border-border p-3 px-4 flex items-center justify-between gap-3 shadow-2xl animate-in slide-in-from-bottom duration-200">
-        <div className="min-w-0">
-          <div className="text-[11px] font-bold text-foreground truncate">
-            {filledCount} / {categories.length} Kategori Terisi
+      {/* Mobile Floating Action Bar (Mobile only, dedicated safe-area handling) */}
+      <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden bg-card/95 backdrop-blur-md border-t border-border px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] flex items-center justify-between gap-3 shadow-2xl">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-foreground truncate">
+              {filledCount} / {categories.length} Terisi
+            </span>
+            <span className="text-[10px] font-semibold text-muted-foreground">
+              ({Math.round(categories.length > 0 ? (filledCount / categories.length) * 100 : 0)}%)
+            </span>
           </div>
-          <div className="w-24 h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
+          <div className="w-full max-w-[130px] h-1.5 bg-muted rounded-full mt-1.5 overflow-hidden">
             <div
               className="h-full bg-[#007aff] transition-all duration-300 rounded-full"
               style={{
@@ -633,7 +638,7 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
           ) : (
             <Sparkles className="w-3.5 h-3.5" />
           )}
-          <span>{hasExistingData ? "Simpan" : "Kirim Form"}</span>
+          <span>{hasExistingData ? "Simpan" : "Kirim"}</span>
         </button>
       </div>
     </div>

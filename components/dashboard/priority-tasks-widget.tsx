@@ -12,6 +12,7 @@ import {
   ChevronRight,
   X,
   Search,
+  Check,
 } from "lucide-react";
 import { toggleTaskStatus } from "@/app/(dashboard)/events/actions";
 import { formatDate, sortTasksByPriority } from "@/lib/utils";
@@ -314,11 +315,21 @@ export function PriorityTasksWidget({
     );
 
     startTransition(async () => {
-      const res = await toggleTaskStatus(task.id, task.status, eventId);
-      if (!res.success) {
+      try {
+        const res = await toggleTaskStatus(task.id, task.status, eventId);
+        if (!res?.success) {
+          setLocalTasks((prev) =>
+            prev.map((t) => (t.id === task.id ? { ...t, status: task.status } : t))
+          );
+          if (res?.error) {
+            alert(res.error);
+          }
+        }
+      } catch (err) {
         setLocalTasks((prev) =>
           prev.map((t) => (t.id === task.id ? { ...t, status: task.status } : t))
         );
+        console.error("[PriorityTasksWidget] toggle error:", err);
       }
     });
   };
@@ -377,7 +388,7 @@ export function PriorityTasksWidget({
                   onClick={() => setModalOpen(true)}
                   className="apple-card-interactive p-4 rounded-2xl bg-card border border-border/80 hover:border-[#007aff] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-3 group"
                 >
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <span
                         className={`text-[9px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${
@@ -404,9 +415,32 @@ export function PriorityTasksWidget({
                         <span>{STATUS_LABELS[(task.status || "").toLowerCase()] || task.status}</span>
                       </button>
                     </div>
-                    <h4 className="font-bold text-xs sm:text-sm text-foreground group-hover:text-[#007aff] transition-colors line-clamp-2 leading-snug">
-                      {task.title}
-                    </h4>
+
+                    <div className="flex items-start gap-2.5">
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleTaskStatus(task, e)}
+                        className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-all cursor-pointer mt-0.5 ${
+                          task.status === "done"
+                            ? "bg-emerald-500 border-emerald-600 text-white shadow-xs"
+                            : "border-border hover:border-emerald-500 hover:bg-emerald-500/10 text-transparent hover:text-emerald-500"
+                        }`}
+                        title={task.status === "done" ? "Tandai Belum Selesai" : "Tandai Selesai"}
+                        aria-label={task.status === "done" ? "Tandai Belum Selesai" : "Tandai Selesai"}
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </button>
+
+                      <h4
+                        className={`font-bold text-xs sm:text-sm transition-colors line-clamp-2 leading-snug flex-1 ${
+                          task.status === "done"
+                            ? "line-through text-muted-foreground/75"
+                            : "text-foreground group-hover:text-[#007aff]"
+                        }`}
+                      >
+                        {task.title}
+                      </h4>
+                    </div>
                   </div>
 
                   <div className="pt-2.5 border-t border-border/60 space-y-1.5 text-[11px] text-muted-foreground">
