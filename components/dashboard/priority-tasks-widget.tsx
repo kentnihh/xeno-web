@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useTransition } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -13,6 +13,7 @@ import {
   X,
   Search,
 } from "lucide-react";
+import { toggleTaskStatus } from "@/app/(dashboard)/events/actions";
 import { formatDate, sortTasksByPriority } from "@/lib/utils";
 import type { TaskPriority, TaskStatus } from "@/types/database";
 
@@ -295,13 +296,39 @@ export function PriorityTasksWidget({
   tasks: ConsolidatedTask[];
 }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [localTasks, setLocalTasks] = useState(tasks);
+  const [, startTransition] = useTransition();
 
-  const sorted = useMemo(() => sortTasksByPriority(tasks), [tasks]);
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
+
+  const handleToggleTaskStatus = (task: ConsolidatedTask, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const eventId = task.event_id || task.event?.id;
+    if (!eventId) return;
+
+    const nextStatus = task.status === "done" ? "todo" : "done";
+    setLocalTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t))
+    );
+
+    startTransition(async () => {
+      const res = await toggleTaskStatus(task.id, task.status, eventId);
+      if (!res.success) {
+        setLocalTasks((prev) =>
+          prev.map((t) => (t.id === task.id ? { ...t, status: task.status } : t))
+        );
+      }
+    });
+  };
+
+  const sorted = useMemo(() => sortTasksByPriority(localTasks), [localTasks]);
   const preview = sorted.slice(0, 4);
 
   const urgentCount = useMemo(
-    () => tasks.filter((t) => t.priority === "urgent" && t.status !== "done").length,
-    [tasks]
+    () => localTasks.filter((t) => t.priority === "urgent" && t.status !== "done").length,
+    [localTasks]
   );
 
   return (
@@ -360,14 +387,22 @@ export function PriorityTasksWidget({
                       >
                         {task.priority || "medium"}
                       </span>
-                      <span
-                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleTaskStatus(task, e)}
+                        title={task.status === "done" ? "Tandai Belum Selesai" : "Tandai Selesai"}
+                        className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                           STATUS_BADGE_STYLES[(task.status || "").toLowerCase()] ||
                           STATUS_BADGE_STYLES.todo
                         }`}
                       >
-                        {STATUS_LABELS[(task.status || "").toLowerCase()] || task.status}
-                      </span>
+                        {task.status === "done" ? (
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        ) : (
+                          <span className="w-2 h-2 rounded-full border border-current" />
+                        )}
+                        <span>{STATUS_LABELS[(task.status || "").toLowerCase()] || task.status}</span>
+                      </button>
                     </div>
                     <h4 className="font-bold text-xs sm:text-sm text-foreground group-hover:text-[#007aff] transition-colors line-clamp-2 leading-snug">
                       {task.title}
@@ -416,7 +451,7 @@ export function PriorityTasksWidget({
       <ConsolidatedTasksModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        tasks={tasks}
+        tasks={localTasks}
       />
     </>
   );

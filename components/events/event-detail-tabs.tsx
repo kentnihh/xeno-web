@@ -17,9 +17,28 @@ const EventSpreadsheetTabs = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-full h-[600px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl text-muted-foreground gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-[#007aff]" />
-        <span className="text-xs font-semibold tracking-tight">Memuat Lembar Kerja Excel...</span>
+      <div className="w-full h-[600px] bg-card border border-border rounded-3xl p-5 shadow-xs flex flex-col justify-between animate-pulse">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div className="flex gap-2">
+              <div className="h-8 w-28 bg-muted rounded-xl" />
+              <div className="h-8 w-28 bg-muted rounded-xl" />
+            </div>
+            <div className="flex gap-2">
+              <div className="h-8 w-20 bg-muted rounded-xl" />
+              <div className="h-8 w-24 bg-muted rounded-xl" />
+            </div>
+          </div>
+          <div className="grid grid-cols-6 gap-2">
+            {Array.from({ length: 36 }).map((_, i) => (
+              <div key={i} className="h-8 bg-muted/40 rounded-lg border border-border/30" />
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 pt-3 border-t border-border">
+          <div className="h-7 w-24 bg-muted rounded-lg" />
+          <div className="h-7 w-24 bg-muted rounded-lg" />
+        </div>
       </div>
     ),
   }
@@ -100,19 +119,26 @@ export function EventDetailTabs({
 
   return (
     <div className="space-y-6">
-      {/* Segmented Tab Headers */}
-      <div className="flex border-b border-border gap-6 text-xs font-semibold overflow-x-auto scrollbar-none">
+      {/* Apple-style Segmented Pill Tab Headers */}
+      <div className="bg-muted/70 dark:bg-muted/40 p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto scrollbar-none border border-border/60">
         <button
           type="button"
           onClick={() => setActiveTab("operations")}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${activeTab === "operations"
-              ? "border-[#007aff] text-foreground font-bold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all duration-150 whitespace-nowrap active:scale-[0.98] ${
+            activeTab === "operations"
+              ? "bg-card text-foreground font-bold shadow-xs border border-border/80"
+              : "text-muted-foreground hover:text-foreground hover:bg-card/40"
+          }`}
         >
-          <Layers className="w-4 h-4" />
+          <Layers className={`w-4 h-4 ${activeTab === "operations" ? "text-[#007aff]" : ""}`} />
           <span>Operasional Acara</span>
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground font-medium">
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === "operations"
+                ? "bg-[#007aff]/15 text-[#007aff]"
+                : "bg-muted text-muted-foreground font-medium"
+            }`}
+          >
             {currentCrew.length + tasks.length + eventVendors.length}
           </span>
         </button>
@@ -120,14 +146,21 @@ export function EventDetailTabs({
         <button
           type="button"
           onClick={() => setActiveTab("documents")}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${activeTab === "documents"
-              ? "border-[#007aff] text-foreground font-bold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all duration-150 whitespace-nowrap active:scale-[0.98] ${
+            activeTab === "documents"
+              ? "bg-card text-foreground font-bold shadow-xs border border-border/80"
+              : "text-muted-foreground hover:text-foreground hover:bg-card/40"
+          }`}
         >
-          <FolderOpen className="w-4 h-4" />
+          <FolderOpen className={`w-4 h-4 ${activeTab === "documents" ? "text-[#007aff]" : ""}`} />
           <span>Dokumen & Berkas</span>
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground font-medium">
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === "documents"
+                ? "bg-[#007aff]/15 text-[#007aff]"
+                : "bg-muted text-muted-foreground font-medium"
+            }`}
+          >
             {documents.length}
           </span>
         </button>
@@ -135,14 +168,21 @@ export function EventDetailTabs({
         <button
           type="button"
           onClick={() => setActiveTab("lembar-kerja")}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${activeTab === "lembar-kerja"
-              ? "border-[#007aff] text-foreground font-bold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all duration-150 whitespace-nowrap active:scale-[0.98] ${
+            activeTab === "lembar-kerja"
+              ? "bg-card text-foreground font-bold shadow-xs border border-border/80"
+              : "text-muted-foreground hover:text-foreground hover:bg-card/40"
+          }`}
         >
-          <FileSpreadsheet className="w-4 h-4" />
+          <FileSpreadsheet className={`w-4 h-4 ${activeTab === "lembar-kerja" ? "text-[#007aff]" : ""}`} />
           <span>Lembar Kerja</span>
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground font-medium">
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === "lembar-kerja"
+                ? "bg-[#007aff]/15 text-[#007aff]"
+                : "bg-muted text-muted-foreground font-medium"
+            }`}
+          >
             {sheets.length}
           </span>
         </button>
@@ -151,15 +191,22 @@ export function EventDetailTabs({
         <button
           type="button"
           onClick={() => setActiveTab("data-keluarga")}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-all duration-150 whitespace-nowrap ${activeTab === "data-keluarga"
-              ? "border-[#007aff] text-foreground font-bold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all duration-150 whitespace-nowrap active:scale-[0.98] ${
+            activeTab === "data-keluarga"
+              ? "bg-card text-foreground font-bold shadow-xs border border-border/80"
+              : "text-muted-foreground hover:text-foreground hover:bg-card/40"
+          }`}
         >
-          <Users className="w-4 h-4" />
+          <Users className={`w-4 h-4 ${activeTab === "data-keluarga" ? "text-[#007aff]" : ""}`} />
           <span>Data Keluarga</span>
           {familyCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground font-medium">
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === "data-keluarga"
+                  ? "bg-[#007aff]/15 text-[#007aff]"
+                  : "bg-muted text-muted-foreground font-medium"
+              }`}
+            >
               {familyCount}
             </span>
           )}

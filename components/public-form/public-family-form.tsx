@@ -283,6 +283,18 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
     },
   });
 
+  const watchedCategories = useWatch({ control, name: "categories" }) || [];
+
+  const filledCount = useMemo(() => {
+    return (watchedCategories as CategoryGroupItem[]).filter((cat) =>
+      (cat?.members || []).some((m) =>
+        Object.entries(m || {}).some(
+          ([k, v]) => k !== "id" && typeof v === "string" && v.trim() !== ""
+        )
+      )
+    ).length;
+  }, [watchedCategories]);
+
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -467,7 +479,7 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-[#000000] text-foreground py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-[#000000] text-foreground pt-8 pb-24 sm:pb-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header Branding Card */}
         <div className="bg-card rounded-2xl border border-border shadow-sm p-6 sm:p-8 space-y-4 relative overflow-hidden">
@@ -552,12 +564,22 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
             />
           ))}
 
-          {/* Sticky / Pinned Submit Card */}
+          {/* Sticky / Pinned Submit Card (Desktop & Tablet) */}
           <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky bottom-4 z-20">
-            <div className="text-xs text-muted-foreground">
-              {hasExistingData
-                ? "Tekan tombol Simpan untuk memperbarui perubahan data keluarga."
-                : "Pastikan nama dan nomor kontak sudah sesuai sebelum menyimpan data."}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-foreground">
+                  Progres: {filledCount} dari {categories.length} Kategori Terisi
+                </span>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#007aff]/10 text-[#007aff]">
+                  {Math.round(categories.length > 0 ? (filledCount / categories.length) * 100 : 0)}%
+                </span>
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                {hasExistingData
+                  ? "Tekan tombol Simpan untuk memperbarui perubahan data keluarga."
+                  : "Pastikan nama dan nomor kontak sudah sesuai sebelum menyimpan data."}
+              </div>
             </div>
             <button
               type="submit"
@@ -579,6 +601,40 @@ export function PublicFamilyForm({ form, token, event }: PublicFamilyFormProps) 
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Mobile Floating Action Bar */}
+      <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden bg-card/95 backdrop-blur-md border-t border-border p-3 px-4 flex items-center justify-between gap-3 shadow-2xl animate-in slide-in-from-bottom duration-200">
+        <div className="min-w-0">
+          <div className="text-[11px] font-bold text-foreground truncate">
+            {filledCount} / {categories.length} Kategori Terisi
+          </div>
+          <div className="w-24 h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
+            <div
+              className="h-full bg-[#007aff] transition-all duration-300 rounded-full"
+              style={{
+                width: `${categories.length > 0 ? (filledCount / categories.length) * 100 : 0}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            const formElem = document.querySelector("form");
+            if (formElem) formElem.requestSubmit();
+          }}
+          disabled={isSubmitting}
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#007aff] hover:bg-[#0066d6] text-white text-xs font-bold shadow-md transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer shrink-0"
+        >
+          {isSubmitting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Sparkles className="w-3.5 h-3.5" />
+          )}
+          <span>{hasExistingData ? "Simpan" : "Kirim Form"}</span>
+        </button>
       </div>
     </div>
   );
