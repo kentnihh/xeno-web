@@ -214,7 +214,7 @@ export default async function DashboardPage() {
                   : "Tidak ada jadwal acara aktif saat ini."}
               </div>
             ) : (
-              events.slice(0, 5).map((ev) => (
+              events.slice(0, 6).map((ev) => (
                 <Link
                   key={ev.id}
                   href={`/events/${ev.id}`}
