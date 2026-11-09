@@ -54,6 +54,7 @@ import {
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import { sanitizeSheetData } from "@/lib/spreadsheet-adapter";
+import { isCellEditorActive } from "@/lib/spreadsheet-autofill";
 import { EventFamilyDataSection } from "@/components/events/event-family-data-section";
 import type { EventSheet, SheetData, EventPublicForm } from "@/types/database";
 
@@ -317,6 +318,38 @@ export function EventSpreadsheetTabs({
       }
     });
   };
+
+  const handleManualSaveRef = useRef(handleManualSave);
+  useEffect(() => {
+    handleManualSaveRef.current = handleManualSave;
+  }, [handleManualSave]);
+
+  // Global spreadsheet save shortcut: Ctrl+S / Cmd+S, and Ctrl+Enter / Cmd+Enter when not editing a cell
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.ctrlKey || e.metaKey;
+
+      if (isCmdOrCtrl && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleManualSaveRef.current();
+        return;
+      }
+
+      if (isCmdOrCtrl && e.key === "Enter") {
+        if (!isCellEditorActive()) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleManualSaveRef.current();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, []);
 
   const handleAddNewSheet = () => {
     const name = prompt("Nama lembar kerja baru:")?.trim();
@@ -915,6 +948,7 @@ export function EventSpreadsheetTabs({
             showGridLines={showGridLines}
             isFullscreen={isFullscreen}
             zoomRatio={zoomRatio}
+            onSaveShortcut={handleManualSave}
           />
         )
       )}

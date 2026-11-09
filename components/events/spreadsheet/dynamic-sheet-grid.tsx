@@ -16,6 +16,21 @@ import {
   sanitizeSheetData,
 } from "@/lib/spreadsheet-adapter";
 import { registerMontserratInFortuneSheet } from "@/lib/fortune-sheet-fonts";
+import {
+  MAX_SAFE_AUTOFILL_ROWS,
+  MAX_SAFE_ROW_LIMIT,
+  clampRowCount,
+  calculateContiguousFillRange,
+  isCellEditorActive,
+  insertNewlineAtCaret,
+  buildVisibleRowHeights,
+  buildVisibleColWidths,
+  getRowByCoordinate,
+  getColByCoordinate,
+  calculateMarqueeBounds,
+  calculateCalibratedMouseCoordinates,
+  type MarqueeBounds,
+} from "@/lib/spreadsheet-autofill";
 import type { SheetData } from "@/types/database";
 import type { WorkbookInstance } from "@fortune-sheet/react";
 import type { Sheet } from "@fortune-sheet/core";
@@ -53,6 +68,7 @@ export interface DynamicSheetGridProps {
   showGridLines?: boolean;
   isFullscreen?: boolean;
   zoomRatio?: number;
+  onSaveShortcut?: () => void;
 }
 
 export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetGridProps>(
@@ -64,12 +80,18 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
       showGridLines = true,
       isFullscreen = false,
       zoomRatio,
+      onSaveShortcut,
     },
     ref
   ) {
     const [mounted, setMounted] = useState(false);
     const workbookRef = useRef<WorkbookInstance | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const onSaveShortcutRef = useRef(onSaveShortcut);
+
+    useEffect(() => {
+      onSaveShortcutRef.current = onSaveShortcut;
+    }, [onSaveShortcut]);
 
     // Enhanced border submenu interaction: hover exit delay (~180ms), click-to-lock, and positioning
     useEffect(() => {
@@ -242,6 +264,241 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
       };
     }, []);
 
+    // Keyboard shortcuts:
+    // 1. Ctrl+Enter / Cmd+Enter inside cell editor: insert newline (\n) without submitting cell
+    // 2. Ctrl+Enter / Cmd+Enter outside cell editor: trigger manual save
+    // 3. Ctrl+S / Cmd+S: prevent browser default save dialog and trigger manual save
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        const isCmdOrCtrl = e.ctrlKey || e.metaKey;
+
+        // Save shortcut (Ctrl+S or Cmd+S)
+        if (isCmdOrCtrl && (e.key === "s" || e.key === "S")) {
+          e.preventDefault();
+          e.stopPropagation();
+          onSaveShortcutRef.current?.();
+          return;
+        }
+
+        // Newline or Save shortcut (Ctrl+Enter or Cmd+Enter)
+        if (isCmdOrCtrl && e.key === "Enter") {
+          if (isCellEditorActive()) {
+            e.preventDefault();
+            e.stopPropagation();
+            insertNewlineAtCaret();
+          } else {
+            e.preventDefault();
+            e.stopPropagation();
+            onSaveShortcutRef.current?.();
+          }
+          return;
+        }
+      };
+
+      const container = containerRef.current;
+      if (container) {
+        container.addEventListener("keydown", handleKeyDown, true);
+      }
+      window.addEventListener("keydown", handleKeyDown, true);
+
+      return () => {
+        if (container) {
+          container.removeEventListener("keydown", handleKeyDown, true);
+        }
+        window.removeEventListener("keydown", handleKeyDown, true);
+      };
+    }, []);
+
+    // Autofill bounding, coordinate calibration & double-click fill handling
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      let isDraggingFillHandle = false;
+      let startSel: { row: number[]; column: number[] } | null = null;
+      let visibleRows: number[] = [];
+      let visibleCols: number[] = [];
+      let lastMarqueeBounds: MarqueeBounds | null = null;
+
+      // Handle double click on fill handle: bounded to contiguous data in adjacent column ONLY
+      const handleDblClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+        const fillHandle = target.closest<HTMLElement>(".luckysheet-cs-fillhandle");
+        if (!fillHandle || !container.contains(fillHandle)) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const selection = workbookRef.current?.getSelection();
+        if (!selection || selection.length === 0) return;
+        const sel = selection[0];
+        const sheetData =
+          workbookRef.current?.getAllSheets()?.[0]?.data ||
+          (latestSheetRef.current?.data as any[][]);
+
+        const fillResult = calculateContiguousFillRange(sheetData, sel, MAX_SAFE_AUTOFILL_ROWS);
+        if (!fillResult) return;
+
+        workbookRef.current?.autoFillCell(
+          { row: sel.row, column: sel.column },
+          fillResult.applyRange,
+          "down"
+        );
+        workbookRef.current?.setSelection([
+          {
+            row: [sel.row[0], fillResult.targetRow],
+            column: sel.column,
+          },
+        ]);
+      };
+
+      const handleMouseDown = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+        const fillHandle = target.closest<HTMLElement>(".luckysheet-cs-fillhandle");
+        if (fillHandle && container.contains(fillHandle)) {
+          isDraggingFillHandle = true;
+          const selection = workbookRef.current?.getSelection();
+          startSel = selection && selection.length > 0 ? selection[0] : null;
+
+          // Build current visible row heights and column widths strictly from sheet config
+          const sheet = workbookRef.current?.getAllSheets()?.[0] || latestSheetRef.current;
+          const rowCount = Math.max(sheet?.data?.length || 84, 84);
+          const colCount = Math.max(sheet?.data?.[0]?.length || 26, 26);
+          visibleRows = buildVisibleRowHeights(rowCount, sheet?.config?.rowlen, sheet?.defaultRowHeight || 20);
+          visibleCols = buildVisibleColWidths(colCount, sheet?.config?.columnlen, sheet?.defaultColWidth || 74);
+          lastMarqueeBounds = null;
+        }
+      };
+
+      const handleMouseMove = (e: MouseEvent) => {
+        if (!isDraggingFillHandle || !startSel) return;
+
+        // Prevent FortuneSheet's internal onDropCellSelect from applying erroneous offsets
+        e.stopImmediatePropagation();
+
+        const cellArea = container.querySelector<HTMLElement>(".fortune-cell-area");
+        const cellRect = cellArea ? cellArea.getBoundingClientRect() : container.getBoundingClientRect();
+        const scrollbarY = container.querySelector<HTMLElement>(".luckysheet-scrollbar-y");
+        const scrollbarX = container.querySelector<HTMLElement>(".luckysheet-scrollbar-x");
+        const scrollTop = scrollbarY ? scrollbarY.scrollTop : 0;
+        const scrollLeft = scrollbarX ? scrollbarX.scrollLeft : 0;
+
+        // Accurate coordinates relative to cell area
+        const relativeY = e.clientY - cellRect.top + scrollTop;
+        const relativeX = e.clientX - cellRect.left + scrollLeft;
+
+        // Determine exact cell underneath cursor without adjacent column snapping
+        const rawHoveredRow = getRowByCoordinate(relativeY, visibleRows);
+        const rawHoveredCol = getColByCoordinate(relativeX, visibleCols);
+
+        // Clamp to maximum safe range (MAX_SAFE_AUTOFILL_ROWS)
+        const maxAllowedRow = Math.min(startSel.row[1] + MAX_SAFE_AUTOFILL_ROWS, visibleRows.length - 1);
+        const currentHoveredRow = Math.min(rawHoveredRow, maxAllowedRow);
+        const currentHoveredCol = Math.min(rawHoveredCol, visibleCols.length - 1);
+
+        const bounds = calculateMarqueeBounds(
+          startSel,
+          currentHoveredRow,
+          currentHoveredCol,
+          visibleRows,
+          visibleCols
+        );
+        lastMarqueeBounds = bounds;
+
+        // Update the dashed preview marquee directly
+        const selectedExtend = container.querySelector<HTMLElement>(".fortune-cell-selected-extend");
+        if (selectedExtend) {
+          selectedExtend.style.top = `${bounds.top}px`;
+          selectedExtend.style.height = `${bounds.height}px`;
+          selectedExtend.style.left = `${bounds.left}px`;
+          selectedExtend.style.width = `${bounds.width}px`;
+          selectedExtend.style.display = "block";
+        }
+      };
+
+      const handleWindowMouseUp = (e: MouseEvent) => {
+        if (!isDraggingFillHandle) return;
+        isDraggingFillHandle = false;
+
+        // If synthetic calibrated event, allow FortuneSheet to consume it
+        if ((e as any).__isCalibratedAutofillMouseUp) return;
+
+        e.stopImmediatePropagation();
+        e.preventDefault();
+
+        const selectedExtend = container.querySelector<HTMLElement>(".fortune-cell-selected-extend");
+        if (selectedExtend) {
+          selectedExtend.style.display = "none";
+        }
+
+        if (!startSel || !lastMarqueeBounds) return;
+
+        const bounds = lastMarqueeBounds;
+        const overlay = container.querySelector<HTMLElement>(".fortune-sheet-overlay") || container;
+        const overlayRect = overlay.getBoundingClientRect();
+        const scrollbarY = container.querySelector<HTMLElement>(".luckysheet-scrollbar-y");
+        const scrollbarX = container.querySelector<HTMLElement>(".luckysheet-scrollbar-x");
+        const scrollTop = scrollbarY ? scrollbarY.scrollTop : 0;
+        const scrollLeft = scrollbarX ? scrollbarX.scrollLeft : 0;
+        const colHeader = container.querySelector<HTMLElement>(".fortune-col-header-wrap");
+        const rowHeader = container.querySelector<HTMLElement>(".fortune-row-header");
+        const colHeaderHeight = colHeader ? colHeader.getBoundingClientRect().height : 20;
+        const rowHeaderWidth = rowHeader ? rowHeader.getBoundingClientRect().width : 46;
+
+        const { clientX, clientY } = calculateCalibratedMouseCoordinates(
+          bounds.targetRow,
+          bounds.targetCol,
+          visibleRows,
+          visibleCols,
+          overlayRect,
+          scrollTop,
+          scrollLeft,
+          window.scrollY,
+          window.scrollX,
+          colHeaderHeight,
+          rowHeaderWidth
+        );
+
+        const syntheticEvent = new MouseEvent("mouseup", {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY,
+        });
+        (syntheticEvent as any).__isCalibratedAutofillMouseUp = true;
+        (e.target || overlay).dispatchEvent(syntheticEvent);
+      };
+
+      // Prevent bottom row addition controller from adding excessive rows
+      const handleInput = (e: Event) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+        const bottomRowInput = target.closest<HTMLInputElement>("#luckysheet-bottom-controll-row input");
+        if (bottomRowInput && container.contains(bottomRowInput)) {
+          const val = parseInt(bottomRowInput.value, 10);
+          if (!isNaN(val) && val > MAX_SAFE_ROW_LIMIT) {
+            bottomRowInput.value = String(MAX_SAFE_ROW_LIMIT);
+          }
+        }
+      };
+
+      container.addEventListener("dblclick", handleDblClick, true);
+      container.addEventListener("mousedown", handleMouseDown, true);
+      window.addEventListener("mousemove", handleMouseMove, true);
+      window.addEventListener("mouseup", handleWindowMouseUp, true);
+      container.addEventListener("input", handleInput, true);
+
+      return () => {
+        container.removeEventListener("dblclick", handleDblClick, true);
+        container.removeEventListener("mousedown", handleMouseDown, true);
+        window.removeEventListener("mousemove", handleMouseMove, true);
+        window.removeEventListener("mouseup", handleWindowMouseUp, true);
+        container.removeEventListener("input", handleInput, true);
+      };
+    }, []);
+
     // Initialize initialSheets ONCE on mount for this sheet key.
     // FortuneSheet operates as an uncontrolled component managing its internal canvas state.
     const [initialSheets] = useState<Sheet[]>(() => {
@@ -393,10 +650,18 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
               Mode Excel Aktif
             </span>
             <span>•</span>
-            <span>Klik ganda untuk mengedit sel</span>
+            <span>Klik ganda untuk edit sel</span>
             <span className="hidden sm:inline">•</span>
             <span className="hidden sm:inline">
-              Pilih sel lalu gunakan toolbar untuk <b>Tebal (Bold)</b>, <b>Warna Sel</b>, <b>Ukuran Font</b>, dan <b>Merge Cells</b>
+              <b>Ctrl+Enter</b>: Baris Baru
+            </span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">
+              <b>Ctrl+S</b>: Simpan
+            </span>
+            <span className="hidden lg:inline">•</span>
+            <span className="hidden lg:inline">
+              Pilih sel lalu gunakan toolbar untuk <b>Tebal (Bold)</b>, <b>Warna Sel</b>, dan <b>Merge Cells</b>
             </span>
           </div>
           <div className="text-[10px] font-mono text-muted-foreground/80 hidden md:block">

@@ -47,6 +47,7 @@ import {
 } from "@/app/(dashboard)/settings/templates/actions";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { sanitizeSheetData } from "@/lib/spreadsheet-adapter";
+import { isCellEditorActive } from "@/lib/spreadsheet-autofill";
 import type { MasterTemplate, SheetData } from "@/types/database";
 
 interface MasterTemplatesManagerProps {
@@ -284,6 +285,38 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
       }
     });
   };
+
+  const handleManualSaveRef = useRef(handleManualSave);
+  useEffect(() => {
+    handleManualSaveRef.current = handleManualSave;
+  }, [handleManualSave]);
+
+  // Global spreadsheet save shortcut: Ctrl+S / Cmd+S, and Ctrl+Enter / Cmd+Enter when not editing a cell
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.ctrlKey || e.metaKey;
+
+      if (isCmdOrCtrl && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleManualSaveRef.current();
+        return;
+      }
+
+      if (isCmdOrCtrl && e.key === "Enter") {
+        if (!isCellEditorActive()) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleManualSaveRef.current();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, []);
 
   const handleAddNewTemplate = () => {
     const name = prompt("Nama Master Template baru (misal: 'Protokoler VIP'):")?.trim();
@@ -712,6 +745,7 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
             showGridLines={showGridLines}
             isFullscreen={isFullscreen}
             zoomRatio={zoomRatio}
+            onSaveShortcut={handleManualSave}
           />
         </div>
       )}
