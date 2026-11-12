@@ -54,7 +54,12 @@ import {
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { INITIAL_EVENT_SHEETS } from "@/lib/constants/event-sheets";
 import { sanitizeSheetData } from "@/lib/spreadsheet-adapter";
-import { isCellEditorActive } from "@/lib/spreadsheet-autofill";
+import {
+  isCellEditorActive,
+  insertNewlineAtCaret,
+  hasActiveTextSelectionInEditor,
+  toggleInlineBoldOnSelection,
+} from "@/lib/spreadsheet-autofill";
 import { EventFamilyDataSection } from "@/components/events/event-family-data-section";
 import type { EventSheet, SheetData, EventPublicForm } from "@/types/database";
 
@@ -336,18 +341,34 @@ export function EventSpreadsheetTabs({
         return;
       }
 
-      if (isCmdOrCtrl && e.key === "Enter") {
-        if (!isCellEditorActive()) {
+      if (isCmdOrCtrl && (e.key === "b" || e.key === "B")) {
+        if (isCellEditorActive() && hasActiveTextSelectionInEditor()) {
           e.preventDefault();
           e.stopPropagation();
+          e.stopImmediatePropagation();
+          toggleInlineBoldOnSelection();
+          return;
+        }
+      }
+
+      if (isCmdOrCtrl && e.key === "Enter") {
+        if (isCellEditorActive()) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          insertNewlineAtCaret();
+          return;
+        } else {
+          e.preventDefault();
+          e.stopImmediatePropagation();
           handleManualSaveRef.current();
+          return;
         }
       }
     };
 
-    window.addEventListener("keydown", handleGlobalKeyDown);
+    window.addEventListener("keydown", handleGlobalKeyDown, true);
     return () => {
-      window.removeEventListener("keydown", handleGlobalKeyDown);
+      window.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
   }, []);
 

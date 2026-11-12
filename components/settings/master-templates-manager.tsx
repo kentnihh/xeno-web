@@ -47,7 +47,12 @@ import {
 } from "@/app/(dashboard)/settings/templates/actions";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { sanitizeSheetData } from "@/lib/spreadsheet-adapter";
-import { isCellEditorActive } from "@/lib/spreadsheet-autofill";
+import {
+  isCellEditorActive,
+  insertNewlineAtCaret,
+  hasActiveTextSelectionInEditor,
+  toggleInlineBoldOnSelection,
+} from "@/lib/spreadsheet-autofill";
 import type { MasterTemplate, SheetData } from "@/types/database";
 
 interface MasterTemplatesManagerProps {
@@ -303,18 +308,34 @@ export function MasterTemplatesManager({ initialTemplates }: MasterTemplatesMana
         return;
       }
 
-      if (isCmdOrCtrl && e.key === "Enter") {
-        if (!isCellEditorActive()) {
+      if (isCmdOrCtrl && (e.key === "b" || e.key === "B")) {
+        if (isCellEditorActive() && hasActiveTextSelectionInEditor()) {
           e.preventDefault();
           e.stopPropagation();
+          e.stopImmediatePropagation();
+          toggleInlineBoldOnSelection();
+          return;
+        }
+      }
+
+      if (isCmdOrCtrl && e.key === "Enter") {
+        if (isCellEditorActive()) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          insertNewlineAtCaret();
+          return;
+        } else {
+          e.preventDefault();
+          e.stopImmediatePropagation();
           handleManualSaveRef.current();
+          return;
         }
       }
     };
 
-    window.addEventListener("keydown", handleGlobalKeyDown);
+    window.addEventListener("keydown", handleGlobalKeyDown, true);
     return () => {
-      window.removeEventListener("keydown", handleGlobalKeyDown);
+      window.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
   }, []);
 

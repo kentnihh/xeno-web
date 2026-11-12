@@ -9,11 +9,11 @@ import { INITIAL_EVENT_SHEETS } from "./constants/event-sheets";
 export function extractCellText(cell: any): string {
   if (cell === null || cell === undefined) return "";
   if (typeof cell !== "object") return String(cell);
-  if (cell.m !== undefined && cell.m !== null) return String(cell.m);
-  if (cell.v !== undefined && cell.v !== null) return String(cell.v);
   if (cell.ct?.t === "inlineStr" && Array.isArray(cell.ct.s)) {
     return cell.ct.s.map((item: any) => item?.v ?? "").join("");
   }
+  if (cell.m !== undefined && cell.m !== null) return String(cell.m);
+  if (cell.v !== undefined && cell.v !== null) return String(cell.v);
   return "";
 }
 
@@ -34,7 +34,16 @@ export function normalizeCellForFortuneSheet(cell: any): any {
   }
 
   const clone: Record<string, any> = { ...cell };
-  const text = extractCellText(clone);
+  let text = extractCellText(clone);
+
+  // If text contains HTML line breaks (<br>), cleanly convert them to real newlines
+  if (typeof text === "string" && /<br\s*\/?>/i.test(text)) {
+    text = text
+      .replace(/<br\s*data-fortune-placeholder="true"\s*\/?>/gi, "")
+      .replace(/<br\s*\/?>/gi, "\n");
+    clone.v = text;
+    clone.m = text;
+  }
 
   // Pastikan cell yang punya isi selalu punya ct, v, dan m
   if (text !== "") {
@@ -72,6 +81,14 @@ export function normalizeCellForFortuneSheet(cell: any): any {
     if (clone.v === undefined || clone.v === null) {
       clone.v = text;
       clone.m = text;
+    }
+  }
+
+  // If cell is an inlineStr with styled runs, prevent cell-wide bl = 1 from flattening partial inline bold
+  if (clone.ct?.t === "inlineStr" && Array.isArray(clone.ct.s) && clone.ct.s.length > 0) {
+    const hasUnboldRun = clone.ct.s.some((s: any) => !s || s.bl === 0 || s.bl === undefined);
+    if (hasUnboldRun && clone.bl === 1) {
+      delete clone.bl;
     }
   }
 
@@ -166,7 +183,7 @@ export function matrixToCelldata(
           const hasM = cell.m !== undefined && cell.m !== null && cell.m !== "";
           const isInline = cell.ct?.t === "inlineStr" && Array.isArray(cell.ct.s) && cell.ct.s.length > 0;
           const hasContent = hasV || hasM || isInline || text !== "";
-          const hasFormatting = cell.bg || cell.bl || cell.fc || cell.it || cell.fs || cell.ht || cell.mc || cell.f;
+          const hasFormatting = cell.bg || cell.bl || cell.fc || cell.it || cell.fs || cell.ht || cell.mc || cell.f || cell.bd;
 
           if (hasContent || hasFormatting) {
             celldata.push({ r, c, v: normalizeCellForFortuneSheet(cell) });

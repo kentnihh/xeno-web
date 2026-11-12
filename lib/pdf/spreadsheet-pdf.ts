@@ -367,6 +367,606 @@ export function hexToRgb(color?: string | null): [number, number, number] | null
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 
+export interface BorderSideConfig {
+  style: number | string;
+  color: string;
+}
+
+export interface CellBorderMapItem {
+  t?: BorderSideConfig | null;
+  b?: BorderSideConfig | null;
+  l?: BorderSideConfig | null;
+  r?: BorderSideConfig | null;
+}
+
+export interface ResolvedBorderStyle {
+  widthMm: number;
+  lineStyle: "solid" | "dashed" | "dotted" | "double";
+  color: [number, number, number];
+}
+
+/**
+ * Maps FortuneSheet numeric border style codes and named strings to line widths (in mm) and line styles.
+ * Exact visual width progression:
+ *   1 (Thin): 1px solid / 0.8pt (~0.282mm)
+ *   2 (Hair): 0.5px solid / 0.4pt (~0.141mm)
+ *   3 (Dotted): 1px dotted (~0.282mm)
+ *   4 (Dashed) / 5 / 6: 1px dashed (~0.282mm)
+ *   7 (Medium): 2px solid / 1.6pt (~0.564mm)
+ *   8 (Medium Dashed) / 9 / 10 / 11: 2px dashed / 1.6pt (~0.564mm)
+ *   12 (Double): 3px double / 2.2pt (~0.776mm)
+ *   13 (Thick): 3.5px solid / 2.8pt (~0.988mm)
+ */
+export function resolveBorderStyle(
+  border: BorderSideConfig | null | undefined,
+  scale: number = 1
+): ResolvedBorderStyle | null {
+  if (!border || border.style === undefined || border.style === null) return null;
+  const styleCode = String(border.style).trim().toLowerCase();
+  if (styleCode === "0" || styleCode === "none") return null;
+
+  const rgb = hexToRgb(border.color) || [0, 0, 0];
+
+  let baseWidthMm = 0.282; // 0.8pt (~1px) default
+  let lineStyle: "solid" | "dashed" | "dotted" | "double" = "solid";
+
+  switch (styleCode) {
+    case "1":
+    case "thin":
+      baseWidthMm = 0.282; // 0.8pt solid
+      lineStyle = "solid";
+      break;
+    case "2":
+    case "hair":
+      baseWidthMm = 0.141; // 0.4pt solid
+      lineStyle = "solid";
+      break;
+    case "3":
+    case "dotted":
+      baseWidthMm = 0.282; // 0.8pt dotted
+      lineStyle = "dotted";
+      break;
+    case "4":
+    case "dashed":
+    case "5":
+    case "6":
+      baseWidthMm = 0.282; // 0.8pt dashed
+      lineStyle = "dashed";
+      break;
+    case "7":
+    case "medium":
+      baseWidthMm = 0.564; // 1.6pt solid
+      lineStyle = "solid";
+      break;
+    case "8":
+    case "medium-dashed":
+    case "9":
+    case "10":
+    case "11":
+      baseWidthMm = 0.564; // 1.6pt dashed
+      lineStyle = "dashed";
+      break;
+    case "12":
+    case "double":
+      baseWidthMm = 0.776; // 2.2pt double
+      lineStyle = "double";
+      break;
+    case "13":
+    case "thick":
+      baseWidthMm = 0.988; // 2.8pt solid
+      lineStyle = "solid";
+      break;
+    default:
+      baseWidthMm = 0.282;
+      lineStyle = "solid";
+      break;
+  }
+
+  const widthMm = Math.max(baseWidthMm * scale, 0.08);
+
+  return {
+    widthMm,
+    lineStyle,
+    color: rgb,
+  };
+}
+
+/**
+ * Returns numeric priority weight for border comparison.
+ * Thicker explicit borders (e.g. Thick 2.8pt > Medium 1.6pt > Thin 0.8pt > Hair 0.4pt)
+ * take precedence over thinner borders when resolving shared edges.
+ */
+export function getBorderWeight(b: BorderSideConfig | null | undefined): number {
+  if (!b || b.style === undefined || b.style === null) return 0;
+  const s = String(b.style).trim().toLowerCase();
+  if (s === "0" || s === "none") return 0;
+  switch (s) {
+    case "13":
+    case "thick":
+      return 2.8;
+    case "12":
+    case "double":
+      return 2.2;
+    case "7":
+    case "medium":
+    case "8":
+    case "medium-dashed":
+    case "9":
+    case "10":
+    case "11":
+      return 1.6;
+    case "1":
+    case "thin":
+    case "3":
+    case "dotted":
+    case "4":
+    case "dashed":
+    case "5":
+    case "6":
+      return 0.8;
+    case "2":
+    case "hair":
+      return 0.4;
+    default:
+      return 0.8;
+  }
+}
+
+/**
+ * Resolves conflict between two border definitions on a shared edge,
+ * giving strict priority to the thicker explicit border.
+ */
+export function resolveSharedBorder(
+  b1: BorderSideConfig | null | undefined,
+  b2: BorderSideConfig | null | undefined
+): BorderSideConfig | null {
+  if (!b1 && !b2) return null;
+  if (!b1) return b2 || null;
+  if (!b2) return b1 || null;
+  const w1 = getBorderWeight(b1);
+  const w2 = getBorderWeight(b2);
+  return w1 >= w2 ? b1 : b2;
+}
+
+/**
+ * Computes an effective per-cell border map from FortuneSheet's config.borderInfo and cell.bd properties.
+ * Fully supports rangeType: "range" (border-all, border-outside, border-inside, border-horizontal,
+ * border-vertical, border-top, border-bottom, border-left, border-right, border-none)
+ * and rangeType: "cell", plus adjacent edge conflict resolution where thicker borders take precedence.
+ */
+export function computeSheetBorderMap(sheetObj: any): Map<string, CellBorderMapItem> {
+  const borderMap = new Map<string, CellBorderMapItem>();
+
+  const getCellBorder = (r: number, c: number): CellBorderMapItem => {
+    const key = `${r}_${c}`;
+    let item = borderMap.get(key);
+    if (!item) {
+      item = {};
+      borderMap.set(key, item);
+    }
+    return item;
+  };
+
+  // 1. Process config.borderInfo in exact chronological array order
+  const borderInfoList: any[] = [];
+  if (Array.isArray(sheetObj?.config?.borderInfo)) {
+    borderInfoList.push(...sheetObj.config.borderInfo);
+  } else if (sheetObj?.config?.borderInfo && typeof sheetObj.config.borderInfo === "object") {
+    borderInfoList.push(...Object.values(sheetObj.config.borderInfo));
+  }
+
+  for (const item of borderInfoList) {
+    if (!item || typeof item !== "object") continue;
+
+    if (item.rangeType === "range") {
+      const bType = String(item.borderType || "border-all");
+      const color = item.color || "#000000";
+      const style = item.style !== undefined && item.style !== null ? item.style : 1;
+      const borderConfig: BorderSideConfig = { style, color };
+
+      const ranges: any[] = Array.isArray(item.range) ? item.range : [];
+      for (const rg of ranges) {
+        if (!rg || !Array.isArray(rg.row) || !Array.isArray(rg.column)) continue;
+        const r1 = Math.min(Number(rg.row[0]) || 0, Number(rg.row[1]) || 0);
+        const r2 = Math.max(Number(rg.row[0]) || 0, Number(rg.row[1]) || 0);
+        const c1 = Math.min(Number(rg.column[0]) || 0, Number(rg.column[1]) || 0);
+        const c2 = Math.max(Number(rg.column[0]) || 0, Number(rg.column[1]) || 0);
+
+        if (bType === "border-all") {
+          for (let r = r1; r <= r2; r++) {
+            for (let c = c1; c <= c2; c++) {
+              const b = getCellBorder(r, c);
+              b.t = borderConfig;
+              b.b = borderConfig;
+              b.l = borderConfig;
+              b.r = borderConfig;
+            }
+          }
+        } else if (bType === "border-outside") {
+          for (let c = c1; c <= c2; c++) {
+            getCellBorder(r1, c).t = borderConfig;
+            getCellBorder(r2, c).b = borderConfig;
+          }
+          for (let r = r1; r <= r2; r++) {
+            getCellBorder(r, c1).l = borderConfig;
+            getCellBorder(r, c2).r = borderConfig;
+          }
+        } else if (bType === "border-inside") {
+          for (let r = r1; r <= r2; r++) {
+            for (let c = c1; c <= c2; c++) {
+              const b = getCellBorder(r, c);
+              if (r > r1) b.t = borderConfig;
+              if (r < r2) b.b = borderConfig;
+              if (c > c1) b.l = borderConfig;
+              if (c < c2) b.r = borderConfig;
+            }
+          }
+        } else if (bType === "border-horizontal") {
+          for (let r = r1; r <= r2; r++) {
+            for (let c = c1; c <= c2; c++) {
+              const b = getCellBorder(r, c);
+              if (r > r1) b.t = borderConfig;
+              if (r < r2) b.b = borderConfig;
+            }
+          }
+        } else if (bType === "border-vertical") {
+          for (let r = r1; r <= r2; r++) {
+            for (let c = c1; c <= c2; c++) {
+              const b = getCellBorder(r, c);
+              if (c > c1) b.l = borderConfig;
+              if (c < c2) b.r = borderConfig;
+            }
+          }
+        } else if (bType === "border-top") {
+          for (let c = c1; c <= c2; c++) {
+            getCellBorder(r1, c).t = borderConfig;
+          }
+        } else if (bType === "border-bottom") {
+          for (let c = c1; c <= c2; c++) {
+            getCellBorder(r2, c).b = borderConfig;
+          }
+        } else if (bType === "border-left") {
+          for (let r = r1; r <= r2; r++) {
+            getCellBorder(r, c1).l = borderConfig;
+          }
+        } else if (bType === "border-right") {
+          for (let r = r1; r <= r2; r++) {
+            getCellBorder(r, c2).r = borderConfig;
+          }
+        } else if (bType === "border-none") {
+          for (let r = r1; r <= r2; r++) {
+            for (let c = c1; c <= c2; c++) {
+              const b = getCellBorder(r, c);
+              b.t = null;
+              b.b = null;
+              b.l = null;
+              b.r = null;
+            }
+          }
+        }
+      }
+    } else if (item.rangeType === "cell" && item.value) {
+      const val = item.value;
+      const r = Number(val.row_index);
+      const c = Number(val.col_index);
+      if (Number.isFinite(r) && Number.isFinite(c)) {
+        const b = getCellBorder(r, c);
+        if (val.t !== undefined) b.t = val.t;
+        if (val.b !== undefined) b.b = val.b;
+        if (val.l !== undefined) b.l = val.l;
+        if (val.r !== undefined) b.r = val.r;
+      }
+    }
+  }
+
+  // 2. Process cell.bd from 2D data and celldata
+  const registerCellBd = (r: number, c: number, cell: any) => {
+    if (!cell || typeof cell !== "object" || !cell.bd) return;
+    const b = getCellBorder(r, c);
+    const bd = cell.bd;
+    if (bd.t !== undefined) b.t = bd.t;
+    if (bd.b !== undefined) b.b = bd.b;
+    if (bd.l !== undefined) b.l = bd.l;
+    if (bd.r !== undefined) b.r = bd.r;
+  };
+
+  if (Array.isArray(sheetObj?.data)) {
+    sheetObj.data.forEach((row: any, r: number) => {
+      if (Array.isArray(row)) {
+        row.forEach((cell: any, c: number) => {
+          registerCellBd(r, c, cell);
+        });
+      }
+    });
+  }
+
+  if (Array.isArray(sheetObj?.celldata)) {
+    sheetObj.celldata.forEach((item: any) => {
+      if (item && typeof item.r === "number" && typeof item.c === "number") {
+        registerCellBd(item.r, item.c, item.v);
+      }
+    });
+  }
+
+  // 3. Synchronize adjacent cell borders: resolve shared edges using thicker/higher priority border
+  const entries = Array.from(borderMap.entries());
+  for (const [key, b] of entries) {
+    const [rStr, cStr] = key.split("_");
+    const r = parseInt(rStr, 10);
+    const c = parseInt(cStr, 10);
+
+    // Right of (r, c) vs Left of (r, c + 1)
+    const neighborRight = getCellBorder(r, c + 1);
+    const resolvedH = resolveSharedBorder(b.r, neighborRight.l);
+    if (resolvedH) {
+      b.r = resolvedH;
+      neighborRight.l = resolvedH;
+    }
+
+    // Bottom of (r, c) vs Top of (r + 1, c)
+    const neighborBottom = getCellBorder(r + 1, c);
+    const resolvedV = resolveSharedBorder(b.b, neighborBottom.t);
+    if (resolvedV) {
+      b.b = resolvedV;
+      neighborBottom.t = resolvedV;
+    }
+  }
+
+  return borderMap;
+}
+
+/**
+ * Draws an explicit border line onto the jsPDF document with deduplication of shared edges,
+ * ensuring thicker borders (e.g. Thick divider lines) are never shadowed by thin borders.
+ */
+function drawBorderLine(
+  doc: any,
+  side: "top" | "bottom" | "left" | "right",
+  cellX: number,
+  cellY: number,
+  cellWidth: number,
+  cellHeight: number,
+  border: ResolvedBorderStyle,
+  scale: number,
+  drawnEdges: Map<string, number>
+): void {
+  let x1 = cellX;
+  let y1 = cellY;
+  let x2 = cellX + cellWidth;
+  let y2 = cellY;
+
+  if (side === "top") {
+    x1 = cellX;
+    y1 = cellY;
+    x2 = cellX + cellWidth;
+    y2 = cellY;
+  } else if (side === "bottom") {
+    x1 = cellX;
+    y1 = cellY + cellHeight;
+    x2 = cellX + cellWidth;
+    y2 = cellY + cellHeight;
+  } else if (side === "left") {
+    x1 = cellX;
+    y1 = cellY;
+    x2 = cellX;
+    y2 = cellY + cellHeight;
+  } else if (side === "right") {
+    x1 = cellX + cellWidth;
+    y1 = cellY;
+    x2 = cellX + cellWidth;
+    y2 = cellY + cellHeight;
+  }
+
+  // De-duplicate borders drawn at the exact same edge, but allow thicker border to overwrite thinner
+  const edgeKey = `${side === "top" || side === "bottom" ? "H" : "V"}_${Math.round(x1 * 100)}_${Math.round(y1 * 100)}_${Math.round(x2 * 100)}_${Math.round(y2 * 100)}`;
+  const prevWidth = drawnEdges.get(edgeKey);
+  if (prevWidth !== undefined && prevWidth >= border.widthMm) {
+    return;
+  }
+  drawnEdges.set(edgeKey, border.widthMm);
+
+  const { widthMm, lineStyle, color } = border;
+  doc.setDrawColor(color[0], color[1], color[2]);
+
+  if (lineStyle === "double") {
+    const subWidth = Math.max(0.22 * scale, 0.1);
+    const offset = Math.max(0.35 * scale, 0.18);
+    doc.setLineWidth(subWidth);
+    doc.setLineDashPattern([], 0);
+
+    if (side === "top" || side === "bottom") {
+      doc.line(x1, y1 - offset / 2, x2, y2 - offset / 2);
+      doc.line(x1, y1 + offset / 2, x2, y2 + offset / 2);
+    } else {
+      doc.line(x1 - offset / 2, y1, x2 - offset / 2, y2);
+      doc.line(x1 + offset / 2, y1, x2 + offset / 2, y2);
+    }
+  } else {
+    doc.setLineWidth(widthMm);
+    if (lineStyle === "dotted") {
+      doc.setLineDashPattern([0.4 * scale, 0.4 * scale], 0);
+    } else if (lineStyle === "dashed") {
+      doc.setLineDashPattern([1.4 * scale, 1.0 * scale], 0);
+    } else {
+      doc.setLineDashPattern([], 0);
+    }
+    doc.line(x1, y1, x2, y2);
+  }
+
+  // Always reset drawing styles to autotable defaults
+  doc.setLineWidth(0.15);
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineDashPattern([], 0);
+}
+
+export interface InlineStrRun {
+  v?: string;
+  bl?: number;
+  it?: number;
+  ul?: number;
+  cl?: number;
+  fc?: string;
+  fs?: number;
+}
+
+/**
+ * Renders rich text runs (cell.ct.s) within a cell during PDF export,
+ * supporting individual styling per word/character (bold, italic, underline, strikethrough, color, font size).
+ */
+export function renderInlineStrCellText(
+  doc: any,
+  cell: any,
+  runs: InlineStrRun[],
+  scale: number = 1
+): void {
+  if (!runs || runs.length === 0) return;
+
+  const fontSize = cell.styles?.fontSize || 7.5;
+  const halign = cell.styles?.halign || "left";
+  const valign = cell.styles?.valign || "top";
+  const getPadding = (side: "top" | "bottom" | "left" | "right"): number => {
+    try {
+      if (typeof cell.padding === "function") {
+        return cell.padding(side);
+      }
+    } catch {
+      // fallback if cell.padding throws
+    }
+    if (typeof cell.styles?.cellPadding === "object" && cell.styles.cellPadding !== null) {
+      return cell.styles.cellPadding[side] || 1;
+    }
+    return Number(cell.styles?.cellPadding) || 1;
+  };
+
+  const scaleFactor = doc.internal?.scaleFactor || 72 / 25.4;
+  const k = fontSize / scaleFactor;
+  const lineHeight = k * (doc.getLineHeightFactor ? doc.getLineHeightFactor() : 1.15);
+
+  // Group runs into lines split by \r\n or \n
+  interface LineSegment {
+    text: string;
+    bl?: number;
+    it?: number;
+    ul?: number;
+    cl?: number;
+    fc?: string;
+    fs?: number;
+  }
+
+  const lines: LineSegment[][] = [[]];
+
+  for (const r of runs) {
+    const rawText = String(r.v ?? "");
+    const parts = rawText.split(/\r\n|\r|\n/);
+    for (let pIdx = 0; pIdx < parts.length; pIdx++) {
+      if (pIdx > 0) {
+        lines.push([]);
+      }
+      if (parts[pIdx].length > 0) {
+        lines[lines.length - 1].push({
+          text: parts[pIdx],
+          bl: r.bl,
+          it: r.it,
+          ul: r.ul,
+          cl: r.cl,
+          fc: r.fc,
+          fs: r.fs,
+        });
+      }
+    }
+  }
+
+  const padTop = getPadding("top") || 0.4 * scale;
+  const padBottom = getPadding("bottom") || 0.4 * scale;
+  const padLeft = getPadding("left") || 1 * scale;
+  const padRight = getPadding("right") || 1 * scale;
+
+  const totalLines = lines.length;
+  const totalTextHeight = totalLines * lineHeight;
+
+  let y = cell.y + padTop + k * (2 - 1.15);
+  if (valign === "middle" || valign === "center") {
+    y = cell.y + (cell.height - totalTextHeight) / 2 + k * (2 - 1.15);
+  } else if (valign === "bottom") {
+    y = cell.y + cell.height - padBottom - totalTextHeight + k * (2 - 1.15);
+  }
+
+  for (const lineSegments of lines) {
+    if (lineSegments.length === 0) {
+      y += lineHeight;
+      continue;
+    }
+
+    // Calculate total line width
+    let totalLineWidth = 0;
+    const segmentWidths: number[] = [];
+
+    for (const seg of lineSegments) {
+      const isBold = seg.bl === 1;
+      const isItalic = seg.it === 1;
+      const fontStyle = isBold && isItalic ? "bolditalic" : isBold ? "bold" : isItalic ? "italic" : "normal";
+      doc.setFont("Montserrat", fontStyle);
+      const segFs = seg.fs ? Math.max(seg.fs * scale, 4.5) : fontSize;
+      doc.setFontSize(segFs);
+
+      const w = doc.getTextWidth(seg.text);
+      segmentWidths.push(w);
+      totalLineWidth += w;
+    }
+
+    // Determine starting horizontal position
+    let curX = cell.x + padLeft;
+    if (halign === "center") {
+      curX = cell.x + (cell.width - totalLineWidth) / 2;
+    } else if (halign === "right") {
+      curX = cell.x + cell.width - padRight - totalLineWidth;
+    }
+
+    // Render segments
+    for (let i = 0; i < lineSegments.length; i++) {
+      const seg = lineSegments[i];
+      const w = segmentWidths[i];
+
+      const isBold = seg.bl === 1;
+      const isItalic = seg.it === 1;
+      const fontStyle = isBold && isItalic ? "bolditalic" : isBold ? "bold" : isItalic ? "italic" : "normal";
+      doc.setFont("Montserrat", fontStyle);
+      const segFs = seg.fs ? Math.max(seg.fs * scale, 4.5) : fontSize;
+      doc.setFontSize(segFs);
+
+      const rgb = hexToRgb(seg.fc) || [0, 0, 0];
+      doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+
+      doc.text(seg.text, curX, y);
+
+      // Underline
+      if (seg.ul === 1) {
+        doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+        doc.setLineWidth(0.12 * scale);
+        doc.line(curX, y + 0.25 * scale, curX + w, y + 0.25 * scale);
+      }
+
+      // Strikethrough
+      if (seg.cl === 1) {
+        doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+        doc.setLineWidth(0.12 * scale);
+        doc.line(curX, y - k * 0.3, curX + w, y - k * 0.3);
+      }
+
+      curX += w;
+    }
+
+    y += lineHeight;
+  }
+
+  // Reset drawing styles
+  doc.setFont("Montserrat", "normal");
+  doc.setFontSize(fontSize);
+  doc.setTextColor(0, 0, 0);
+  doc.setLineWidth(0.15);
+  doc.setDrawColor(229, 231, 235);
+}
+
 /**
  * Builds a vector-based, professional PDF document from one or more event sheets.
  */
@@ -440,7 +1040,8 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
 
     // Convert sheet data to FortuneSheet model for unified parsing
     const fortuneSheet = convertToFortuneSheet(sheet.data, sheet.sheet_name);
-    const { head, body, colPx, rowPx } = parseFortuneSheetForAutoTable(fortuneSheet);
+    const { head, body, colPx, rowPx, borderMap } = parseFortuneSheetForAutoTable(fortuneSheet);
+    const drawnEdges = new Map<string, number>();
 
     // px -> mm (96 dpi). Perkecil proporsional hanya kalau lebar melebihi kertas.
     const PX_TO_MM = 25.4 / 96;
@@ -494,6 +1095,14 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
         right: marginX,
         top: 24,
         bottom: 18,
+      },
+      willDrawCell: (data) => {
+        const rawObj: any = data.cell.raw;
+        const rawCell = rawObj?._rawCell;
+        if (rawCell?.ct?.t === "inlineStr" && Array.isArray(rawCell.ct.s) && rawCell.ct.s.length > 0) {
+          // Suppress default autoTable text drawing so didDrawCell can render multi-styled inline runs
+          data.cell.text = [];
+        }
       },
       didParseCell: (data) => {
         data.cell.styles.font = "Montserrat";
@@ -644,6 +1253,93 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
           rawCell?.vt === "bottom"
         ) {
           data.cell.styles.valign = "bottom";
+        }
+      },
+      didDrawCell: (data) => {
+        const rawObj: any = data.cell.raw;
+        const rawCell = rawObj?._rawCell;
+
+        // Render inlineStr multi-styled runs if present
+        if (rawCell?.ct?.t === "inlineStr" && Array.isArray(rawCell.ct.s) && rawCell.ct.s.length > 0) {
+          renderInlineStrCellText(doc, data.cell, rawCell.ct.s, scale);
+        }
+
+        if (!borderMap) return;
+
+        const cellR = rawObj?._r ?? (data.section === "head" ? 0 : data.row.index + 1);
+        const cellC = rawObj?._c ?? data.column.index;
+        const mergeInfo = rawObj?._merge;
+        const rowSpan = Math.max(mergeInfo?.rowSpan || (data.cell as any).rowSpan || 1, 1);
+        const colSpan = Math.max(mergeInfo?.colSpan || (data.cell as any).colSpan || 1, 1);
+        const endR = cellR + rowSpan - 1;
+        const endC = cellC + colSpan - 1;
+
+        // Resolve top border: check row cellR across columns cellC..endC + neighbor above
+        let topBorder: BorderSideConfig | null = null;
+        for (let c = cellC; c <= endC; c++) {
+          const b = borderMap.get(`${cellR}_${c}`);
+          topBorder = resolveSharedBorder(topBorder, b?.t);
+          if (cellR > 0) {
+            const above = borderMap.get(`${cellR - 1}_${c}`);
+            topBorder = resolveSharedBorder(topBorder, above?.b);
+          }
+        }
+
+        // Resolve bottom border: check row endR across columns cellC..endC + neighbor below
+        let bottomBorder: BorderSideConfig | null = null;
+        for (let c = cellC; c <= endC; c++) {
+          const b = borderMap.get(`${endR}_${c}`);
+          bottomBorder = resolveSharedBorder(bottomBorder, b?.b);
+          const below = borderMap.get(`${endR + 1}_${c}`);
+          bottomBorder = resolveSharedBorder(bottomBorder, below?.t);
+        }
+
+        // Resolve left border: check col cellC across rows cellR..endR + neighbor left
+        let leftBorder: BorderSideConfig | null = null;
+        for (let r = cellR; r <= endR; r++) {
+          const b = borderMap.get(`${r}_${cellC}`);
+          leftBorder = resolveSharedBorder(leftBorder, b?.l);
+          if (cellC > 0) {
+            const leftN = borderMap.get(`${r}_${cellC - 1}`);
+            leftBorder = resolveSharedBorder(leftBorder, leftN?.r);
+          }
+        }
+
+        // Resolve right border: check col endC across rows cellR..endR + neighbor right
+        let rightBorder: BorderSideConfig | null = null;
+        for (let r = cellR; r <= endR; r++) {
+          const b = borderMap.get(`${r}_${endC}`);
+          rightBorder = resolveSharedBorder(rightBorder, b?.r);
+          const rightN = borderMap.get(`${r}_${endC + 1}`);
+          rightBorder = resolveSharedBorder(rightBorder, rightN?.l);
+        }
+
+        if (topBorder) {
+          const resolved = resolveBorderStyle(topBorder, scale);
+          if (resolved) {
+            drawBorderLine(doc, "top", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges);
+          }
+        }
+
+        if (bottomBorder) {
+          const resolved = resolveBorderStyle(bottomBorder, scale);
+          if (resolved) {
+            drawBorderLine(doc, "bottom", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges);
+          }
+        }
+
+        if (leftBorder) {
+          const resolved = resolveBorderStyle(leftBorder, scale);
+          if (resolved) {
+            drawBorderLine(doc, "left", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges);
+          }
+        }
+
+        if (rightBorder) {
+          const resolved = resolveBorderStyle(rightBorder, scale);
+          if (resolved) {
+            drawBorderLine(doc, "right", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges);
+          }
         }
       },
       didDrawPage: (data) => {
@@ -923,11 +1619,13 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
   body: any[][];
   colPx?: number[];
   rowPx?: number[];
+  borderMap?: Map<string, CellBorderMapItem>;
 } {
   let maxR = 0;
   let maxC = 0;
   let hasAnyData = false;
   const matrix = new Map<string, any>();
+  const borderMap = computeSheetBorderMap(sheetObj);
 
   const registerCell = (r: number, c: number, cell: any) => {
     if (r < 0 || c < 0) return;
@@ -943,7 +1641,8 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
       cell.fc ||
       cell.it ||
       cell.ht !== undefined ||
-      cell.vt !== undefined
+      cell.vt !== undefined ||
+      cell.bd
     );
     const hasMerge = Boolean(cell.mc);
 
@@ -974,7 +1673,30 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
     });
   }
 
-  // 3. Process config.merge to ensure maxR and maxC cover all merged ranges
+  // 3. Process config.borderInfo to expand grid bounds if borders exist outside content
+  if (Array.isArray(sheetObj?.config?.borderInfo)) {
+    for (const b of sheetObj.config.borderInfo) {
+      if (b && b.rangeType === "range" && Array.isArray(b.range)) {
+        for (const rg of b.range) {
+          if (rg && Array.isArray(rg.row) && Array.isArray(rg.column)) {
+            hasAnyData = true;
+            const r2 = Math.max(rg.row[0], rg.row[1]);
+            const c2 = Math.max(rg.column[0], rg.column[1]);
+            if (r2 > maxR) maxR = r2;
+            if (c2 > maxC) maxC = c2;
+          }
+        }
+      } else if (b && b.rangeType === "cell" && b.value) {
+        hasAnyData = true;
+        const r = b.value.row_index;
+        const c = b.value.col_index;
+        if (typeof r === "number" && r > maxR) maxR = r;
+        if (typeof c === "number" && c > maxC) maxC = c;
+      }
+    }
+  }
+
+  // 4. Process config.merge to ensure maxR and maxC cover all merged ranges
   const rawMerges: any[] = [];
   if (sheetObj?.config?.merge) {
     if (Array.isArray(sheetObj.config.merge)) {
@@ -1161,6 +1883,9 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
         styles: Object.keys(cellStyles).length > 0 ? cellStyles : undefined,
         _rawCell: rawCell || null,
         _merge: mergeInfo || null,
+        _r: r,
+        _c: c,
+        _borders: borderMap.get(coordKey) || null,
       });
     }
 
@@ -1185,7 +1910,7 @@ export function parseFortuneSheetForAutoTable(sheetObj: any): {
     rowPx.push(Number.isFinite(h) && h > 0 ? h : 19);
   }
 
-  return { head, body, colPx, rowPx };
+  return { head, body, colPx, rowPx, borderMap };
 }
 
 /**

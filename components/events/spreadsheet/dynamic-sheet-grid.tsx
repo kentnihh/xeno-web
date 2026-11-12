@@ -5,6 +5,7 @@ import {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
   forwardRef,
   useImperativeHandle,
 } from "react";
@@ -12,6 +13,7 @@ import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import {
   convertToFortuneSheet,
+  extractCellText,
   matrixToCelldata,
   sanitizeSheetData,
 } from "@/lib/spreadsheet-adapter";
@@ -23,6 +25,11 @@ import {
   calculateContiguousFillRange,
   isCellEditorActive,
   insertNewlineAtCaret,
+  cleanEditorOnCommit,
+  isToolbarBoldButton,
+  getActiveCellEditor,
+  hasActiveTextSelectionInEditor,
+  toggleInlineBoldOnSelection,
   buildVisibleRowHeights,
   buildVisibleColWidths,
   getRowByCoordinate,
@@ -264,10 +271,13 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
       };
     }, []);
 
-    // Keyboard shortcuts:
-    // 1. Ctrl+Enter / Cmd+Enter inside cell editor: insert newline (\n) without submitting cell
+    // Keyboard shortcuts & Cell Editor line breaks & Partial Inline Bold:
+    // 1. Ctrl+Enter / Cmd+Enter inside cell editor: single keypress line break (<br>) in capture phase
     // 2. Ctrl+Enter / Cmd+Enter outside cell editor: trigger manual save
     // 3. Ctrl+S / Cmd+S: prevent browser default save dialog and trigger manual save
+    // 4. Ctrl+B / Cmd+B inside cell editor with active text selection: apply partial inline bold (inlineStr)
+    // 5. Toolbar Bold button click / mousedown: prevent blur and apply partial inline bold to selection
+    // 6. Enter (without Ctrl) or blur: clean trailing placeholder <br> before FortuneSheet commits
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
         const isCmdOrCtrl = e.ctrlKey || e.metaKey;
@@ -276,34 +286,90 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
         if (isCmdOrCtrl && (e.key === "s" || e.key === "S")) {
           e.preventDefault();
           e.stopPropagation();
+          e.stopImmediatePropagation();
           onSaveShortcutRef.current?.();
           return;
+        }
+
+        // Partial inline bold shortcut (Ctrl+B or Cmd+B) when text is highlighted inside active cell editor
+        if (isCmdOrCtrl && (e.key === "b" || e.key === "B")) {
+          if (isCellEditorActive() && hasActiveTextSelectionInEditor()) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            toggleInlineBoldOnSelection();
+            return;
+          }
+          // If not in cell editor with text selected, allow FortuneSheet to toggle cell-wide bolding normally
         }
 
         // Newline or Save shortcut (Ctrl+Enter or Cmd+Enter)
         if (isCmdOrCtrl && e.key === "Enter") {
           if (isCellEditorActive()) {
             e.preventDefault();
-            e.stopPropagation();
+            e.stopImmediatePropagation();
             insertNewlineAtCaret();
+            return;
           } else {
             e.preventDefault();
-            e.stopPropagation();
+            e.stopImmediatePropagation();
             onSaveShortcutRef.current?.();
+            return;
           }
-          return;
+        }
+
+        // Enter without Ctrl inside active editor: clean trailing placeholder <br>
+        if (!isCmdOrCtrl && e.key === "Enter") {
+          if (isCellEditorActive()) {
+            cleanEditorOnCommit();
+          }
+        }
+      };
+
+      const handleMouseDownCapture = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (isToolbarBoldButton(target)) {
+          if (isCellEditorActive() && hasActiveTextSelectionInEditor()) {
+            // Prevent toolbar button click from stealing focus and blurring the cell editor!
+            e.preventDefault();
+          }
+        }
+      };
+
+      const handleClickCapture = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (isToolbarBoldButton(target)) {
+          if (isCellEditorActive() && hasActiveTextSelectionInEditor()) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            toggleInlineBoldOnSelection();
+          }
+        }
+      };
+
+      const handleBlurCapture = (e: FocusEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.isContentEditable || target.getAttribute("contenteditable") === "true")) {
+          cleanEditorOnCommit(target);
         }
       };
 
       const container = containerRef.current;
       if (container) {
         container.addEventListener("keydown", handleKeyDown, true);
+        container.addEventListener("mousedown", handleMouseDownCapture, true);
+        container.addEventListener("click", handleClickCapture, true);
+        container.addEventListener("blur", handleBlurCapture, true);
       }
       window.addEventListener("keydown", handleKeyDown, true);
 
       return () => {
         if (container) {
           container.removeEventListener("keydown", handleKeyDown, true);
+          container.removeEventListener("mousedown", handleMouseDownCapture, true);
+          container.removeEventListener("click", handleClickCapture, true);
+          container.removeEventListener("blur", handleBlurCapture, true);
         }
         window.removeEventListener("keydown", handleKeyDown, true);
       };
@@ -551,16 +617,19 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
       ref,
       () => ({
         exitEditMode: () => {
+          cleanEditorOnCommit();
           if (typeof window !== "undefined" && document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
           }
         },
         flushActiveCell: () => {
+          cleanEditorOnCommit();
           if (typeof window !== "undefined" && document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
           }
         },
         getData: () => {
+          cleanEditorOnCommit();
           // Force blur active cell input if still focused inside FortuneSheet editor
           if (typeof window !== "undefined" && document.activeElement instanceof HTMLElement) {
             const tag = document.activeElement.tagName.toLowerCase();
@@ -622,6 +691,29 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
         if (!newSheets || newSheets.length === 0) return;
         latestSheetRef.current = newSheets[0];
       },
+      []
+    );
+
+    const workbookHooks = useMemo(
+      () => ({
+        afterUpdateCell: (r: number, c: number) => {
+          try {
+            if (workbookRef.current) {
+              const all = workbookRef.current.getAllSheets?.() || [];
+              const sheet = all[0];
+              if (sheet?.data?.[r]?.[c]) {
+                const cell = sheet.data[r][c];
+                const text = extractCellText(cell);
+                if (typeof text === "string" && (text.includes("\n") || text.includes("\r"))) {
+                  cell.tb = "2";
+                }
+              }
+            }
+          } catch (err) {
+            console.warn("[afterUpdateCell] Failed to set wrap text tb: 2:", err);
+          }
+        },
+      }),
       []
     );
 
@@ -688,6 +780,7 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
             showToolbar={true}
             showFormulaBar={true}
             lang="en"
+            hooks={workbookHooks}
           />
         </div>
       </div>
