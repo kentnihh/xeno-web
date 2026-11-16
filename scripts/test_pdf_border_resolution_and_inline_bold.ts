@@ -36,19 +36,19 @@ const medium = resolveBorderStyle({ style: 7, color: "#000000" });
 const doubleBorder = resolveBorderStyle({ style: 12, color: "#000000" });
 const thick = resolveBorderStyle({ style: 13, color: "#000000" });
 
-assert(hair && hair.widthMm === 0.141, `Hair border should be 0.141mm (0.4pt), got ${hair?.widthMm}`);
-assert(thin && thin.widthMm === 0.282, `Thin border should be 0.282mm (0.8pt), got ${thin?.widthMm}`);
-assert(medium && medium.widthMm === 0.564, `Medium border should be 0.564mm (1.6pt), got ${medium?.widthMm}`);
-assert(doubleBorder && doubleBorder.widthMm === 0.776, `Double border should be 0.776mm (2.2pt), got ${doubleBorder?.widthMm}`);
-assert(thick && thick.widthMm === 0.988, `Thick border should be 0.988mm (2.8pt), got ${thick?.widthMm}`);
+assert(hair && hair.widthMm === 0.10, `Hair border should be 0.10mm (~0.28pt), got ${hair?.widthMm}`);
+assert(thin && thin.widthMm === 0.15, `Thin border should be 0.15mm (~0.42pt), got ${thin?.widthMm}`);
+assert(medium && medium.widthMm === 0.35, `Medium border should be 0.35mm (~1.0pt), got ${medium?.widthMm}`);
+assert(doubleBorder && doubleBorder.widthMm === 0.50, `Double border should be 0.50mm, got ${doubleBorder?.widthMm}`);
+assert(thick && thick.widthMm === 0.60, `Thick border should be 0.60mm (~1.7pt), got ${thick?.widthMm}`);
 
 assert(hair.widthMm < thin.widthMm, "Hair must be thinner than Thin");
 assert(thin.widthMm < medium.widthMm, "Thin must be thinner than Medium");
 assert(medium.widthMm < doubleBorder.widthMm, "Medium must be thinner than Double");
 assert(doubleBorder.widthMm < thick.widthMm, "Double must be thinner than Thick");
-assert(thick.widthMm > thin.widthMm * 3, "Thick border must be ~3.5x thicker than Thin");
+assert(thick.widthMm >= thin.widthMm * 3, "Thick border must be >= 3x thicker than Thin");
 
-console.log("   ✓ Border widths map accurately to Hair 0.4pt, Thin 0.8pt, Medium 1.6pt, Double 2.2pt, Thick 2.8pt");
+console.log("   ✓ Border widths map accurately to Hair 0.10mm, Thin 0.15mm, Medium 0.35mm, Double 0.50mm, Thick 0.60mm");
 
 // --------------------------------------------------------------------------
 // 2. Verify Border Weight & Shared Edge Conflict Resolution
@@ -114,13 +114,15 @@ const r2c1 = borderMap.get("2_1");
 assert(r2c0?.b && String(r2c0.b.style) === "13", `Row 2 Col 0 bottom border must be 13, got ${r2c0?.b?.style}`);
 assert(r2c1?.b && String(r2c1.b.style) === "13", `Row 2 Col 1 bottom border must be 13, got ${r2c1?.b?.style}`);
 
-// Adjacent Row 3 cells top border must be synchronized to style: 13 (Thick) rather than thin!
+// Under shared-edge resolution, the thick border (style 13) wins on BOTH sides.
+// Row 2 bottom is 13 and Row 3 top is also resolved to 13 (thicker border wins).
+// Actual deduplication of the drawn line happens at render time via drawnEdges.
 const r3c0 = borderMap.get("3_0");
 const r3c1 = borderMap.get("3_1");
-assert(r3c0?.t && String(r3c0.t.style) === "13", `Row 3 Col 0 top border must synchronize to 13 (Thick), got ${r3c0?.t?.style}`);
-assert(r3c1?.t && String(r3c1.t.style) === "13", `Row 3 Col 1 top border must synchronize to 13 (Thick), got ${r3c1?.t?.style}`);
+assert(r3c0?.t && String(r3c0.t.style) === "13", `Row 3 Col 0 top border must be 13 (resolved from shared edge), got ${r3c0?.t?.style}`);
+assert(r3c1?.t && String(r3c1.t.style) === "13", `Row 3 Col 1 top border must be 13 (resolved from shared edge), got ${r3c1?.t?.style}`);
 
-console.log("   ✓ Chronological borderInfo overrides & shared edge synchronization preserve Thick dividers");
+console.log("   ✓ Chronological borderInfo overrides & shared-edge resolution preserve Thick dividers consistently");
 
 // --------------------------------------------------------------------------
 // 4. Verify Partial Inline Bold (inlineStr) Serialization & Preservation

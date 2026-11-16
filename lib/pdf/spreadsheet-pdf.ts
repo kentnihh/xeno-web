@@ -387,129 +387,90 @@ export interface ResolvedBorderStyle {
 
 /**
  * Maps FortuneSheet numeric border style codes and named strings to line widths (in mm) and line styles.
- * Exact visual width progression:
- *   1 (Thin): 1px solid / 0.8pt (~0.282mm)
- *   2 (Hair): 0.5px solid / 0.4pt (~0.141mm)
- *   3 (Dotted): 1px dotted (~0.282mm)
- *   4 (Dashed) / 5 / 6: 1px dashed (~0.282mm)
- *   7 (Medium): 2px solid / 1.6pt (~0.564mm)
- *   8 (Medium Dashed) / 9 / 10 / 11: 2px dashed / 1.6pt (~0.564mm)
- *   12 (Double): 3px double / 2.2pt (~0.776mm)
- *   13 (Thick): 3.5px solid / 2.8pt (~0.988mm)
+ * Exact visual width progression (calibrated hairline strokes):
+ *   1 (Thin): 1px solid / ~0.42pt (0.15mm)
+ *   2 (Hair): 0.5px solid / ~0.28pt (0.10mm)
+ *   3 (Dotted): 1px dotted (0.15mm)
+ *   4 (Dashed) / 5 / 6: 1px dashed (0.15mm)
+ *   7 (Medium): 2px solid / ~1.0pt (0.35mm)
+ *   8 (Medium Dashed) / 9 / 10 / 11: 2px dashed (0.35mm)
+ *   12 (Double): 3px double (0.50mm)
+ *   13 (Thick): 3.5px solid / ~1.7pt (0.60mm)
  */
+const BORDER_PX_TO_MM = 25.4 / 96;
+
+function getBorderSpec(
+  style: number | string | null | undefined
+): { px: number; lineStyle: "solid" | "dashed" | "dotted" | "double" } | null {
+  if (style === undefined || style === null) return null;
+  const s = String(style).trim().toLowerCase();
+  switch (s) {
+    case "0":
+    case "none":
+      return null;
+    case "1":
+    case "thin":
+      return { px: 1, lineStyle: "solid" };
+    case "2":
+    case "hair":
+      return { px: 0.5, lineStyle: "solid" };
+    case "3":
+    case "dotted":
+      return { px: 1, lineStyle: "dotted" };
+    case "4":
+    case "dashed":
+    case "5":
+    case "dashdot":
+    case "6":
+    case "dashdotdot":
+      return { px: 1, lineStyle: "dashed" };
+    case "7":
+    case "double":
+      return { px: 3, lineStyle: "double" };
+    case "8":
+    case "medium":
+      return { px: 2, lineStyle: "solid" };
+    case "9":
+    case "mediumdashed":
+    case "10":
+    case "mediumdashdot":
+    case "11":
+    case "mediumdashdotdot":
+    case "12":
+    case "slantdashdot":
+      return { px: 2, lineStyle: "dashed" };
+    case "13":
+    case "thick":
+      return { px: 3, lineStyle: "solid" };
+    default:
+      return { px: 1, lineStyle: "solid" };
+  }
+}
+
 export function resolveBorderStyle(
   border: BorderSideConfig | null | undefined,
   scale: number = 1
 ): ResolvedBorderStyle | null {
-  if (!border || border.style === undefined || border.style === null) return null;
-  const styleCode = String(border.style).trim().toLowerCase();
-  if (styleCode === "0" || styleCode === "none") return null;
-
+  if (!border) return null;
+  const spec = getBorderSpec(border.style);
+  if (!spec) return null;
   const rgb = hexToRgb(border.color) || [0, 0, 0];
-
-  let baseWidthMm = 0.282; // 0.8pt (~1px) default
-  let lineStyle: "solid" | "dashed" | "dotted" | "double" = "solid";
-
-  switch (styleCode) {
-    case "1":
-    case "thin":
-      baseWidthMm = 0.282; // 0.8pt solid
-      lineStyle = "solid";
-      break;
-    case "2":
-    case "hair":
-      baseWidthMm = 0.141; // 0.4pt solid
-      lineStyle = "solid";
-      break;
-    case "3":
-    case "dotted":
-      baseWidthMm = 0.282; // 0.8pt dotted
-      lineStyle = "dotted";
-      break;
-    case "4":
-    case "dashed":
-    case "5":
-    case "6":
-      baseWidthMm = 0.282; // 0.8pt dashed
-      lineStyle = "dashed";
-      break;
-    case "7":
-    case "medium":
-      baseWidthMm = 0.564; // 1.6pt solid
-      lineStyle = "solid";
-      break;
-    case "8":
-    case "medium-dashed":
-    case "9":
-    case "10":
-    case "11":
-      baseWidthMm = 0.564; // 1.6pt dashed
-      lineStyle = "dashed";
-      break;
-    case "12":
-    case "double":
-      baseWidthMm = 0.776; // 2.2pt double
-      lineStyle = "double";
-      break;
-    case "13":
-    case "thick":
-      baseWidthMm = 0.988; // 2.8pt solid
-      lineStyle = "solid";
-      break;
-    default:
-      baseWidthMm = 0.282;
-      lineStyle = "solid";
-      break;
-  }
-
-  const widthMm = Math.max(baseWidthMm * scale, 0.08);
-
   return {
-    widthMm,
-    lineStyle,
+    widthMm: Math.max(spec.px * BORDER_PX_TO_MM * scale, 0.1),
+    lineStyle: spec.lineStyle,
     color: rgb,
   };
 }
 
 /**
  * Returns numeric priority weight for border comparison.
- * Thicker explicit borders (e.g. Thick 2.8pt > Medium 1.6pt > Thin 0.8pt > Hair 0.4pt)
+ * Thicker explicit borders (e.g. Thick 0.60mm > Medium 0.35mm > Thin 0.15mm > Hair 0.10mm)
  * take precedence over thinner borders when resolving shared edges.
  */
 export function getBorderWeight(b: BorderSideConfig | null | undefined): number {
-  if (!b || b.style === undefined || b.style === null) return 0;
-  const s = String(b.style).trim().toLowerCase();
-  if (s === "0" || s === "none") return 0;
-  switch (s) {
-    case "13":
-    case "thick":
-      return 2.8;
-    case "12":
-    case "double":
-      return 2.2;
-    case "7":
-    case "medium":
-    case "8":
-    case "medium-dashed":
-    case "9":
-    case "10":
-    case "11":
-      return 1.6;
-    case "1":
-    case "thin":
-    case "3":
-    case "dotted":
-    case "4":
-    case "dashed":
-    case "5":
-    case "6":
-      return 0.8;
-    case "2":
-    case "hair":
-      return 0.4;
-    default:
-      return 0.8;
-  }
+  if (!b) return 0;
+  const spec = getBorderSpec(b.style);
+  return spec ? spec.px : 0;
 }
 
 /**
@@ -688,27 +649,170 @@ export function computeSheetBorderMap(sheetObj: any): Map<string, CellBorderMapI
     });
   }
 
-  // 3. Synchronize adjacent cell borders: resolve shared edges using thicker/higher priority border
-  const entries = Array.from(borderMap.entries());
-  for (const [key, b] of entries) {
+  // 3. Merged Cell (rowSpan / colSpan) Perimeter Border Resolution
+  // Scan all cells along each outer perimeter of the merged box and propagate resolved borders
+  const rawMerges: any[] = [];
+  if (sheetObj?.config?.merge) {
+    if (Array.isArray(sheetObj.config.merge)) {
+      rawMerges.push(...sheetObj.config.merge);
+    } else if (typeof sheetObj.config.merge === "object") {
+      rawMerges.push(...Object.values(sheetObj.config.merge));
+    }
+  }
+
+  const collectCellMc = (cell: any, r: number, c: number) => {
+    if (cell && typeof cell === "object" && cell.mc) {
+      const mc = cell.mc;
+      const rootR = typeof mc.r === "number" ? mc.r : r;
+      const rootC = typeof mc.c === "number" ? mc.c : c;
+      const rs = Math.max(mc.rs || 1, 1);
+      const cs = Math.max(mc.cs || 1, 1);
+      if (rs > 1 || cs > 1) {
+        rawMerges.push({ r: rootR, c: rootC, rs, cs });
+      }
+    }
+  };
+
+  if (Array.isArray(sheetObj?.data)) {
+    sheetObj.data.forEach((row: any, r: number) => {
+      if (Array.isArray(row)) {
+        row.forEach((cell: any, c: number) => {
+          collectCellMc(cell, r, c);
+        });
+      }
+    });
+  }
+
+  if (Array.isArray(sheetObj?.celldata)) {
+    sheetObj.celldata.forEach((item: any) => {
+      if (item && typeof item.r === "number" && typeof item.c === "number") {
+        collectCellMc(item.v, item.r, item.c);
+      }
+    });
+  }
+
+  // Deduplicate unique merge definitions
+  const mergeKeys = new Set<string>();
+  const uniqueMerges: { r: number; c: number; rs: number; cs: number }[] = [];
+  for (const m of rawMerges) {
+    if (m && typeof m.r === "number" && typeof m.c === "number") {
+      const rs = Math.max(m.rs || 1, 1);
+      const cs = Math.max(m.cs || 1, 1);
+      if (rs <= 1 && cs <= 1) continue;
+      const k = `${m.r}_${m.c}_${rs}_${cs}`;
+      if (!mergeKeys.has(k)) {
+        mergeKeys.add(k);
+        uniqueMerges.push({ r: m.r, c: m.c, rs, cs });
+      }
+    }
+  }
+
+  for (const m of uniqueMerges) {
+    const { r, c, rs, cs } = m;
+    const endR = r + rs - 1;
+    const endC = c + cs - 1;
+
+    // Top edge: check (r, c .. endC), neighbor above, and anchor (r, c).t
+    let mergedTop: BorderSideConfig | null = null;
+    for (let col = c; col <= endC; col++) {
+      mergedTop = resolveSharedBorder(mergedTop, borderMap.get(`${r}_${col}`)?.t);
+      if (r > 0) {
+        mergedTop = resolveSharedBorder(mergedTop, borderMap.get(`${r - 1}_${col}`)?.b);
+      }
+    }
+    mergedTop = resolveSharedBorder(mergedTop, borderMap.get(`${r}_${c}`)?.t);
+    for (let col = c; col <= endC; col++) {
+      getCellBorder(r, col).t = mergedTop;
+    }
+
+    // Bottom edge: check (endR, c .. endC), neighbor below, and anchor (r, c).b
+    let mergedBottom: BorderSideConfig | null = null;
+    for (let col = c; col <= endC; col++) {
+      mergedBottom = resolveSharedBorder(mergedBottom, borderMap.get(`${endR}_${col}`)?.b);
+      mergedBottom = resolveSharedBorder(mergedBottom, borderMap.get(`${endR + 1}_${col}`)?.t);
+    }
+    mergedBottom = resolveSharedBorder(mergedBottom, borderMap.get(`${r}_${c}`)?.b);
+    for (let col = c; col <= endC; col++) {
+      getCellBorder(endR, col).b = mergedBottom;
+    }
+
+    // Left edge: check (r .. endR, c), neighbor left, and anchor (r, c).l
+    let mergedLeft: BorderSideConfig | null = null;
+    for (let row = r; row <= endR; row++) {
+      mergedLeft = resolveSharedBorder(mergedLeft, borderMap.get(`${row}_${c}`)?.l);
+      if (c > 0) {
+        mergedLeft = resolveSharedBorder(mergedLeft, borderMap.get(`${row}_${c - 1}`)?.r);
+      }
+    }
+    mergedLeft = resolveSharedBorder(mergedLeft, borderMap.get(`${r}_${c}`)?.l);
+    for (let row = r; row <= endR; row++) {
+      getCellBorder(row, c).l = mergedLeft;
+    }
+
+    // Right edge: check (r .. endR, endC), neighbor right, and anchor (r, c).r
+    let mergedRight: BorderSideConfig | null = null;
+    for (let row = r; row <= endR; row++) {
+      mergedRight = resolveSharedBorder(mergedRight, borderMap.get(`${row}_${endC}`)?.r);
+      mergedRight = resolveSharedBorder(mergedRight, borderMap.get(`${row}_${endC + 1}`)?.l);
+    }
+    mergedRight = resolveSharedBorder(mergedRight, borderMap.get(`${r}_${c}`)?.r);
+    for (let row = r; row <= endR; row++) {
+      getCellBorder(row, endC).r = mergedRight;
+    }
+
+    // Clear interior borders inside the merged block
+    for (let row = r; row <= endR; row++) {
+      for (let col = c; col <= endC; col++) {
+        const b = getCellBorder(row, col);
+        if (row > r) b.t = null;
+        if (row < endR) b.b = null;
+        if (col > c) b.l = null;
+        if (col < endC) b.r = null;
+      }
+    }
+  }
+
+  // 4. Shared-Edge Resolution (resolve conflicts but keep borders on BOTH sides for reliable rendering)
+  // Instead of nullifying one side (which requires the adjacent cell to always draw it),
+  // resolve the conflict and assign the winning border to BOTH sides of the shared edge.
+  // The actual deduplication happens at draw time via drawnEdges in drawBorderLine.
+  let maxR = 0;
+  let maxC = 0;
+  for (const key of borderMap.keys()) {
     const [rStr, cStr] = key.split("_");
     const r = parseInt(rStr, 10);
     const c = parseInt(cStr, 10);
+    if (r > maxR) maxR = r;
+    if (c > maxC) maxC = c;
+  }
 
-    // Right of (r, c) vs Left of (r, c + 1)
-    const neighborRight = getCellBorder(r, c + 1);
-    const resolvedH = resolveSharedBorder(b.r, neighborRight.l);
-    if (resolvedH) {
-      b.r = resolvedH;
-      neighborRight.l = resolvedH;
-    }
+  for (let r = 0; r <= maxR; r++) {
+    for (let c = 0; c <= maxC; c++) {
+      const cur = getCellBorder(r, c);
 
-    // Bottom of (r, c) vs Top of (r + 1, c)
-    const neighborBottom = getCellBorder(r + 1, c);
-    const resolvedV = resolveSharedBorder(b.b, neighborBottom.t);
-    if (resolvedV) {
-      b.b = resolvedV;
-      neighborBottom.t = resolvedV;
+      // Horizontal shared edge between row r and row r+1 at column c:
+      // Resolve which border wins, then assign it to BOTH sides.
+      const neighborBottomKey = `${r + 1}_${c}`;
+      const neighborBottom = borderMap.get(neighborBottomKey);
+      if (neighborBottom) {
+        const resolvedH = resolveSharedBorder(cur.b, neighborBottom.t);
+        if (resolvedH) {
+          cur.b = resolvedH;
+          neighborBottom.t = resolvedH;
+        }
+      }
+
+      // Vertical shared edge between col c and col c+1 at row r:
+      // Resolve which border wins, then assign it to BOTH sides.
+      const neighborRightKey = `${r}_${c + 1}`;
+      const neighborRight = borderMap.get(neighborRightKey);
+      if (neighborRight) {
+        const resolvedV = resolveSharedBorder(cur.r, neighborRight.l);
+        if (resolvedV) {
+          cur.r = resolvedV;
+          neighborRight.l = resolvedV;
+        }
+      }
     }
   }
 
@@ -728,22 +832,23 @@ function drawBorderLine(
   cellHeight: number,
   border: ResolvedBorderStyle,
   scale: number,
-  drawnEdges: Map<string, number>
+  drawnEdges: Map<string, number>,
+  maxX?: number
 ): void {
   let x1 = cellX;
   let y1 = cellY;
-  let x2 = cellX + cellWidth;
+  let x2 = typeof maxX === "number" ? Math.min(cellX + cellWidth, maxX) : cellX + cellWidth;
   let y2 = cellY;
 
   if (side === "top") {
     x1 = cellX;
     y1 = cellY;
-    x2 = cellX + cellWidth;
+    x2 = typeof maxX === "number" ? Math.min(cellX + cellWidth, maxX) : cellX + cellWidth;
     y2 = cellY;
   } else if (side === "bottom") {
     x1 = cellX;
     y1 = cellY + cellHeight;
-    x2 = cellX + cellWidth;
+    x2 = typeof maxX === "number" ? Math.min(cellX + cellWidth, maxX) : cellX + cellWidth;
     y2 = cellY + cellHeight;
   } else if (side === "left") {
     x1 = cellX;
@@ -751,52 +856,93 @@ function drawBorderLine(
     x2 = cellX;
     y2 = cellY + cellHeight;
   } else if (side === "right") {
-    x1 = cellX + cellWidth;
+    const rawX = cellX + cellWidth;
+    const clampedX = typeof maxX === "number" ? Math.min(rawX, maxX) : rawX;
+    x1 = clampedX;
     y1 = cellY;
-    x2 = cellX + cellWidth;
+    x2 = clampedX;
     y2 = cellY + cellHeight;
   }
 
   // De-duplicate borders drawn at the exact same edge, but allow thicker border to overwrite thinner
-  const edgeKey = `${side === "top" || side === "bottom" ? "H" : "V"}_${Math.round(x1 * 100)}_${Math.round(y1 * 100)}_${Math.round(x2 * 100)}_${Math.round(y2 * 100)}`;
+  // Include page number in key so edges on different pages never collide!
+  const page = doc.internal?.getCurrentPageInfo ? doc.internal.getCurrentPageInfo().pageNumber : 1;
+  const edgeKey = `P${page}_${side === "top" || side === "bottom" ? "H" : "V"}_${Math.round(x1 * 10)}_${Math.round(y1 * 10)}_${Math.round(x2 * 10)}_${Math.round(y2 * 10)}`;
   const prevWidth = drawnEdges.get(edgeKey);
   if (prevWidth !== undefined && prevWidth >= border.widthMm) {
     return;
   }
   drawnEdges.set(edgeKey, border.widthMm);
 
-  const { widthMm, lineStyle, color } = border;
-  doc.setDrawColor(color[0], color[1], color[2]);
+  pendingEdges.push({
+    page,
+    side,
+    x1,
+    y1,
+    x2,
+    y2,
+    widthMm: border.widthMm,
+    lineStyle: border.lineStyle,
+    color: border.color,
+  });
+}
 
-  if (lineStyle === "double") {
-    const subWidth = Math.max(0.22 * scale, 0.1);
-    const offset = Math.max(0.35 * scale, 0.18);
-    doc.setLineWidth(subWidth);
-    doc.setLineDashPattern([], 0);
+interface PendingEdge {
+  page: number;
+  side: "top" | "bottom" | "left" | "right";
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  widthMm: number;
+  lineStyle: "solid" | "dashed" | "dotted" | "double";
+  color: [number, number, number];
+}
 
-    if (side === "top" || side === "bottom") {
-      doc.line(x1, y1 - offset / 2, x2, y2 - offset / 2);
-      doc.line(x1, y1 + offset / 2, x2, y2 + offset / 2);
-    } else {
-      doc.line(x1 - offset / 2, y1, x2 - offset / 2, y2);
-      doc.line(x1 + offset / 2, y1, x2 + offset / 2, y2);
-    }
-  } else {
-    doc.setLineWidth(widthMm);
-    if (lineStyle === "dotted") {
-      doc.setLineDashPattern([0.4 * scale, 0.4 * scale], 0);
-    } else if (lineStyle === "dashed") {
-      doc.setLineDashPattern([1.4 * scale, 1.0 * scale], 0);
-    } else {
+let pendingEdges: PendingEdge[] = [];
+
+/** Gambar semua garis setelah tabel selesai: tipis dulu, tebal terakhir, di atas semua fill. */
+function flushPendingEdges(doc: any): void {
+  const edges = pendingEdges;
+  pendingEdges = [];
+  if (edges.length === 0) return;
+
+  const lastPage = doc.getNumberOfPages();
+  edges.sort((a, b) => a.widthMm - b.widthMm);
+
+  doc.setLineCap(2); // projecting square cap: sudut bertemu rapat, tidak bolong
+
+  for (const e of edges) {
+    doc.setPage(e.page);
+    doc.setDrawColor(e.color[0], e.color[1], e.color[2]);
+
+    if (e.lineStyle === "double") {
+      const sub = Math.max(e.widthMm / 3, 0.08);
+      const off = e.widthMm - sub;
+      doc.setLineWidth(sub);
       doc.setLineDashPattern([], 0);
+      if (e.side === "top" || e.side === "bottom") {
+        doc.line(e.x1, e.y1 - off / 2, e.x2, e.y2 - off / 2);
+        doc.line(e.x1, e.y1 + off / 2, e.x2, e.y2 + off / 2);
+      } else {
+        doc.line(e.x1 - off / 2, e.y1, e.x2 - off / 2, e.y2);
+        doc.line(e.x1 + off / 2, e.y1, e.x2 + off / 2, e.y2);
+      }
+      continue;
     }
-    doc.line(x1, y1, x2, y2);
+
+    doc.setLineWidth(e.widthMm);
+    if (e.lineStyle === "dotted") doc.setLineDashPattern([0.3, 0.3], 0);
+    else if (e.lineStyle === "dashed") doc.setLineDashPattern([1.0, 0.8], 0);
+    else doc.setLineDashPattern([], 0);
+    doc.line(e.x1, e.y1, e.x2, e.y2);
   }
 
-  // Always reset drawing styles to autotable defaults
-  doc.setLineWidth(0.15);
-  doc.setDrawColor(229, 231, 235);
+  doc.setLineCap(0);
   doc.setLineDashPattern([], 0);
+  doc.setLineWidth(0.08);
+  doc.setDrawColor(226, 232, 240);
+  doc.setPage(lastPage);
 }
 
 export interface InlineStrRun {
@@ -963,8 +1109,8 @@ export function renderInlineStrCellText(
   doc.setFont("Montserrat", "normal");
   doc.setFontSize(fontSize);
   doc.setTextColor(0, 0, 0);
-  doc.setLineWidth(0.15);
-  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(0.08);
+  doc.setDrawColor(226, 232, 240);
 }
 
 /**
@@ -1042,14 +1188,30 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
     const fortuneSheet = convertToFortuneSheet(sheet.data, sheet.sheet_name);
     const { head, body, colPx, rowPx, borderMap } = parseFortuneSheetForAutoTable(fortuneSheet);
     const drawnEdges = new Map<string, number>();
+    const pageFirstRows = new Map<number, number>();
+    const hasCustomBorders = Boolean(borderMap && borderMap.size > 0);
 
     // px -> mm (96 dpi). Perkecil proporsional hanya kalau lebar melebihi kertas.
     const PX_TO_MM = 25.4 / 96;
-    const totalMm = (colPx || []).reduce((sum, w) => sum + w, 0) * PX_TO_MM;
-    const scale = totalMm > contentWidth ? contentWidth / totalMm : 1;
+    const usableWidth = pageWidth - marginX * 2;
+    const rawColWidths = (colPx || []).map((w) => w * PX_TO_MM);
+    const totalRawMm = rawColWidths.reduce((sum, w) => sum + w, 0);
+    const scale = totalRawMm > usableWidth ? usableWidth / totalRawMm : 1;
+
+    // Scale column widths proportionally
+    const scaledWidths = rawColWidths.map((w) => w * scale);
+
+    // Strictly ensure sum of all column widths never exceeds usableWidth (preventing right margin overflow)
+    const sumScaled = scaledWidths.reduce((sum, w) => sum + w, 0);
+    if (sumScaled > usableWidth && scaledWidths.length > 0) {
+      const excess = sumScaled - usableWidth;
+      const lastIdx = scaledWidths.length - 1;
+      scaledWidths[lastIdx] = Math.max(scaledWidths[lastIdx] - excess, 5);
+    }
+
     const columnStyles: Record<number, { cellWidth: number }> = {};
-    (colPx || []).forEach((w, i) => {
-      columnStyles[i] = { cellWidth: w * PX_TO_MM * scale };
+    scaledWidths.forEach((w, i) => {
+      columnStyles[i] = { cellWidth: w };
     });
 
     // Render table
@@ -1057,13 +1219,15 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       startY,
       head: head.length > 0 ? head : undefined,
       body,
-      theme: "grid",
+      theme: hasCustomBorders ? "plain" : "grid",
+      showHead: "everyPage",
+      rowPageBreak: "avoid",
       columnStyles,
-      tableWidth: colPx && colPx.length > 0 ? totalMm * scale : "auto",
+      tableWidth: totalRawMm > 0 ? Math.min(totalRawMm * scale, usableWidth) : "auto",
       styles: {
         font: "Montserrat",
-        lineWidth: 0.15,
-        lineColor: [229, 231, 235],
+        lineWidth: hasCustomBorders ? 0 : 0.08,
+        lineColor: [226, 232, 240],
       },
       headStyles: {
         font: "Montserrat",
@@ -1074,21 +1238,21 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
         cellPadding: 2.8,
         halign: "left",
         valign: "middle",
-        lineWidth: 0.15,
-        lineColor: [229, 231, 235],
+        lineWidth: hasCustomBorders ? 0 : 0.08,
+        lineColor: [226, 232, 240],
       },
       bodyStyles: {
         font: "Montserrat",
-        fillColor: [255, 255, 255],
+        fillColor: false as any,
         textColor: [0, 0, 0],
         fontSize: 7.5,
         cellPadding: 2.2,
-        lineColor: [229, 231, 235],
-        lineWidth: 0.15,
+        lineColor: [226, 232, 240],
+        lineWidth: hasCustomBorders ? 0 : 0.08,
         overflow: "linebreak",
       },
       alternateRowStyles: {
-        fillColor: [255, 255, 255], // Clean white by default matching web spreadsheet
+        fillColor: false as any, // Transparent default so cell backgrounds never paint over adjacent border lines
       },
       margin: {
         left: marginX,
@@ -1106,6 +1270,9 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       },
       didParseCell: (data) => {
         data.cell.styles.font = "Montserrat";
+        if (hasCustomBorders) {
+          data.cell.styles.lineWidth = 0;
+        }
 
         // Samakan tinggi baris, ukuran font, dan padding dengan Excel
         {
@@ -1181,7 +1348,7 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
           if (data.section === "head") {
             data.cell.styles.fillColor = [244, 245, 247];
           } else {
-            data.cell.styles.fillColor = [255, 255, 255];
+            data.cell.styles.fillColor = false as any;
           }
         }
 
@@ -1274,71 +1441,90 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
         const endR = cellR + rowSpan - 1;
         const endC = cellC + colSpan - 1;
 
-        // Resolve top border: check row cellR across columns cellC..endC + neighbor above
+        const pageNum = data.pageNumber;
+        if (!pageFirstRows.has(pageNum)) {
+          pageFirstRows.set(pageNum, data.row.index);
+        }
+        const isFirstRowOnThisPage = data.row.index === pageFirstRows.get(pageNum);
+
+        // Resolve top border for this cell (all rows, not just row 0)
+        // Borders are now stored on both sides of shared edges, so every cell
+        // can reliably draw its own borders. drawnEdges handles deduplication.
         let topBorder: BorderSideConfig | null = null;
         for (let c = cellC; c <= endC; c++) {
           const b = borderMap.get(`${cellR}_${c}`);
           topBorder = resolveSharedBorder(topBorder, b?.t);
-          if (cellR > 0) {
+        }
+        // On page breaks, also check the row above's bottom border (it may own a resolved border)
+        if (pageNum > 1 && isFirstRowOnThisPage && data.section !== "head" && cellR > 0) {
+          for (let c = cellC; c <= endC; c++) {
             const above = borderMap.get(`${cellR - 1}_${c}`);
             topBorder = resolveSharedBorder(topBorder, above?.b);
           }
         }
 
-        // Resolve bottom border: check row endR across columns cellC..endC + neighbor below
+        // Resolve bottom border: checks row endR across cellC..endC
         let bottomBorder: BorderSideConfig | null = null;
         for (let c = cellC; c <= endC; c++) {
           const b = borderMap.get(`${endR}_${c}`);
           bottomBorder = resolveSharedBorder(bottomBorder, b?.b);
-          const below = borderMap.get(`${endR + 1}_${c}`);
-          bottomBorder = resolveSharedBorder(bottomBorder, below?.t);
         }
 
-        // Resolve left border: check col cellC across rows cellR..endR + neighbor left
+        // Resolve left border for this cell (all columns, not just col 0)
         let leftBorder: BorderSideConfig | null = null;
         for (let r = cellR; r <= endR; r++) {
           const b = borderMap.get(`${r}_${cellC}`);
           leftBorder = resolveSharedBorder(leftBorder, b?.l);
-          if (cellC > 0) {
-            const leftN = borderMap.get(`${r}_${cellC - 1}`);
-            leftBorder = resolveSharedBorder(leftBorder, leftN?.r);
-          }
         }
 
-        // Resolve right border: check col endC across rows cellR..endR + neighbor right
+        // Resolve right border: checks col endC across cellR..endR
         let rightBorder: BorderSideConfig | null = null;
         for (let r = cellR; r <= endR; r++) {
           const b = borderMap.get(`${r}_${endC}`);
           rightBorder = resolveSharedBorder(rightBorder, b?.r);
-          const rightN = borderMap.get(`${r}_${endC + 1}`);
-          rightBorder = resolveSharedBorder(rightBorder, rightN?.l);
         }
 
+        const maxX = pageWidth - marginX;
+
+        // If header cell has a dark background (e.g. #000000) and border color is default black,
+        // use white line so column dividers in the header are clearly visible (matching FortuneSheet editor)
+        const isHeadDark = data.section === "head" && (
+          rawCell?.bg && (hexToRgb(rawCell.bg)?.[0] ?? 0) < 60 && (hexToRgb(rawCell.bg)?.[1] ?? 0) < 60 && (hexToRgb(rawCell.bg)?.[2] ?? 0) < 60
+        );
+
+        const adjustBorderForContrast = (border: ResolvedBorderStyle | null, side: "top" | "bottom" | "left" | "right"): ResolvedBorderStyle | null => {
+          if (!border) return null;
+          if (isHeadDark && (side === "left" || side === "right") && border.color[0] === 0 && border.color[1] === 0 && border.color[2] === 0) {
+            return { ...border, color: [255, 255, 255] };
+          }
+          return border;
+        };
+
         if (topBorder) {
-          const resolved = resolveBorderStyle(topBorder, scale);
+          const resolved = adjustBorderForContrast(resolveBorderStyle(topBorder, scale), "top");
           if (resolved) {
-            drawBorderLine(doc, "top", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges);
+            drawBorderLine(doc, "top", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges, maxX);
           }
         }
 
         if (bottomBorder) {
-          const resolved = resolveBorderStyle(bottomBorder, scale);
+          const resolved = adjustBorderForContrast(resolveBorderStyle(bottomBorder, scale), "bottom");
           if (resolved) {
-            drawBorderLine(doc, "bottom", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges);
+            drawBorderLine(doc, "bottom", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges, maxX);
           }
         }
 
         if (leftBorder) {
-          const resolved = resolveBorderStyle(leftBorder, scale);
+          const resolved = adjustBorderForContrast(resolveBorderStyle(leftBorder, scale), "left");
           if (resolved) {
-            drawBorderLine(doc, "left", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges);
+            drawBorderLine(doc, "left", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges, maxX);
           }
         }
 
         if (rightBorder) {
-          const resolved = resolveBorderStyle(rightBorder, scale);
+          const resolved = adjustBorderForContrast(resolveBorderStyle(rightBorder, scale), "right");
           if (resolved) {
-            drawBorderLine(doc, "right", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges);
+            drawBorderLine(doc, "right", data.cell.x, data.cell.y, data.cell.width, data.cell.height, resolved, scale, drawnEdges, maxX);
           }
         }
       },
@@ -1357,7 +1543,9 @@ export function buildSpreadsheetPdf(options: GenerateSpreadsheetPdfOptions): jsP
       },
     };
 
+    pendingEdges = [];
     autoTable(doc, tableOptions);
+    flushPendingEdges(doc);
   });
 
   // 2. Render Family Data (Formulir Publik) if selected

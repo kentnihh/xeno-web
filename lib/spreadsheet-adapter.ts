@@ -155,6 +155,25 @@ export function sanitizeSheetData(sheetData: SheetData | unknown): SheetData {
     }));
   }
 
+  // Normalize and clean config.borderInfo if present
+  if (obj.config && Array.isArray(obj.config.borderInfo)) {
+    obj.config.borderInfo = obj.config.borderInfo
+      .filter((b: any) => b && typeof b === "object")
+      .map((b: any) => {
+        const item: any = { ...b };
+        if (item.style !== undefined && item.style !== null) {
+          const num = Number(item.style);
+          item.style = Number.isFinite(num) ? num : item.style;
+        } else {
+          item.style = 1;
+        }
+        if (!item.color || typeof item.color !== "string") {
+          item.color = "#000000";
+        }
+        return item;
+      });
+  }
+
   return obj as SheetData;
 }
 

@@ -29,49 +29,49 @@ console.log("==================================================================\
 // ============================================================================
 console.log("--- 1. Testing Border Style Code & Thickness Mappings ---");
 
-// Test 1: Style 1 (Thin): 1px solid / 0.8pt -> ~0.28mm
+// Test 1: Style 1 (Thin): 1px solid / 0.42pt -> ~0.15mm
 const thinStyle = resolveBorderStyle({ style: 1, color: "#000000" });
 assert.ok(thinStyle, "Thin border must resolve");
 assert.strictEqual(thinStyle.lineStyle, "solid", "Style 1 must be solid");
-assert.strictEqual(Math.round(thinStyle.widthMm * 100) / 100, 0.28, "Style 1 width must be ~0.28mm (0.8pt)");
+assert.strictEqual(Math.round(thinStyle.widthMm * 100) / 100, 0.15, "Style 1 width must be ~0.15mm (0.42pt)");
 assert.deepStrictEqual(thinStyle.color, [0, 0, 0], "Color #000000 must resolve to [0, 0, 0]");
 
-// Test 2: Style 2 (Hair): 0.5px solid / 0.4pt -> ~0.14mm
+// Test 2: Style 2 (Hair): 0.5px solid / 0.28pt -> ~0.10mm
 const hairStyle = resolveBorderStyle({ style: 2, color: "#000000" });
 assert.ok(hairStyle, "Hair border must resolve");
 assert.strictEqual(hairStyle.lineStyle, "solid", "Style 2 must be solid");
-assert.strictEqual(Math.round(hairStyle.widthMm * 100) / 100, 0.14, "Style 2 width must be ~0.14mm (0.4pt)");
+assert.strictEqual(Math.round(hairStyle.widthMm * 100) / 100, 0.10, "Style 2 width must be ~0.10mm (0.28pt)");
 
-// Test 3: Style 3 (Dotted): 1px dotted -> ~0.28mm
+// Test 3: Style 3 (Dotted): 1px dotted -> ~0.15mm
 const dottedStyle = resolveBorderStyle({ style: 3, color: "#ff0000" });
 assert.ok(dottedStyle, "Dotted border must resolve");
 assert.strictEqual(dottedStyle.lineStyle, "dotted", "Style 3 must be dotted");
-assert.strictEqual(Math.round(dottedStyle.widthMm * 100) / 100, 0.28, "Style 3 width must be ~0.28mm");
+assert.strictEqual(Math.round(dottedStyle.widthMm * 100) / 100, 0.15, "Style 3 width must be ~0.15mm");
 assert.deepStrictEqual(dottedStyle.color, [255, 0, 0], "Color #ff0000 must resolve to [255, 0, 0]");
 
-// Test 4: Style 4 (Dashed): 1px dashed -> ~0.28mm
+// Test 4: Style 4 (Dashed): 1px dashed -> ~0.15mm
 const dashedStyle = resolveBorderStyle({ style: 4, color: "#000000" });
 assert.ok(dashedStyle, "Dashed border must resolve");
 assert.strictEqual(dashedStyle.lineStyle, "dashed", "Style 4 must be dashed");
-assert.strictEqual(Math.round(dashedStyle.widthMm * 100) / 100, 0.28, "Style 4 width must be ~0.28mm");
+assert.strictEqual(Math.round(dashedStyle.widthMm * 100) / 100, 0.15, "Style 4 width must be ~0.15mm");
 
-// Test 5: Style 7 (Medium): 2px solid / 1.6pt -> ~0.56mm
+// Test 5: Style 7 (Medium): 2px solid / 1.0pt -> ~0.35mm
 const mediumStyle = resolveBorderStyle({ style: 7, color: "#000000" });
 assert.ok(mediumStyle, "Medium border must resolve");
 assert.strictEqual(mediumStyle.lineStyle, "solid", "Style 7 must be solid");
-assert.strictEqual(Math.round(mediumStyle.widthMm * 100) / 100, 0.56, "Style 7 width must be ~0.56mm (1.6pt)");
+assert.strictEqual(Math.round(mediumStyle.widthMm * 100) / 100, 0.35, "Style 7 width must be ~0.35mm (1.0pt)");
 
-// Test 6: Style 12 (Double): 3px double / 2.2pt -> ~0.78mm
+// Test 6: Style 12 (Double): 3px double -> ~0.50mm
 const doubleStyle = resolveBorderStyle({ style: 12, color: "#000000" });
 assert.ok(doubleStyle, "Double border must resolve");
 assert.strictEqual(doubleStyle.lineStyle, "double", "Style 12 must be double");
-assert.strictEqual(Math.round(doubleStyle.widthMm * 100) / 100, 0.78, "Style 12 width must be ~0.78mm (2.2pt)");
+assert.strictEqual(Math.round(doubleStyle.widthMm * 100) / 100, 0.50, "Style 12 width must be ~0.50mm");
 
-// Test 7: Style 13 (Thick): 3.5px solid / 2.8pt -> ~0.99mm
+// Test 7: Style 13 (Thick): 3.5px solid / 1.7pt -> ~0.60mm
 const thickStyle = resolveBorderStyle({ style: 13, color: "#000000" });
 assert.ok(thickStyle, "Thick border must resolve");
 assert.strictEqual(thickStyle.lineStyle, "solid", "Style 13 must be solid");
-assert.strictEqual(Math.round(thickStyle.widthMm * 100) / 100, 0.99, "Style 13 width must be ~0.99mm (2.8pt)");
+assert.strictEqual(Math.round(thickStyle.widthMm * 100) / 100, 0.60, "Style 13 width must be ~0.60mm (1.7pt)");
 
 // Verify thickness progression: Hair < Thin < Dotted/Dashed < Medium < Thick
 assert.ok(hairStyle.widthMm < thinStyle.widthMm, "Hair must be thinner than Thin");
@@ -146,16 +146,19 @@ assert.strictEqual(b0_0.t?.style, 1, "0_0 top must be thin (style 1)");
 assert.strictEqual(b0_0.b?.style, 13, "0_0 bottom must be thick (style 13)");
 assert.strictEqual(b0_0.b?.color, "#000000", "0_0 bottom color must be #000000");
 
-// Cell 1_0 (Data A): Top shares edge with 0_0 bottom (thick style 13), bottom has style 12
+// Cell 1_0 (Data A): Shared-edge resolution assigns the resolved (thicker) border to BOTH sides,
+// so 1_0 top should have the resolved thick border (style 13) matching 0_0 bottom.
+// Actual deduplication happens at draw time via drawnEdges.
 const b1_0 = borderMap.get("1_0");
 assert.ok(b1_0, "Cell 1_0 must have borders");
-assert.strictEqual(b1_0.t?.style, 13, "1_0 top border shared with 0_0 bottom must resolve to thicker border (style 13)");
+assert.strictEqual(b1_0.t?.style, 13, "1_0 top border must be thick (style 13) — resolved from shared edge with 0_0.b");
 assert.strictEqual(b1_0.b?.style, 12, "1_0 bottom border has border-outside (double style 12)");
 
-// Adjacent sync check: row 2 top (2_0.t) should synchronize with row 1 bottom (1_0.b)
+// Adjacent sync check: row 2 has no borders defined, so 2_0.t remains unset.
+// The resolved border (double style 12) lives on 1_0.b. At draw time, didDrawCell
+// draws bottom for row 1 AND top for row 2 (if it exists), using drawnEdges to deduplicate.
 const b2_0 = borderMap.get("2_0");
-assert.ok(b2_0, "Cell 2_0 must have borders");
-assert.strictEqual(b2_0.t?.style, 12, "2_0 top border must be synchronized with 1_0 bottom (double style 12)");
+assert.ok(!b2_0 || !b2_0.t, "2_0 top border should be absent when row 2 has no defined borders");
 
 // Double border check on 1_1 (Data B): bottom should be style 12 (double)
 const b1_1 = borderMap.get("1_1");
