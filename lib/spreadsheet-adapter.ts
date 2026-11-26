@@ -155,6 +155,29 @@ export function sanitizeSheetData(sheetData: SheetData | unknown): SheetData {
     }));
   }
 
+  // Drop stale config.merge entries whose root cell has no matching cell.mc.
+  // Such "ghost" merges are invisible but still make FortuneSheet's hasPartMC
+  // silently reject any new merge that overlaps them.
+  if (
+    obj.config &&
+    obj.config.merge &&
+    typeof obj.config.merge === "object" &&
+    !Array.isArray(obj.config.merge) &&
+    Array.isArray(obj.data) &&
+    obj.data.length > 0
+  ) {
+    const cleanedMerge: Record<string, any> = {};
+    for (const key of Object.keys(obj.config.merge)) {
+      const m = obj.config.merge[key];
+      if (!m || typeof m.r !== "number" || typeof m.c !== "number") continue;
+      const mc = obj.data[m.r]?.[m.c]?.mc;
+      if (mc && mc.r === m.r && mc.c === m.c && mc.rs === m.rs && mc.cs === m.cs) {
+        cleanedMerge[key] = m;
+      }
+    }
+    obj.config.merge = cleanedMerge;
+  }
+
   // Normalize and clean config.borderInfo if present
   if (obj.config && Array.isArray(obj.config.borderInfo)) {
     obj.config.borderInfo = obj.config.borderInfo

@@ -575,6 +575,34 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
           ? structuredClone(sheet)
           : (JSON.parse(JSON.stringify(sheet)) as Sheet);
 
+      // Drop "ghost" config.merge entries whose root cell has no matching cell.mc.
+      // They are invisible but make FortuneSheet's hasPartMC silently reject merges.
+      {
+        const cfgAny = newSheet.config as any;
+        const celldataAny = (newSheet as any).celldata as any[] | undefined;
+        if (
+          cfgAny?.merge &&
+          typeof cfgAny.merge === "object" &&
+          !Array.isArray(cfgAny.merge) &&
+          Array.isArray(celldataAny)
+        ) {
+          const mcMap = new Map<string, any>();
+          for (const item of celldataAny) {
+            if (item?.v?.mc) mcMap.set(`${item.r}_${item.c}`, item.v.mc);
+          }
+          const cleaned: Record<string, any> = {};
+          for (const key of Object.keys(cfgAny.merge)) {
+            const m = cfgAny.merge[key];
+            if (!m || typeof m.r !== "number" || typeof m.c !== "number") continue;
+            const mc = mcMap.get(`${m.r}_${m.c}`);
+            if (mc && mc.rs === m.rs && mc.cs === m.cs) {
+              cleaned[key] = m;
+            }
+          }
+          cfgAny.merge = cleaned;
+        }
+      }
+
       if (showGridLines !== undefined) {
         newSheet.showGridLines = showGridLines;
         if (!newSheet.config) {
@@ -690,6 +718,18 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
       (newSheets: Sheet[]) => {
         if (!newSheets || newSheets.length === 0) return;
         latestSheetRef.current = newSheets[0];
+        (window as any).__dumpMerge = () => {
+          const s: any = latestSheetRef.current;
+          console.log("config.merge =", JSON.stringify(s?.config?.merge));
+          const out: any = {};
+          for (let r = 19; r <= 25; r++) {
+            for (let c = 0; c <= 7; c++) {
+              const cell = s?.data?.[r]?.[c];
+              if (cell?.mc) out[`${r}_${c}`] = cell.mc;
+            }
+          }
+          console.log("cell.mc baris 20-26 =", JSON.stringify(out));
+        };
       },
       []
     );
@@ -720,11 +760,10 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
     if (!mounted) {
       return (
         <div
-          className={`w-full flex flex-col items-center justify-center bg-card border border-border text-muted-foreground gap-3 ${
-            isFullscreen
-              ? "flex-1 min-h-[350px] rounded-xl"
-              : "h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px] rounded-2xl"
-          }`}
+          className={`w-full flex flex-col items-center justify-center bg-card border border-border text-muted-foreground gap-3 ${isFullscreen
+            ? "flex-1 min-h-[350px] rounded-xl"
+            : "h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px] rounded-2xl"
+            }`}
         >
           <Loader2 className="w-7 h-7 animate-spin text-[#007aff]" />
           <span className="text-xs font-semibold tracking-tight">Memuat Lembar Kerja Excel...</span>
@@ -764,11 +803,10 @@ export const DynamicSheetGrid = forwardRef<DynamicSheetGridHandle, DynamicSheetG
         {/* Rich FortuneSheet Canvas Container */}
         <div
           ref={containerRef}
-          className={`w-full rounded-2xl border border-border bg-card shadow-xs overflow-hidden relative fortune-sheet-wrapper ${
-            isFullscreen
-              ? "flex-1 min-h-0 h-full"
-              : "h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px]"
-          }`}
+          className={`w-full rounded-2xl border border-border bg-card shadow-xs overflow-hidden relative fortune-sheet-wrapper ${isFullscreen
+            ? "flex-1 min-h-0 h-full"
+            : "h-[60vh] sm:h-[620px] md:h-[680px] lg:h-[720px]"
+            }`}
         >
           <Workbook
             key={initialSheets[0]?.id || sheetName}
