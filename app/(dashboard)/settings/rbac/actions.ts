@@ -449,9 +449,22 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     }
 
     const adminClient = createAdminClient();
-    await adminClient.auth.admin.deleteUser(userId);
+    const { error: authError } = await adminClient.auth.admin.deleteUser(userId);
+    if (authError && !authError.message.toLowerCase().includes("not found")) {
+      return { error: authError.message };
+    }
+
     const { error } = await checkClient.from("profiles").delete().eq("id", userId);
     if (error) return { error: error.message };
+
+    const { data: remainingProfile } = await checkClient
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (remainingProfile) {
+      return { error: "Gagal menghapus data pengguna dari database." };
+    }
 
     revalidateRBAC();
     return { success: true };

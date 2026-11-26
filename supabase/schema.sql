@@ -544,6 +544,10 @@ begin
     end if;
   end if;
 
+  if TG_OP = 'DELETE' then
+    return OLD;
+  end if;
+
   return NEW;
 end;
 $$ language plpgsql security definer;
