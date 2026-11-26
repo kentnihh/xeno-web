@@ -1,0 +1,36 @@
+diff --git a/dist/index.esm.js b/dist/index.esm.js
+index 5c9820b1a261305d500e69eeaf350821872beaf4..873a82f25663116ca982ff6184b694f1f8e55034 100644
+--- a/dist/index.esm.js
++++ b/dist/index.esm.js
+@@ -78299,11 +78299,11 @@ function handleOverlayMouseUp(ctx, globalCache, settings, e, scrollbarX, scrollb
+         return select.column_select;
+       })) === null || _ctx$luckysheet_selec16 === void 0 ? void 0 : _ctx$luckysheet_selec16.forEach(function (select) {
+         for (var r = select.column[0]; r <= select.column[1]; r += 1) {
+-          _cfg.columnlen[r] = Math.ceil(_size / ctx.zoomRatio);
++          _cfg.columnlen[r] = Math.ceil(_size);
+         }
+       });
+     } else {
+-      _cfg.columnlen[ctx.luckysheet_cols_change_size_start[1]] = Math.ceil(_size / ctx.zoomRatio);
++      _cfg.columnlen[ctx.luckysheet_cols_change_size_start[1]] = Math.ceil(_size);
+     }
+     ctx.config = _cfg;
+     var _idx = getSheetIndex(ctx, ctx.currentSheetId);
+diff --git a/dist/index.js b/dist/index.js
+index 04113a18dee9feee28e9434ee3023626c800e7d3..b40a57aac19fc6f14c39283038f22f27c7568fea 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -78309,11 +78309,11 @@ function handleOverlayMouseUp(ctx, globalCache, settings, e, scrollbarX, scrollb
+         return select.column_select;
+       })) === null || _ctx$luckysheet_selec16 === void 0 ? void 0 : _ctx$luckysheet_selec16.forEach(function (select) {
+         for (var r = select.column[0]; r <= select.column[1]; r += 1) {
+-          _cfg.columnlen[r] = Math.ceil(_size / ctx.zoomRatio);
++          _cfg.columnlen[r] = Math.ceil(_size);
+         }
+       });
+     } else {
+-      _cfg.columnlen[ctx.luckysheet_cols_change_size_start[1]] = Math.ceil(_size / ctx.zoomRatio);
++      _cfg.columnlen[ctx.luckysheet_cols_change_size_start[1]] = Math.ceil(_size);
+     }
+     ctx.config = _cfg;
+     var _idx = getSheetIndex(ctx, ctx.currentSheetId);
