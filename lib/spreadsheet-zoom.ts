@@ -35,7 +35,7 @@ export async function setFortuneSheetZoomLevel(current: number, target: number):
     await new Promise((r) => setTimeout(r, 60));
   }
 
-  const steps = Math.round((target - currentVal) / 0.1);
+  const steps = Math.round((Math.round(target * 100) - Math.round(currentVal * 100)) / 10);
   const key = steps > 0 ? "+" : "-";
   const count = Math.abs(steps);
 

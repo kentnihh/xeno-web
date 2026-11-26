@@ -780,11 +780,11 @@ export function toggleInlineBoldOnSelection(editorElement?: HTMLElement | null):
       if (run.isBr) continue;
       const textNode = node.firstChild || node;
 
-      if (!startNode && selStart >= run.charStart && selStart <= run.charEnd) {
+      if (!startNode && selStart >= run.charStart && selStart < run.charEnd) {
         startNode = textNode;
         startOffsetInNode = Math.min(selStart - run.charStart, run.text.length);
       }
-      if (!endNode && selEnd >= run.charStart && selEnd <= run.charEnd) {
+      if (!endNode && selEnd > run.charStart && selEnd <= run.charEnd) {
         endNode = textNode;
         endOffsetInNode = Math.min(selEnd - run.charStart, run.text.length);
       }
